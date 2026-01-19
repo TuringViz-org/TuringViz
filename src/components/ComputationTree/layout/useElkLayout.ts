@@ -1,36 +1,51 @@
-// src/components/ConfigGraph/layout/useElkLayout.ts
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Elk, { ElkNode, ElkExtendedEdge } from 'elkjs/lib/elk.bundled.js';
-import {
-  type Node as RFNode,
-  useNodesInitialized,
-  useReactFlow,
-  useStore,
-  type ReactFlowState,
-} from '@xyflow/react';
 
 import { CONFIG_NODE_DIAMETER } from '../util/constants';
+import type { CTNode, CTEdge } from '../util/buildComputationTree';
 
 export type ElkAlgo = 'layered' | 'force' | 'mrtree' | 'stress' | 'radial';
 
 export type Options = {
   algorithm?: ElkAlgo;
-  nodeSep?: number; // spacing between nodes in the same layer
-  rankSep?: number; // spacing between layers
-  edgeSep?: number; // spacing between edges
-  edgeNodeSep?: number; // spacing between edges and nodes
-  padding?: number; // graph padding
+  nodeSep?: number;
+  rankSep?: number;
+  edgeSep?: number;
+  edgeNodeSep?: number;
+  padding?: number;
   direction?: 'RIGHT' | 'LEFT' | 'UP' | 'DOWN';
 };
 
 export type LayoutAPI = {
-  restart: () => void; // Recalculate layout now
-  running: boolean; // Is ELK currently computing?
+  restart: () => void;
+  running: boolean;
 };
 
-const elementCountSelector = (s: ReactFlowState) => s.nodes.length + s.edges.length;
+type Params = Options & {
+  nodes: CTNode[];
+  edges: CTEdge[];
+  onLayout: (positions: Map<string, { x: number; y: number }>) => void;
+};
+
+const makeTopoKey = (nodes: CTNode[], edges: CTEdge[]) => {
+  const nIds = [...nodes.map((n) => n.id)].sort().join('|');
+  const ePairs = Array.from(
+    new Set(
+      edges
+        .filter((e) => e.source !== e.target)
+        .map((e) => `${e.source}→${e.target}`)
+    )
+  )
+    .sort()
+    .join('|');
+
+  return `${nIds}__${ePairs}`;
+};
 
 export function useElkLayout({
+  nodes,
+  edges,
+  onLayout,
   algorithm = 'layered',
   nodeSep = 70,
   rankSep = 120,
@@ -38,58 +53,37 @@ export function useElkLayout({
   edgeNodeSep = 100,
   padding = 24,
   direction = 'DOWN',
-}: Options = {}): LayoutAPI {
-  const nodesInitialized = useNodesInitialized();
-  const elementCount = useStore(elementCountSelector);
-  const { getNodes, getEdges, setNodes } = useReactFlow();
-
+}: Params): LayoutAPI {
   const elkRef = useRef<InstanceType<typeof Elk> | null>(null);
   const [running, setRunning] = useState(false);
   const lastTopoKeyRef = useRef<string>('');
+  const nodesRef = useRef(nodes);
+  const edgesRef = useRef(edges);
 
-  // Create ELK instance once (kept across renders)
   if (!elkRef.current) elkRef.current = new Elk();
 
-  // Topology key: only node IDs + (unique) source→target pairs
-  // This keeps layout re-runs limited to actual structure changes.
-  const topoKey = useMemo(() => {
-    const ns = getNodes();
-    const es = getEdges();
+  useEffect(() => {
+    nodesRef.current = nodes;
+    edgesRef.current = edges;
+  }, [nodes, edges]);
 
-    const nIds = ns
-      .map((n) => n.id)
-      .sort()
-      .join('|');
+  const topoKey = useMemo(() => makeTopoKey(nodes, edges), [nodes, edges]);
 
-    // Collapse parallel edges to a unique set of source→target identifiers
-    const ePairs = Array.from(
-      new Set(
-        es.filter((e) => e.source !== e.target).map((e) => `${e.source}→${e.target}`)
-      )
-    )
-      .sort()
-      .join('|');
-
-    return `${nIds}__${ePairs}`;
-  }, [elementCount]);
-
-  const runLayout = async () => {
+  const runLayout = useCallback(async () => {
     const elk = elkRef.current!;
-    const rfNodes = getNodes();
-    const rfEdges = getEdges();
+    const rfNodes = nodesRef.current;
+    const rfEdges = edgesRef.current;
 
     if (!rfNodes.length) return;
 
     setRunning(true);
 
-    // Prepare ELK graph (position-only layout)
     const elkNodes: ElkNode[] = rfNodes.map((n) => ({
       id: n.id,
-      width: n.measured?.width ?? CONFIG_NODE_DIAMETER,
-      height: n.measured?.height ?? CONFIG_NODE_DIAMETER,
+      width: Math.max(1, n.width ?? CONFIG_NODE_DIAMETER),
+      height: Math.max(1, n.height ?? CONFIG_NODE_DIAMETER),
     }));
 
-    // Only include edges that are not self-references
     const elkEdges: ElkExtendedEdge[] = rfEdges
       .filter((e) => e.source !== e.target)
       .map((e) => ({
@@ -116,9 +110,7 @@ export function useElkLayout({
         'elk.spacing.edgeEdge': String(edgeSep),
         'elk.spacing.edgeNode': String(edgeNodeSep),
         'elk.padding': String(padding),
-        // Place layers in a fixed direction to match the UI mental model
         'elk.direction': direction,
-        // Balanced node placement to reduce long sweeps
         'elk.layered.nodePlacement.bk.fixedAlignment': 'BALANCED',
       },
       children: elkNodes,
@@ -127,38 +119,37 @@ export function useElkLayout({
 
     try {
       const res = await elk.layout(elkGraph);
-
-      // Result: Update RF nodes (only map positions)
       const posById = new Map<string, { x: number; y: number }>();
       for (const c of res.children ?? []) {
         if (!c.id) continue;
         posById.set(c.id, { x: c.x ?? 0, y: c.y ?? 0 });
       }
-
-      setNodes((prev: RFNode[]) =>
-        prev.map((n) => {
-          const p = posById.get(n.id);
-          return p ? { ...n, position: p } : n;
-        })
-      );
+      onLayout(posById);
     } finally {
       setRunning(false);
     }
-  };
+  }, [
+    algorithm,
+    nodeSep,
+    rankSep,
+    edgeSep,
+    edgeNodeSep,
+    padding,
+    direction,
+    onLayout,
+  ]);
 
-  // Fit view after layout if requested
-  const restart = () => {
+  const restart = useCallback(() => {
     lastTopoKeyRef.current = '';
     void runLayout();
-  };
+  }, [runLayout]);
 
-  // Automatically recalculate when the topology changes
   useEffect(() => {
-    if (!nodesInitialized) return;
+    if (!nodes.length) return;
     if (lastTopoKeyRef.current === topoKey) return;
     lastTopoKeyRef.current = topoKey;
     void runLayout();
-  }, [nodesInitialized, topoKey]);
+  }, [nodes.length, topoKey, runLayout]);
 
   return { restart, running };
 }

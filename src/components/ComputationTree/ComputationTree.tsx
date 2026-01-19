@@ -1,19 +1,4 @@
 // src/components/ComputationTree/ComputationTree.tsx
-import {
-  ReactFlow,
-  ReactFlowProvider,
-  useEdgesState,
-  useNodesState,
-  useReactFlow,
-  useNodesInitialized,
-  MarkerType,
-  Panel,
-  Background,
-  Controls,
-  type Node as RFNode,
-  type Edge as RFEdge,
-} from '@xyflow/react';
-import '@xyflow/react/dist/style.css';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Stack,
@@ -24,23 +9,30 @@ import {
   Box,
   Fab,
 } from '@mui/material';
-import { Cached, Adjust, ViewAgenda, Tune } from '@mui/icons-material';
-import { alpha } from '@mui/material/styles';
+import {
+  Cached,
+  Adjust,
+  ViewAgenda,
+  Tune,
+  Add,
+  Remove,
+  CenterFocusStrong,
+} from '@mui/icons-material';
+import { alpha, useTheme } from '@mui/material/styles';
 import { toast } from 'sonner';
+import { select } from 'd3-selection';
+import { zoom, zoomIdentity, type ZoomBehavior, type ZoomTransform } from 'd3-zoom';
 
-// Components
-import { ConfigNode } from '@components/ConfigGraph/nodes/ConfigNode';
-import { ConfigCardNode } from '@components/ConfigGraph/nodes/ConfigCardNode';
-import { FloatingEdge } from '@components/ConfigGraph/edges/FloatingEdge';
 import { LegendPanel } from '@components/shared/LegendPanel';
-
 import {
   NodeType,
-  EdgeType,
   CARDS_LIMIT,
   COLOR_STATE_SWITCH,
-} from '../ConfigGraph/util/constants';
-import type { ComputationTree } from '@tmfunctions/ComputationTree';
+  CONTROL_HEIGHT,
+  CONFIG_NODE_DIAMETER,
+  CONFIG_CARD_WIDTH,
+} from './util/constants';
+import type { ComputationTree as TMComputationTree } from '@tmfunctions/ComputationTree';
 import { getComputationTree } from '@tmfunctions/ComputationTree';
 import { useGlobalZustand } from '@zustands/GlobalZustand';
 import {
@@ -48,39 +40,117 @@ import {
   useComputationTreeELKSettings,
   useGraphZustand,
 } from '@zustands/GraphZustand';
-import { CONTROL_HEIGHT } from './util/constants';
-import { buildComputationTreeGraph } from './util/buildComputationTree';
-import { ConfigNodeMode } from '@utils/constants';
+import { buildComputationTreeGraph, type CTNode, type CTEdge } from './util/buildComputationTree';
+import { ConfigNodeMode, DEFAULT_ELK_OPTS } from '@utils/constants';
 import { useElkLayout } from './layout/useElkLayout';
 import { TreeLayoutSettingsPanel } from './layout/LayoutSettingsPanel';
-import { DEFAULT_ELK_OPTS } from '@utils/constants';
 import { useDebouncedLayoutRestart } from '@hooks/useDebouncedLayoutRestart';
-
 import { GraphUIProvider, useGraphUI } from '@components/shared/GraphUIContext';
 import {
   PORTAL_BRIDGE_SWITCH_EVENT,
   type PortalBridgeSwitchDetail,
 } from '@components/MainPage/PortalBridge';
-import { reconcileNodes, reconcileEdges } from '@utils/reactflow';
+import { StaticConfigNode } from './nodes/StaticConfigNode';
+import { StaticConfigCardNode } from './nodes/StaticConfigCardNode';
+import { D3FloatingEdge } from './edges/D3FloatingEdge';
 
-const nodeTypes = {
-  [NodeType.CONFIG]: ConfigNode,
-  [NodeType.CONFIG_CARD]: ConfigCardNode,
-};
-const edgeTypes = {
-  [EdgeType.FLOATING]: FloatingEdge,
-};
-
-const defaultEdgeOptions = {
-  type: EdgeType.FLOATING,
-  markerEnd: {
-    type: MarkerType.ArrowClosed,
-  },
-};
+const MIN_ZOOM = 0.05;
+const MAX_ZOOM = 2.2;
 
 type Props = { depth: number; compressing?: boolean };
 
-export function ComputationTree({ depth, compressing = false }: Props) {
+const nodeRenderer: Record<NodeType, typeof StaticConfigNode | typeof StaticConfigCardNode> = {
+  [NodeType.CONFIG]: StaticConfigNode,
+  [NodeType.CONFIG_CARD]: StaticConfigCardNode,
+};
+
+const shallowEqual = (a: any, b: any) => {
+  if (a === b) return true;
+  if (!a || !b) return false;
+  const ka = Object.keys(a);
+  const kb = Object.keys(b);
+  if (ka.length !== kb.length) return false;
+  for (const k of ka) if ((a as any)[k] !== (b as any)[k]) return false;
+  return true;
+};
+
+const reconcileNodes = (
+  prev: CTNode[],
+  base: CTNode[],
+  makeData: (node: CTNode, old?: CTNode) => any
+) => {
+  const prevById = new Map(prev.map((n) => [n.id, n]));
+  let changed = false;
+
+  const next = base.map((n) => {
+    const old = prevById.get(n.id);
+    const data = makeData(n, old);
+
+    if (old && old.type === n.type && shallowEqual(old.data, data)) {
+      return old;
+    }
+
+    changed = true;
+    return {
+      ...n,
+      position: old?.position ?? n.position,
+      width: old?.width ?? n.width,
+      height: old?.height ?? n.height,
+      data,
+    };
+  });
+
+  return changed ? next : prev;
+};
+
+const reconcileEdges = (prev: CTEdge[], base: CTEdge[]) => {
+  const prevById = new Map(prev.map((e) => [e.id, e]));
+  let changed = false;
+
+  const next = base.map((e) => {
+    const old = prevById.get(e.id);
+    if (old && shallowEqual(old, e)) return old;
+    changed = true;
+    return e;
+  });
+
+  if (next.length !== prev.length) changed = true;
+  return changed ? next : prev;
+};
+
+const computeBounds = (nodes: CTNode[]) => {
+  if (!nodes.length) return null;
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+
+  for (const n of nodes) {
+    const fallback = n.type === NodeType.CONFIG ? CONFIG_NODE_DIAMETER : CONFIG_CARD_WIDTH;
+    const w = Math.max(1, n.width ?? fallback);
+    const h = Math.max(1, n.height ?? fallback);
+    minX = Math.min(minX, n.position.x);
+    minY = Math.min(minY, n.position.y);
+    maxX = Math.max(maxX, n.position.x + w);
+    maxY = Math.max(maxY, n.position.y + h);
+  }
+
+  if (!isFinite(minX) || !isFinite(minY) || !isFinite(maxX) || !isFinite(maxY)) {
+    return null;
+  }
+
+  return {
+    minX,
+    minY,
+    maxX,
+    maxY,
+    width: maxX - minX,
+    height: maxY - minY,
+  };
+};
+
+function ComputationTreeInner({ depth, compressing = false }: Props) {
+  const theme = useTheme();
   // Global Zustand state
   const blank = useGlobalZustand((s) => s.blank);
   const transitions = useGlobalZustand((s) => s.transitions);
@@ -100,93 +170,22 @@ export function ComputationTree({ depth, compressing = false }: Props) {
   const { selected, setSelected, hoveredState } = useGraphUI();
 
   // Base graph structure (nodes/edges) extraction
-  // ELK will overwrite positions  const [model, setModel] = useState<ComputationTree | null>(null);
-  const [model, setModel] = useState<ComputationTree | null>(null);
+  const [model, setModel] = useState<TMComputationTree | null>(null);
   const base = useMemo(() => {
     const tree = getComputationTree(depth, !!compressing);
     setModel(tree);
     return buildComputationTreeGraph(tree, transitions, computationTreeNodeMode);
   }, [depth, computationTreeNodeMode, transitions, blank, startState, compressing]);
 
-  const [nodes, setNodes, onNodesChange] = useNodesState<RFNode>(base.nodes);
-  const [edges, setEdges, onEdgesChange] = useEdgesState<RFEdge>(base.edges);
+  const [nodes, setNodes] = useState<CTNode[]>(base.nodes);
+  const [edges, setEdges] = useState<CTEdge[]>(base.edges);
 
-  // ELK Layout Hook (sole positioning engine)
-  const layout = useElkLayout({
-    algorithm: 'layered',
-    nodeSep: computationTreeELKSettings.nodeSep,
-    rankSep: computationTreeELKSettings.rankSep,
-    edgeSep: computationTreeELKSettings.edgeSep,
-    edgeNodeSep: computationTreeELKSettings.edgeNodeSep,
-    padding: computationTreeELKSettings.padding,
-    direction: computationTreeELKSettings.direction,
-  });
-  const scheduleLayoutRestart = useDebouncedLayoutRestart(layout);
-
-  // Adjust edgeNodeSep when node mode changes
-  useEffect(() => {
-    setComputationTreeELKSettings({
-      ...computationTreeELKSettings,
-      edgeNodeSep: computationTreeNodeMode === ConfigNodeMode.CARDS ? 300 : 100,
-    });
-  }, [computationTreeNodeMode]);
-
-  // Performance measurement
-  const didInitialPaintLog = useRef(false);
-  const nodesCountRef = useRef(0);
-  const edgesCountRef = useRef(0);
-
-  const nodesReady = useNodesInitialized();
-  const didInitialLayoutRef = useRef(false);
-  const lastTopoKeyRef = useRef<string | null>(null);
-  const fitAfterLayoutRef = useRef(false);
-  const prevRunningRef = useRef(layout.running);
-  const layoutRunningRef = useRef(layout.running);
-  const nodesReadyRef = useRef(nodesReady);
-  const manualFitPendingRef = useRef(false);
-
-  useEffect(() => {
-    nodesCountRef.current = nodes.length;
-  }, [nodes.length]);
-  useEffect(() => {
-    edgesCountRef.current = edges.length;
-  }, [edges.length]);
-  useEffect(() => {
-    layoutRunningRef.current = layout.running;
-  }, [layout.running]);
-  useEffect(() => {
-    nodesReadyRef.current = nodesReady;
-  }, [nodesReady]);
-
-  // Disable cards mode if too many nodes
-  const nodeCount = model?.nodes?.length ?? 0;
-  const cardsDisabled = nodeCount > CARDS_LIMIT;
-
-  useEffect(() => {
-    if (computationTreeNodeMode === ConfigNodeMode.CARDS && cardsDisabled) {
-      setComputationTreeNodeMode(ConfigNodeMode.CIRCLES);
-      toast.warning(
-        `Cards are disabled when there are more than ${CARDS_LIMIT} nodes (current: ${nodeCount}).`
-      );
-    }
-  }, [
-    cardsDisabled,
-    computationTreeNodeMode,
-    nodeCount,
-    setComputationTreeNodeMode,
-  ]);
-
-  // If too many nodes, hide labels and only show colors
-  const hideLabels = nodeCount >= COLOR_STATE_SWITCH;
-
-  // Sync builder output into RF state; keep previous size/data;
-  // ELK will set positions afterwards
+  // Sync builder output into local state; keep previous size/data;
   useEffect(() => {
     if (!model) return;
 
-    if (!didInitialPaintLog.current && (base.nodes.length || base.edges.length)) {
-      didInitialPaintLog.current = true;
-    }
+    const nodeCount = model.nodes?.length ?? 0;
+    const hideLabels = nodeCount >= COLOR_STATE_SWITCH;
 
     setNodes((prev) =>
       reconcileNodes(prev, base.nodes, (node) => {
@@ -205,24 +204,75 @@ export function ComputationTree({ depth, compressing = false }: Props) {
     );
 
     setEdges((prev) => reconcileEdges(prev, base.edges));
+  }, [model, base.nodes, base.edges, stateColorMatching]);
+
+  // Layout
+  const layout = useElkLayout({
+    nodes,
+    edges,
+    algorithm: 'layered',
+    nodeSep: computationTreeELKSettings.nodeSep,
+    rankSep: computationTreeELKSettings.rankSep,
+    edgeSep: computationTreeELKSettings.edgeSep,
+    edgeNodeSep: computationTreeELKSettings.edgeNodeSep,
+    padding: computationTreeELKSettings.padding,
+    direction: computationTreeELKSettings.direction,
+    onLayout: (posById) => {
+      setNodes((prev) =>
+        prev.map((n) => {
+          const p = posById.get(n.id);
+          return p ? { ...n, position: p } : n;
+        })
+      );
+    },
+  });
+  const scheduleLayoutRestart = useDebouncedLayoutRestart(layout);
+
+  // Adjust edgeNodeSep when node mode changes
+  useEffect(() => {
+    setComputationTreeELKSettings({
+      ...computationTreeELKSettings,
+      edgeNodeSep: computationTreeNodeMode === ConfigNodeMode.CARDS ? 300 : 100,
+    });
+  }, [computationTreeNodeMode]);
+
+  const nodesCountRef = useRef(0);
+  const edgesCountRef = useRef(0);
+  useEffect(() => {
+    nodesCountRef.current = nodes.length;
+  }, [nodes.length]);
+  useEffect(() => {
+    edgesCountRef.current = edges.length;
+  }, [edges.length]);
+
+  const didInitialLayoutRef = useRef(false);
+  const lastTopoKeyRef = useRef<string | null>(null);
+  const fitAfterLayoutRef = useRef(false);
+  const prevRunningRef = useRef(layout.running);
+  const layoutRunningRef = useRef(layout.running);
+  const manualFitPendingRef = useRef(false);
+
+  useEffect(() => {
+    layoutRunningRef.current = layout.running;
+  }, [layout.running]);
+
+  const nodeCount = model?.nodes?.length ?? 0;
+  const cardsDisabled = nodeCount > CARDS_LIMIT;
+
+  useEffect(() => {
+    if (computationTreeNodeMode === ConfigNodeMode.CARDS && cardsDisabled) {
+      setComputationTreeNodeMode(ConfigNodeMode.CIRCLES);
+      toast.warning(
+        `Cards are disabled when there are more than ${CARDS_LIMIT} nodes (current: ${nodeCount}).`
+      );
+    }
   }, [
-    model,
-    base.nodes,
-    base.edges,
-    hideLabels,
-    stateColorMatching,
-    setNodes,
-    setEdges,
+    cardsDisabled,
+    computationTreeNodeMode,
+    nodeCount,
+    setComputationTreeNodeMode,
   ]);
 
-  // Auto-Fit handling
-  // - on first mount
-  // - on first content (nodes/edges) set
-  // - on topology change (base.topoKey)
-  // - on container resize
-  const rf = useReactFlow();
-
-  // Topology key (nodes + edges, undirected)
   const topoKey = useMemo(() => {
     const nIds = nodes
       .map((n) => n.id)
@@ -240,18 +290,74 @@ export function ComputationTree({ depth, compressing = false }: Props) {
     return `${nIds}__${ePairs}`;
   }, [nodes, edges]);
 
-  // On first mount
+  // D3 zoom / pan
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const [transform, setTransform] = useState<ZoomTransform>(zoomIdentity.translate(0, 0).scale(0.1));
+  const zoomRef = useRef<ZoomBehavior<Element, unknown> | null>(null);
+
   useEffect(() => {
-    if (!didInitialLayoutRef.current && nodesReady && nodes.length > 0) {
+    const el = containerRef.current;
+    if (!el) return;
+
+    const behavior = zoom<Element, unknown>()
+      .scaleExtent([MIN_ZOOM, MAX_ZOOM])
+      .on('zoom', (event) => {
+        setTransform(event.transform);
+      });
+
+    zoomRef.current = behavior;
+    select(el).call(behavior as any);
+
+    return () => {
+      select(el).on('.zoom', null);
+    };
+  }, []);
+
+  const applyTransform = useCallback((next: ZoomTransform) => {
+    const el = containerRef.current;
+    const behavior = zoomRef.current;
+    if (!el || !behavior) return;
+    const sel = select(el);
+    sel.call(behavior.transform as any, next);
+  }, []);
+
+  const runFitView = useCallback(() => {
+    const bounds = computeBounds(nodes);
+    if (!bounds) return;
+
+    const el = containerRef.current;
+    if (!el) return;
+
+    const rect = el.getBoundingClientRect();
+    const padding = 0.2;
+    const width = Math.max(1, bounds.width);
+    const height = Math.max(1, bounds.height);
+
+    const scale = Math.min(
+      (rect.width * (1 - padding)) / width,
+      (rect.height * (1 - padding)) / height
+    );
+    const clampedScale = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, scale));
+
+    const tx = rect.width / 2 - (bounds.minX + width / 2) * clampedScale;
+    const ty = rect.height / 2 - (bounds.minY + height / 2) * clampedScale;
+    const next = zoomIdentity.translate(tx, ty).scale(clampedScale);
+
+    applyTransform(next);
+  }, [nodes, applyTransform]);
+
+  // Initial layout + fit
+  useEffect(() => {
+    if (!didInitialLayoutRef.current && nodes.length > 0) {
       didInitialLayoutRef.current = true;
       scheduleLayoutRestart();
       fitAfterLayoutRef.current = true;
     }
-  }, [nodesReady, nodes.length, scheduleLayoutRestart]);
+  }, [nodes.length, scheduleLayoutRestart]);
 
   // On topology change
   useEffect(() => {
-    if (!nodesReady || nodes.length === 0) return;
+    if (nodes.length === 0) return;
     if (lastTopoKeyRef.current === null) {
       lastTopoKeyRef.current = topoKey;
       return;
@@ -261,24 +367,16 @@ export function ComputationTree({ depth, compressing = false }: Props) {
 
     scheduleLayoutRestart();
     fitAfterLayoutRef.current = true;
-  }, [topoKey, nodesReady, nodes.length, scheduleLayoutRestart]);
+  }, [topoKey, nodes.length, scheduleLayoutRestart]);
 
   // On node mode change
   useEffect(() => {
     if (nodes.length === 0) return;
     scheduleLayoutRestart();
     fitAfterLayoutRef.current = true;
-  }, [computationTreeNodeMode, scheduleLayoutRestart]);
+  }, [computationTreeNodeMode, scheduleLayoutRestart, nodes.length]);
 
-  // On container resize
-  const runFitView = useCallback(() => {
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        rf.fitView({ padding: 0.2, duration: 0 });
-      });
-    });
-  }, [rf]);
-
+  // Layout finished -> maybe fit
   useEffect(() => {
     const justFinished = prevRunningRef.current && !layout.running;
     if (justFinished) {
@@ -302,34 +400,31 @@ export function ComputationTree({ depth, compressing = false }: Props) {
   const handlePaneClick = useCallback(() => {
     setSelected({ type: null, id: null });
     setSettingsOpen(false);
-  }, []);
+  }, [setSelected]);
 
-  const handleNodeClick = useCallback((evt: React.MouseEvent, node: RFNode) => {
-    evt.stopPropagation();
-    setSelected({
-      type: 'node',
-      id: node.id,
-      anchor: { top: evt.clientY, left: evt.clientX },
-    });
-  }, []);
-
-  const handleEdgeClick = useCallback((evt: React.MouseEvent, edge: RFEdge) => {
-    evt.stopPropagation();
-    setSelected({
-      type: 'edge',
-      id: edge.id,
-      anchor: { top: evt.clientY, left: evt.clientX },
-    });
-  }, []);
-
-  // Re-Layout Button
   const recalcLayout = useCallback(() => {
     scheduleLayoutRestart();
     fitAfterLayoutRef.current = true;
   }, [scheduleLayoutRestart]);
 
+  const zoomIn = useCallback(() => {
+    const el = containerRef.current;
+    const behavior = zoomRef.current;
+    if (!el || !behavior) return;
+    const sel = select(el);
+    sel.call(behavior.scaleBy as any, 1.2);
+  }, []);
+
+  const zoomOut = useCallback(() => {
+    const el = containerRef.current;
+    const behavior = zoomRef.current;
+    if (!el || !behavior) return;
+    const sel = select(el);
+    sel.call(behavior.scaleBy as any, 1 / 1.2);
+  }, []);
+
   const scheduleFitAfterSwitch = useCallback(() => {
-    if (!nodesReadyRef.current || nodesCountRef.current === 0) return;
+    if (nodesCountRef.current === 0) return;
     if (layoutRunningRef.current) {
       manualFitPendingRef.current = true;
       return;
@@ -361,25 +456,126 @@ export function ComputationTree({ depth, compressing = false }: Props) {
     (model?.nodes?.length ?? 0) >= COLOR_STATE_SWITCH &&
     computationTreeNodeMode === ConfigNodeMode.CIRCLES;
 
+  const handleNodeSize = useCallback(
+    (id: string, size: { width: number; height: number }) => {
+      setNodes((prev) => {
+        let changed = false;
+        const next = prev.map((n) => {
+          if (n.id !== id) return n;
+          if (n.width === size.width && n.height === size.height) return n;
+          changed = true;
+          return { ...n, width: size.width, height: size.height };
+        });
+        if (changed) {
+          scheduleLayoutRestart();
+          fitAfterLayoutRef.current = true;
+          return next;
+        }
+        return prev;
+      });
+    },
+    [scheduleLayoutRestart]
+  );
+
+  const backgroundStyle = useMemo(
+    () => ({
+      backgroundImage: `radial-gradient(circle at 1px 1px, ${alpha(theme.palette.text.disabled, 0.25)} 1px, transparent 0)`,
+      backgroundSize: '24px 24px',
+    }),
+    [theme.palette.text.disabled]
+  );
+
   return (
-    <ReactFlow
+    <Box
       id="ComputationTree"
-      style={{ width: '100%', height: '100%', minHeight: 360 }}
-      nodes={nodes}
-      edges={edges}
-      onNodesChange={onNodesChange}
-      onEdgesChange={onEdgesChange}
-      onPaneClick={handlePaneClick}
-      onNodeClick={handleNodeClick}
-      onEdgeClick={handleEdgeClick}
-      nodeTypes={nodeTypes}
-      edgeTypes={edgeTypes}
-      defaultEdgeOptions={defaultEdgeOptions}
-      proOptions={{ hideAttribution: true }}
-      minZoom={0.05}
-      defaultViewport={{ x: 0, y: 0, zoom: 0.1 }}
-      onlyRenderVisibleElements
+      ref={containerRef}
+      onClick={handlePaneClick}
+      sx={{
+        position: 'relative',
+        width: '100%',
+        height: '100%',
+        minHeight: 360,
+        overflow: 'hidden',
+        ...backgroundStyle,
+      }}
     >
+      {/* SVG canvas for edges */}
+      <svg
+        width="100%"
+        height="100%"
+        style={{ position: 'absolute', inset: 0, pointerEvents: 'auto' }}
+      >
+        <defs>
+          <marker
+            id="ct-arrow"
+            viewBox="0 0 10 10"
+            refX="8"
+            refY="5"
+            markerWidth="8"
+            markerHeight="8"
+            orient="auto-start-reverse"
+          >
+            <path d="M 0 0 L 10 5 L 0 10 z" fill={theme.palette.text.secondary} />
+          </marker>
+        </defs>
+        <g
+          transform={`translate(${transform.x},${transform.y}) scale(${transform.k})`}
+          style={{ pointerEvents: 'all' }}
+        >
+          {edges.map((edge) => {
+            const source = nodes.find((n) => n.id === edge.source);
+            const target = nodes.find((n) => n.id === edge.target);
+            if (!source || !target) return null;
+            return (
+              <D3FloatingEdge
+                key={edge.id}
+                edge={edge}
+                source={source}
+                target={target}
+                markerId="ct-arrow"
+              />
+            );
+          })}
+        </g>
+      </svg>
+
+      {/* HTML layer for nodes */}
+      <Box
+        sx={{
+          position: 'absolute',
+          inset: 0,
+          pointerEvents: 'none',
+        }}
+      >
+        <Box
+          sx={{
+            position: 'absolute',
+            transform: `translate(${transform.x}px, ${transform.y}px) scale(${transform.k})`,
+            transformOrigin: '0 0',
+            pointerEvents: 'none',
+            width: '100%',
+            height: '100%',
+          }}
+        >
+          {nodes.map((node) => {
+            const Component = nodeRenderer[node.type] ?? StaticConfigNode;
+            return (
+              <Box
+                key={node.id}
+                sx={{
+                  position: 'absolute',
+                  left: node.position.x,
+                  top: node.position.y,
+                  pointerEvents: 'auto',
+                }}
+              >
+                <Component id={node.id} data={node.data as any} onSize={handleNodeSize} />
+              </Box>
+            );
+          })}
+        </Box>
+      </Box>
+
       {/* Layout settings panel trigger button */}
       <Box
         sx={{
@@ -395,7 +591,10 @@ export function ComputationTree({ depth, compressing = false }: Props) {
             size="small"
             variant="extended"
             color="primary"
-            onClick={() => setSettingsOpen((v) => !v)}
+            onClick={(e) => {
+              e.stopPropagation();
+              setSettingsOpen((v) => !v);
+            }}
             sx={{
               textTransform: 'none',
               boxShadow: (t) => `0 4px 12px ${alpha(t.palette.common.black, 0.2)}`,
@@ -428,12 +627,23 @@ export function ComputationTree({ depth, compressing = false }: Props) {
       />
 
       {/* Top-left controls panel (recalculate layout and node mode switch) */}
-      <Panel position="top-left">
+      <Box
+        sx={{
+          position: 'absolute',
+          top: 12,
+          left: 12,
+          zIndex: (t) => t.zIndex.appBar + 1,
+          pointerEvents: 'auto',
+        }}
+      >
         <Stack direction="row" spacing={1} alignItems="center">
           <Button
             size="small"
             variant="contained"
-            onClick={recalcLayout}
+            onClick={(e) => {
+              e.stopPropagation();
+              recalcLayout();
+            }}
             startIcon={<Cached fontSize="small" />}
             disabled={layout.running}
             sx={{
@@ -520,7 +730,7 @@ export function ComputationTree({ depth, compressing = false }: Props) {
             )}
           </ToggleButtonGroup>
         </Stack>
-      </Panel>
+      </Box>
 
       {/* Legend panel */}
       <LegendPanel
@@ -530,9 +740,30 @@ export function ComputationTree({ depth, compressing = false }: Props) {
         contentClassName="ct-scrollable"
       />
 
-      <Controls />
-      <Background gap={10} size={1} />
-    </ReactFlow>
+      {/* Zoom controls */}
+      <Box
+        sx={{
+          position: 'absolute',
+          right: 12,
+          bottom: 12,
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 1,
+          pointerEvents: 'auto',
+          zIndex: (t) => t.zIndex.appBar + 1,
+        }}
+      >
+        <Fab size="small" color="primary" onClick={(e) => { e.stopPropagation(); zoomIn(); }}>
+          <Add />
+        </Fab>
+        <Fab size="small" color="primary" onClick={(e) => { e.stopPropagation(); zoomOut(); }}>
+          <Remove />
+        </Fab>
+        <Fab size="small" color="primary" onClick={(e) => { e.stopPropagation(); runFitView(); }}>
+          <CenterFocusStrong />
+        </Fab>
+      </Box>
+    </Box>
   );
 }
 
@@ -544,10 +775,8 @@ export function ComputationTreeWrapper({
   compressing?: boolean;
 }) {
   return (
-    <ReactFlowProvider>
-      <GraphUIProvider>
-        <ComputationTree depth={depth} compressing={compressing} />
-      </GraphUIProvider>
-    </ReactFlowProvider>
+    <GraphUIProvider>
+      <ComputationTreeInner depth={depth} compressing={compressing} />
+    </GraphUIProvider>
   );
 }

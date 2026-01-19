@@ -1,7 +1,4 @@
 // src/components/ComputationTree/util/buildComputationTree.ts
-import type { Edge as RFEdge, Node as RFNode } from '@xyflow/react';
-import { MarkerType } from '@xyflow/react';
-
 import {
   EdgeType,
   NodeType,
@@ -15,10 +12,33 @@ import {
 } from '@tmfunctions/ComputationTree';
 import { ConfigNodeMode } from '@utils/constants';
 import { Transition } from '@mytypes/TMTypes';
+import type { CSSProperties } from 'react';
+import type { ConfigNodeData } from '@components/ConfigGraph/nodes/ConfigNode';
+import type { ConfigCardNodeData } from '@components/ConfigGraph/nodes/ConfigCardNode';
+import type { FloatingEdgeData } from '@components/ConfigGraph/edges/FloatingEdge';
+
+export type CTNode = {
+  id: string;
+  type: NodeType;
+  position: { x: number; y: number };
+  width?: number;
+  height?: number;
+  data: ConfigNodeData | ConfigCardNodeData;
+};
+
+export type CTEdge = {
+  id: string;
+  source: string;
+  target: string;
+  type: EdgeType;
+  data: FloatingEdgeData;
+  style?: CSSProperties;
+  label?: string;
+};
 
 export type BuildResult = {
-  nodes: RFNode[];
-  edges: RFEdge[];
+  nodes: CTNode[];
+  edges: CTEdge[];
   topoKey: string;
   perf?: {
     buildMs: number;
@@ -47,7 +67,7 @@ export function buildComputationTreeGraph(
   byId.set(model.root.id, model.root);
 
   // Edges
-  const rfEdges: RFEdge[] = model.edges.map((e) => {
+  const rfEdges: CTEdge[] = model.edges.map((e) => {
     const fromNode = byId.get(e.from);
     const toNode = byId.get(e.to);
     const sourceState = fromNode?.config?.state ?? null;
@@ -78,7 +98,6 @@ export function buildComputationTreeGraph(
         compressed: isCompressed,
         compressedLength: compLen,
       },
-      markerEnd: { type: MarkerType.ArrowClosed, width: 16, height: 16 },
       style: isCompressed
         ? { strokeWidth: 2, strokeDasharray: '6 4' }
         : { strokeWidth: 1.5 },
@@ -87,7 +106,7 @@ export function buildComputationTreeGraph(
   });
 
   // Nodes (ohne Position)
-  const rfNodes: RFNode[] = [...byId.values()].map((n) => {
+  const rfNodes: CTNode[] = [...byId.values()].map((n) => {
     const label =
       n.config?.state && n.config.state.trim().length ? n.config.state : `q${n.id}`;
     const isStart = n.id === model.root.id;
