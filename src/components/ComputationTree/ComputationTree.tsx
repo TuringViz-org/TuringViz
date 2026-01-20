@@ -52,8 +52,10 @@ import {
   EdgeType,
 } from './util/constants';
 import { COLOR_STATE_SWITCH } from '../ConfigGraph/util/constants';
-import type { ComputationTree as ComputationTreeModel } from '@tmfunctions/ComputationTree';
-import { getComputationTree } from '@tmfunctions/ComputationTree';
+import {
+  getComputationTreeFromInputs,
+  type ComputationTree as ComputationTreeModel,
+} from '@tmfunctions/ComputationTree';
 import { useGlobalZustand } from '@zustands/GlobalZustand';
 import {
   useComputationTreeNodeMode,
@@ -77,6 +79,8 @@ import {
   subscribePointerTracker,
   type PointerSnapshot,
 } from '@components/shared/pointerTracker';
+import { getStartConfiguration } from '@tmfunctions/Configurations';
+import { computeComputationTreeInWorker } from '@utils/graphWorkerClient';
 
 type Anchor = { top: number; left: number };
 
@@ -290,6 +294,75 @@ function NodeDetailPopper({
   );
 }
 
+function useComputationTreeData(
+  depth: number,
+  compressing: boolean,
+  nodeMode: ConfigNodeMode
+): {
+  model: ComputationTreeModel | null;
+  base: ReturnType<typeof buildComputationTreeGraph>;
+  computing: boolean;
+} {
+  const transitions = useGlobalZustand((s) => s.transitions);
+  const blank = useGlobalZustand((s) => s.blank);
+  const startState = useGlobalZustand((s) => s.startState);
+  const numberOfTapes = useGlobalZustand((s) => s.numberOfTapes);
+  const input = useGlobalZustand((s) => s.input);
+
+  const [model, setModel] = useState<ComputationTreeModel | null>(null);
+  const [base, setBase] = useState<ReturnType<typeof buildComputationTreeGraph>>({
+    nodes: [],
+    edges: [],
+    topoKey: '',
+  });
+  const [computing, setComputing] = useState(false);
+  const requestRef = useRef(0);
+
+  useEffect(() => {
+    const startConfig = getStartConfiguration();
+    const reqId = requestRef.current + 1;
+    requestRef.current = reqId;
+    setComputing(true);
+
+    computeComputationTreeInWorker({
+      depth,
+      compressing,
+      transitions,
+      numberOfTapes,
+      blank,
+      startConfig,
+    })
+      .then((tree) => {
+        if (requestRef.current !== reqId) return;
+        setModel(tree);
+      })
+      .catch(() => {
+        if (requestRef.current !== reqId) return;
+        const tree = getComputationTreeFromInputs(
+          startConfig,
+          transitions,
+          numberOfTapes,
+          blank,
+          depth,
+          compressing,
+          (msg) => toast.warning(msg)
+        );
+        setModel(tree);
+      })
+      .finally(() => {
+        if (requestRef.current !== reqId) return;
+        setComputing(false);
+      });
+  }, [depth, compressing, transitions, blank, numberOfTapes, startState, input]);
+
+  useEffect(() => {
+    if (!model) return;
+    setBase(buildComputationTreeGraph(model, transitions, nodeMode));
+  }, [model, transitions, nodeMode]);
+
+  return { model, base, computing };
+}
+
 type Props = { depth: number; compressing?: boolean };
 
 function ComputationTreeCircles({ depth, compressing = false }: Props) {
@@ -298,9 +371,7 @@ function ComputationTreeCircles({ depth, compressing = false }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null);
 
   // Global Zustand state
-  const blank = useGlobalZustand((s) => s.blank);
   const transitions = useGlobalZustand((s) => s.transitions);
-  const startState = useGlobalZustand((s) => s.startState);
   const stateColorMatching = useGlobalZustand((s) => s.stateColorMatching);
 
   // Graph Zustand state and setters
@@ -316,12 +387,11 @@ function ComputationTreeCircles({ depth, compressing = false }: Props) {
   const { selected, setSelected, hoveredState, setHoveredState } = useGraphUI();
 
   // Base graph structure (nodes/edges) extraction
-  const [model, setModel] = useState<ComputationTreeModel | null>(null);
-  const base = useMemo(() => {
-    const tree = getComputationTree(depth, !!compressing);
-    setModel(tree);
-    return buildComputationTreeGraph(tree, transitions, computationTreeNodeMode);
-  }, [depth, computationTreeNodeMode, transitions, blank, startState, compressing]);
+  const { model, base } = useComputationTreeData(
+    depth,
+    !!compressing,
+    computationTreeNodeMode
+  );
 
   const [nodes, setNodes] = useState<RFNode[]>(base.nodes);
   const [edges, setEdges] = useState<RFEdge[]>(base.edges);
@@ -1261,9 +1331,7 @@ function ComputationTreeCircles({ depth, compressing = false }: Props) {
 
 function ComputationTreeCards({ depth, compressing = false }: Props) {
   // Global Zustand state
-  const blank = useGlobalZustand((s) => s.blank);
   const transitions = useGlobalZustand((s) => s.transitions);
-  const startState = useGlobalZustand((s) => s.startState);
   const stateColorMatching = useGlobalZustand((s) => s.stateColorMatching);
 
   // Graph Zustand state and setters
@@ -1279,12 +1347,11 @@ function ComputationTreeCards({ depth, compressing = false }: Props) {
   const { selected, setSelected, hoveredState } = useGraphUI();
 
   // Base graph structure
-  const [model, setModel] = useState<ComputationTreeModel | null>(null);
-  const base = useMemo(() => {
-    const tree = getComputationTree(depth, !!compressing);
-    setModel(tree);
-    return buildComputationTreeGraph(tree, transitions, computationTreeNodeMode);
-  }, [depth, computationTreeNodeMode, transitions, blank, startState, compressing]);
+  const { model, base } = useComputationTreeData(
+    depth,
+    !!compressing,
+    computationTreeNodeMode
+  );
 
   const [nodes, setNodes, onNodesChange] = useNodesState<RFNode>(base.nodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState<RFEdge>(base.edges);

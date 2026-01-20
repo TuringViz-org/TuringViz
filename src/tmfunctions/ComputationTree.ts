@@ -27,7 +27,8 @@ function computeConfigTreeNodes(
   startconfig: Configuration,
   alltransitions: Map<string, Transition[]>,
   numberOfTapes: number,
-  blank: string
+  blank: string,
+  notifyTruncate?: (msg: string) => void
 ): ConfigTreeNode {
   const TOTAL_MAX_NODES = 2000; // Absolute cap on total nodes to prevent performance issues.
 
@@ -100,7 +101,7 @@ function computeConfigTreeNodes(
         alreadyAddedNodes += 1;
       }
     } else {
-      toast.warning('Computation tree truncated to prevent performance issues.');
+      notifyTruncate?.('Computation tree truncated to prevent performance issues.');
       break;
     }
   }
@@ -115,7 +116,8 @@ function computeConfigTreeNodesFromState(depth: number): ConfigTreeNode {
     getStartConfiguration(),
     globalZustand.transitions,
     globalZustand.numberOfTapes,
-    globalZustand.blank
+    globalZustand.blank,
+    (msg) => toast.warning(msg)
   );
 }
 
@@ -144,6 +146,34 @@ export function getComputationTree(
   compressing: boolean = false
 ): ComputationTree {
   const tree = computeConfigTreeNodesFromState(depth);
+  return getComputationTreeFromNodes(tree, depth, compressing);
+}
+
+export function getComputationTreeFromInputs(
+  startConfig: Configuration,
+  transitions: Map<string, Transition[]>,
+  numberOfTapes: number,
+  blank: string,
+  depth: number,
+  compressing: boolean = false,
+  notifyTruncate?: (msg: string) => void
+): ComputationTree {
+  const tree = computeConfigTreeNodes(
+    depth,
+    startConfig,
+    transitions,
+    numberOfTapes,
+    blank,
+    notifyTruncate
+  );
+  return getComputationTreeFromNodes(tree, depth, compressing);
+}
+
+function getComputationTreeFromNodes(
+  tree: ConfigTreeNode,
+  depth: number,
+  compressing: boolean
+): ComputationTree {
 
   // If compression is not enabled, use the original BFS approach (no changes in logic, just include compressed:false).
   if (!compressing) {
