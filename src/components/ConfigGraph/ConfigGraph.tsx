@@ -69,6 +69,7 @@ import {
   PORTAL_BRIDGE_SWITCH_EVENT,
   type PortalBridgeSwitchDetail,
 } from '@components/MainPage/PortalBridge';
+import { ConfigGraphCircles } from './ConfigGraphCircles';
 
 const nodeTypes = {
   [NodeType.CONFIG]: ConfigNode,
@@ -86,8 +87,8 @@ const defaultEdgeOptions = {
   },
 };
 
-// --- Component ---
-export function ConfigGraph() {
+// --- Component (React Flow / cards) ---
+function ConfigGraphCards() {
   // Global Zustand states
   const configGraph = useGlobalZustand((s) => s.configGraph);
   const currentState = useGlobalZustand((s) => s.currentState);
@@ -615,6 +616,12 @@ export function ConfigGraph() {
       <Background gap={10} size={1} />
     </ReactFlow>
   );
+}
+
+export function ConfigGraph() {
+  const nodeMode = useConfigGraphNodeMode();
+  if (nodeMode === ConfigNodeMode.CARDS) return <ConfigGraphCards />;
+  return <ConfigGraphCircles />;
 }
 
 export function ConfigGraphWrapper() {

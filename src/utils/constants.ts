@@ -17,7 +17,7 @@ export const DEFAULT_ELK_OPTS: ElkOptions = {
 };
 
 // Default depth for computation trees
-export const DEFAULT_TREE_DEPTH = 4;
+export const DEFAULT_TREE_DEPTH = 8;
 
 // Delay before showing hover poppers (in ms)
 export const HOVER_POPPER_DELAY_MS = 500;

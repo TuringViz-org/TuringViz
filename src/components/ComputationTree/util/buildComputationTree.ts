@@ -7,6 +7,7 @@ import {
   NodeType,
   CONFIG_NODE_DIAMETER,
   CONFIG_CARD_WIDTH,
+  CONFIG_CARD_HEIGHT_ESTIMATE,
 } from '../util/constants';
 import {
   ComputationTreeNode,
@@ -98,7 +99,7 @@ export function buildComputationTreeGraph(
       type: useCards ? NodeType.CONFIG_CARD : NodeType.CONFIG,
       position: { x: 0, y: 0 }, // Position is set later by layout
       width: useCards ? CONFIG_CARD_WIDTH : CONFIG_NODE_DIAMETER,
-      height: useCards ? undefined : CONFIG_NODE_DIAMETER,
+      height: useCards ? CONFIG_CARD_HEIGHT_ESTIMATE : CONFIG_NODE_DIAMETER,
       origin: [0.5, 0.5],
       data: {
         label,
