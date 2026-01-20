@@ -32,7 +32,7 @@ import {
   Tune,
   CenterFocusStrong,
 } from '@mui/icons-material';
-import { alpha } from '@mui/material/styles';
+import { alpha, useTheme } from '@mui/material/styles';
 import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { toast } from 'sonner';
 
@@ -71,6 +71,37 @@ import {
 } from '@components/MainPage/PortalBridge';
 import { ConfigGraphCircles } from './ConfigGraphCircles';
 
+const acceptingStates = ['accept', 'accepted', 'done'];
+const rejectingStates = ['reject', 'rejected', 'error'];
+
+const normalizeColor = (color?: string) => {
+  if (!color) return undefined;
+  const m = /^#([0-9a-fA-F]{8})$/.exec(color);
+  if (m) {
+    const hex = m[1];
+    const r = parseInt(hex.slice(0, 2), 16);
+    const g = parseInt(hex.slice(2, 4), 16);
+    const b = parseInt(hex.slice(4, 6), 16);
+    const a = parseInt(hex.slice(6, 8), 16) / 255;
+    return `rgba(${r}, ${g}, ${b}, ${a})`;
+  }
+  return color;
+};
+
+const resolveStateColor = (
+  stateName: string | undefined,
+  mapping: Map<string, string>
+) => {
+  const key = (stateName ?? '').trim();
+  if (!key) return undefined;
+  const direct = mapping.get(key) ?? mapping.get(String(key));
+  if (direct) return direct;
+  const lower = key.toLowerCase();
+  if (acceptingStates.includes(lower)) return 'accept';
+  if (rejectingStates.includes(lower)) return 'reject';
+  return undefined;
+};
+
 const nodeTypes = {
   [NodeType.CONFIG]: ConfigNode,
   [NodeType.CONFIG_CARD]: ConfigCardNode,
@@ -89,6 +120,7 @@ const defaultEdgeOptions = {
 
 // --- Component (React Flow / cards) ---
 function ConfigGraphCards() {
+  const theme = useTheme();
   // Global Zustand states
   const configGraph = useGlobalZustand((s) => s.configGraph);
   const currentState = useGlobalZustand((s) => s.currentState);
@@ -108,6 +140,15 @@ function ConfigGraphCards() {
   const configGraphELKSettings = useConfigGraphELKSettings();
   const setConfigGraphELKSettings = useGraphZustand(
     (s) => s.setConfigGraphELKSettings
+  );
+  const resolveColorForState = useCallback(
+    (stateName?: string) => {
+      const res = resolveStateColor(stateName, stateColorMatching);
+      if (res === 'accept') return normalizeColor(theme.palette.success.light);
+      if (res === 'reject') return normalizeColor(theme.palette.error.light);
+      return normalizeColor(res);
+    },
+    [stateColorMatching, theme.palette.error.light, theme.palette.success.light]
   );
 
   const rf = useReactFlow();
@@ -211,11 +252,9 @@ function ConfigGraphCards() {
     const hideLabels = nodeCount >= COLOR_STATE_SWITCH;
 
     setNodes((prev) =>
-      reconcileNodes(prev, base.nodes, (n, old) => {
-        const stateName = (n.data as any)?.label ?? '';
-        const mappedColor =
-          stateColorMatching.get?.(stateName) ??
-          stateColorMatching.get?.(String(stateName));
+      reconcileNodes(prev, base.nodes, (n) => {
+        const stateName = (n.data as any)?.config?.state;
+        const mappedColor = resolveColorForState(stateName);
 
         return {
           ...(n.data as any),
@@ -227,7 +266,7 @@ function ConfigGraphCards() {
     );
 
     setEdges((prev) => reconcileEdges(prev, base.edges));
-  }, [base.nodes, base.edges, stateColorMatching]);
+  }, [base.nodes, base.edges, stateColorMatching, selectableSet, resolveColorForState]);
 
   // Highlight last transition
   useEffect(() => {

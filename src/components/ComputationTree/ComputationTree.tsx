@@ -134,6 +134,38 @@ function makeVirtualAnchor(anchor: Anchor | null): VirtualElement {
   };
 }
 
+const acceptingStates = ['accept', 'accepted', 'done'];
+const rejectingStates = ['reject', 'rejected', 'error'];
+
+const normalizeColor = (color?: string) => {
+  if (!color) return undefined;
+  // Convert 8-digit hex (#RRGGBBAA) to rgba() because Cytoscape can be picky.
+  const m = /^#([0-9a-fA-F]{8})$/.exec(color);
+  if (m) {
+    const hex = m[1];
+    const r = parseInt(hex.slice(0, 2), 16);
+    const g = parseInt(hex.slice(2, 4), 16);
+    const b = parseInt(hex.slice(4, 6), 16);
+    const a = parseInt(hex.slice(6, 8), 16) / 255;
+    return `rgba(${r}, ${g}, ${b}, ${a})`;
+  }
+  return color;
+};
+
+const resolveStateColor = (
+  stateName: string | undefined,
+  mapping: Map<string, string>
+) => {
+  const key = (stateName ?? '').trim();
+  if (!key) return undefined;
+  const direct = mapping.get(key) ?? mapping.get(String(key));
+  if (direct) return normalizeColor(direct);
+  const lower = key.toLowerCase();
+  if (acceptingStates.includes(lower)) return 'accept'; // sentinel
+  if (rejectingStates.includes(lower)) return 'reject'; // sentinel
+  return undefined;
+};
+
 function getCyStyles(theme: ReturnType<typeof useTheme>): Stylesheet[] {
   return [
     {
@@ -489,11 +521,8 @@ function ComputationTreeCircles({ depth, compressing = false }: Props) {
 
     setNodes((prev) =>
       reconcileNodes(prev, base.nodes, (node) => {
-        const stateName = (node.data as any)?.label ?? '';
-        const mappedColor =
-          stateColorMatching.get?.(stateName) ??
-          stateColorMatching.get?.(String(stateName)) ??
-          undefined;
+        const stateName = (node.data as any)?.config?.state;
+        const mappedColor = resolveColorForState(stateName);
 
         return {
           ...(node.data as any),
@@ -608,6 +637,15 @@ function ComputationTreeCircles({ depth, compressing = false }: Props) {
   const settingsOpenRef = useRef(false);
   const lastNonEmptyNodesRef = useRef<RFNode[]>([]);
   const lastNonEmptyEdgesRef = useRef<RFEdge[]>([]);
+  const resolveColorForState = useCallback(
+    (stateName?: string) => {
+      const res = resolveStateColor(stateName, stateColorMatching);
+      if (res === 'accept') return normalizeColor(theme.palette.success.light);
+      if (res === 'reject') return normalizeColor(theme.palette.error.light);
+      return normalizeColor(res);
+    },
+    [stateColorMatching, theme.palette.error.light, theme.palette.success.light]
+  );
 
   const [nodePopper, setNodePopper] = useState<NodePopperState>({
     id: null,
@@ -887,8 +925,9 @@ function ComputationTreeCircles({ depth, compressing = false }: Props) {
     };
 
     cy.on('tap', onPaneTap);
-    cy.on('tap', 'node', onNodeTap);
-    cy.on('tap', 'edge', onEdgeTap);
+    // Use tapstart so the popper opens immediately on press, not on release.
+    cy.on('tapstart', 'node', onNodeTap);
+    cy.on('tapstart', 'edge', onEdgeTap);
     cy.on('dbltap', 'node', handleNodeDoubleTap);
     cy.on('mouseover', 'node', handleNodeHoverStart);
     cy.on('mouseout', 'node', handleNodeHoverEnd);
@@ -951,11 +990,10 @@ function ComputationTreeCircles({ depth, compressing = false }: Props) {
 
       nodesForSync.forEach((n) => {
         const data = (n.data ?? {}) as any;
+        const stateColor =
+          data.stateColor ?? resolveColorForState((n.data as any)?.config?.state);
         const displayLabel = data.showLabel === false ? '' : data.label ?? n.id;
-        const bgColor =
-          displayLabel === '' && data.stateColor
-            ? data.stateColor
-            : data.stateColor ?? theme.palette.background.paper;
+        const bgColor = stateColor ?? theme.palette.background.paper;
         const classes = [
           computationTreeNodeMode === ConfigNodeMode.CARDS ? 'card' : 'circle',
         ];
@@ -1020,7 +1058,7 @@ function ComputationTreeCircles({ depth, compressing = false }: Props) {
     });
 
     cy.nodes().ungrabify();
-  }, [nodes, edges, computationTreeNodeMode, theme]);
+  }, [nodes, edges, computationTreeNodeMode, theme, resolveColorForState]);
 
   const lastSelectedRef = useRef<string | null>(null);
 
@@ -1454,11 +1492,8 @@ function ComputationTreeCards({ depth, compressing = false }: Props) {
 
     setNodes((prev) =>
       reconcileNodes(prev, base.nodes, (node) => {
-        const stateName = (node.data as any)?.label ?? '';
-        const mappedColor =
-          stateColorMatching.get?.(stateName) ??
-          stateColorMatching.get?.(String(stateName)) ??
-          undefined;
+        const stateName = (node.data as any)?.config?.state;
+        const mappedColor = resolveColorForState(stateName);
 
         return {
           ...(node.data as any),

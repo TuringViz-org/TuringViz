@@ -38,6 +38,37 @@ import {
   COLOR_STATE_SWITCH,
 } from './util/constants';
 import type { ConfigGraph as ConfigGraphModel } from '@tmfunctions/ConfigGraph';
+
+const acceptingStates = ['accept', 'accepted', 'done'];
+const rejectingStates = ['reject', 'rejected', 'error'];
+
+const normalizeColor = (color?: string) => {
+  if (!color) return undefined;
+  const m = /^#([0-9a-fA-F]{8})$/.exec(color);
+  if (m) {
+    const hex = m[1];
+    const r = parseInt(hex.slice(0, 2), 16);
+    const g = parseInt(hex.slice(2, 4), 16);
+    const b = parseInt(hex.slice(4, 6), 16);
+    const a = parseInt(hex.slice(6, 8), 16) / 255;
+    return `rgba(${r}, ${g}, ${b}, ${a})`;
+  }
+  return color;
+};
+
+const resolveStateColor = (
+  stateName: string | undefined,
+  mapping: Map<string, string>
+) => {
+  const key = (stateName ?? '').trim();
+  if (!key) return undefined;
+  const direct = mapping.get(key) ?? mapping.get(String(key));
+  if (direct) return normalizeColor(direct);
+  const lower = key.toLowerCase();
+  if (acceptingStates.includes(lower)) return 'accept';
+  if (rejectingStates.includes(lower)) return 'reject';
+  return undefined;
+};
 import { buildConfigGraph } from './util/buildConfigGraph';
 import {
   CARDS_CONFIRM_THRESHOLD,
@@ -309,6 +340,15 @@ export function ConfigGraphCircles() {
     highlightedEdgeId,
     setHighlightedEdgeId,
   } = useGraphUI();
+  const resolveColorForState = useCallback(
+    (stateName?: string) => {
+      const res = resolveStateColor(stateName, stateColorMatching);
+      if (res === 'accept') return normalizeColor(theme.palette.success.light);
+      if (res === 'reject') return normalizeColor(theme.palette.error.light);
+      return normalizeColor(res);
+    },
+    [stateColorMatching, theme.palette.error.light, theme.palette.success.light]
+  );
 
   const hoverTimerRef = useRef<number | null>(null);
   const nodePopperRef = useRef<NodePopperState>({ id: null, anchor: null, reason: null });
@@ -476,11 +516,8 @@ export function ConfigGraphCircles() {
 
     setNodes((prev) =>
       reconcileNodes(prev, base.nodes, (node) => {
-        const stateName = (node.data as any)?.label ?? '';
-        const mappedColor =
-          stateColorMatching.get?.(stateName) ??
-          stateColorMatching.get?.(String(stateName)) ??
-          undefined;
+        const stateName = (node.data as any)?.config?.state;
+        const mappedColor = resolveColorForState(stateName);
 
         return {
           ...(node.data as any),
@@ -840,10 +877,12 @@ export function ConfigGraphCircles() {
       nodesForSync.forEach((n) => {
         const data = (n.data ?? {}) as any;
         const displayLabel = data.showLabel === false ? '' : data.label ?? n.id;
+        const stateColor =
+          data.stateColor ?? resolveColorForState((n.data as any)?.config?.state);
         const bgColor =
-          displayLabel === '' && data.stateColor
-            ? data.stateColor
-            : data.stateColor ?? theme.palette.background.paper;
+          displayLabel === '' && stateColor
+            ? stateColor
+            : stateColor ?? theme.palette.background.paper;
         const classes = ['node'];
         if (data.isStart) classes.push('start');
         if (data.isCurrent) classes.push('current');
@@ -911,7 +950,7 @@ export function ConfigGraphCircles() {
     });
 
     cy.nodes().ungrabify();
-  }, [nodes, edges, theme]);
+  }, [nodes, edges, theme, resolveColorForState]);
 
   // Selection + highlight class sync
   useEffect(() => {
