@@ -313,6 +313,10 @@ export function ConfigGraphCircles() {
     reason: null,
   });
   const pointerStateRef = useRef<PointerSnapshot>(getPointerSnapshot());
+  const selectedRef = useRef(selected);
+  const settingsOpenRef = useRef(false);
+  const lastNonEmptyNodesRef = useRef<RFNode[]>([]);
+  const lastNonEmptyEdgesRef = useRef<RFEdge[]>([]);
 
   const [nodePopper, setNodePopper] = useState<NodePopperState>({
     id: null,
@@ -339,6 +343,12 @@ export function ConfigGraphCircles() {
   useEffect(() => {
     edgeTooltipRef.current = edgeTooltip;
   }, [edgeTooltip]);
+  useEffect(() => {
+    selectedRef.current = selected;
+  }, [selected]);
+  useEffect(() => {
+    settingsOpenRef.current = settingsOpen;
+  }, [settingsOpen]);
   useEffect(() => {
     pointerStateRef.current = getPointerSnapshot();
     const unsubscribe = subscribePointerTracker(() => {
@@ -732,11 +742,37 @@ export function ConfigGraphCircles() {
 
     const onPaneTap = (evt: any) => {
       if (evt.target !== cy) return;
-      handlePaneClick();
+      const hasSelection = !!selectedRef.current.type;
+      const hasPopups =
+        !!nodePopperRef.current.id || !!edgeTooltipRef.current.id || settingsOpenRef.current;
+      if (!hasSelection && !hasPopups) return;
+
+      setSelected({ type: null, id: null });
+      clearHoverTimer();
+      setSettingsOpen(false);
+      setNodePopper({ id: null, anchor: null, reason: null });
+      setEdgeTooltip({ id: null, anchor: null, reason: null });
     };
+    const onNodeTap = (evt: EventObjectNode) => {
+      evt.stopPropagation();
+      clearHoverTimer();
+      const id = evt.target.id();
+      const anchor = getAnchorFromEvent(evt);
+      setSelected({ type: 'node', id, anchor });
+      setNodePopper({ id, anchor, reason: 'select' });
+    };
+    const onEdgeTap = (evt: EventObjectEdge) => {
+      evt.stopPropagation();
+      clearHoverTimer();
+      const id = evt.target.id();
+      const anchor = getAnchorFromEvent(evt);
+      setSelected({ type: 'edge', id, anchor });
+      setEdgeTooltip({ id, anchor, reason: 'select' });
+    };
+
     cy.on('tap', onPaneTap);
-    cy.on('tap', 'node', handleNodeTap);
-    cy.on('tap', 'edge', handleEdgeTap);
+    cy.on('tap', 'node', onNodeTap);
+    cy.on('tap', 'edge', onEdgeTap);
     cy.on('dbltap', 'node', handleNodeDoubleTap);
     cy.on('mouseover', 'node', handleNodeHoverStart);
     cy.on('mouseout', 'node', handleNodeHoverEnd);
@@ -746,8 +782,8 @@ export function ConfigGraphCircles() {
     cyRef.current = cy;
     return () => {
       cy.off('tap', onPaneTap);
-      cy.off('tap', 'node', handleNodeTap);
-      cy.off('tap', 'edge', handleEdgeTap);
+      cy.off('tap', 'node', onNodeTap);
+      cy.off('tap', 'edge', onEdgeTap);
       cy.off('dbltap', 'node', handleNodeDoubleTap);
       cy.off('mouseover', 'node', handleNodeHoverStart);
       cy.off('mouseout', 'node', handleNodeHoverEnd);
@@ -758,14 +794,14 @@ export function ConfigGraphCircles() {
     };
   }, [
     cyStyles,
-    handlePaneClick,
-    handleNodeTap,
-    handleEdgeTap,
+    clearHoverTimer,
+    getAnchorFromEvent,
     handleNodeHoverStart,
     handleNodeHoverEnd,
     handleEdgeHoverStart,
     handleEdgeHoverEnd,
     handleNodeDoubleTap,
+    setSelected,
   ]);
 
   useEffect(() => {
@@ -780,9 +816,15 @@ export function ConfigGraphCircles() {
     const cy = cyRef.current;
     if (!cy) return;
 
+    if (nodes.length > 0) lastNonEmptyNodesRef.current = nodes;
+    if (edges.length > 0) lastNonEmptyEdgesRef.current = edges;
+
+    const nodesForSync = nodes.length > 0 ? nodes : lastNonEmptyNodesRef.current;
+    const edgesForSync = edges.length > 0 ? edges : lastNonEmptyEdgesRef.current;
+
     const nextIds = new Set<string>([
-      ...nodes.map((n) => n.id),
-      ...edges.map((e) => e.id),
+      ...nodesForSync.map((n) => n.id),
+      ...edgesForSync.map((e) => e.id),
     ]);
 
     cy.batch(() => {
@@ -790,7 +832,7 @@ export function ConfigGraphCircles() {
         if (!nextIds.has(ele.id())) ele.remove();
       });
 
-      nodes.forEach((n) => {
+      nodesForSync.forEach((n) => {
         const data = (n.data ?? {}) as any;
         const displayLabel = data.showLabel === false ? '' : data.label ?? n.id;
         const bgColor =
@@ -838,7 +880,7 @@ export function ConfigGraphCircles() {
         }
       });
 
-      edges.forEach((e) => {
+      edgesForSync.forEach((e) => {
         const data = (e.data ?? {}) as any;
         const ele = cy.getElementById(e.id);
         const classes = ['edge', 'hidden-label'];

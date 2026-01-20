@@ -26,9 +26,18 @@ export default function ExampleMenu() {
   const setComputationTreeDepth = useGraphZustand((s) => s.setComputationTreeDepth);
 
   const sendToState = (index: number): void => {
-    setCode(ExampleTMs[index].code, true);
-    setComputationTreeDepth(DEFAULT_TREE_DEPTH);
-    close();
+    close(); // close immediately for snappier UI
+
+    const run = () => {
+      setCode(ExampleTMs[index].code, true);
+      setComputationTreeDepth(DEFAULT_TREE_DEPTH);
+    };
+
+    if (typeof requestAnimationFrame === 'function') {
+      requestAnimationFrame(run);
+    } else {
+      setTimeout(run, 0);
+    }
   };
 
   return (

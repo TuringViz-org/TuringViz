@@ -9,6 +9,17 @@ import {
   NodeType,
 } from '../util/constants';
 
+const createElkWithWorker = () => {
+  if (typeof Worker === 'undefined') return new Elk();
+
+  return new Elk({
+    workerFactory: () =>
+      new Worker(new URL('elkjs/lib/elk-worker.js', import.meta.url), {
+        name: 'elk-layout-worker',
+      }),
+  });
+};
+
 export type ElkAlgo = 'layered' | 'force' | 'mrtree' | 'stress' | 'radial';
 
 export type Options = {
@@ -49,9 +60,19 @@ export function useElkLayout({
   const elkRef = useRef<InstanceType<typeof Elk> | null>(null);
   const [running, setRunning] = useState(false);
   const lastTopoKeyRef = useRef<string>('');
+  const workerGraphKeyRef = useRef<string>('');
 
   // Create ELK instance once (kept across renders)
-  if (!elkRef.current) elkRef.current = new Elk();
+  if (!elkRef.current) elkRef.current = createElkWithWorker();
+
+  useEffect(
+    () => () => {
+      elkRef.current?.terminateWorker();
+      elkRef.current = null;
+      workerGraphKeyRef.current = '';
+    },
+    []
+  );
 
   useEffect(() => {
     nodesRef.current = nodes;
@@ -82,6 +103,12 @@ export function useElkLayout({
   }, [nodes, edges]);
 
   const runLayout = useCallback(async () => {
+    if (workerGraphKeyRef.current !== topoKey) {
+      elkRef.current?.terminateWorker();
+      elkRef.current = createElkWithWorker();
+      workerGraphKeyRef.current = topoKey;
+    }
+
     const elk = elkRef.current!;
     const rfNodes = nodesRef.current;
     const rfEdges = edgesRef.current;
@@ -160,6 +187,7 @@ export function useElkLayout({
     edgeNodeSep,
     padding,
     direction,
+    topoKey,
   ]);
 
   // Fit view after layout if requested
