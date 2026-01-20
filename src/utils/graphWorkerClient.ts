@@ -4,6 +4,9 @@ import { getComputationTreeFromInputs } from '@tmfunctions/ComputationTree';
 import type { ConfigGraph } from '@tmfunctions/ConfigGraph';
 import { computeConfigGraph } from '@tmfunctions/ConfigGraph';
 
+const TREE_WORKER_TIMEOUT_MS = 4500;
+const CONFIG_WORKER_TIMEOUT_MS = 4500;
+
 type TreePayload = {
   depth: number;
   compressing?: boolean;
@@ -29,28 +32,41 @@ let treeWorker: Worker | null = null;
 let treeSeq = 0;
 const treePending = new Map<
   number,
-  { resolve: (v: ComputationTree) => void; reject: (e: unknown) => void }
+  {
+    resolve: (v: ComputationTree) => void;
+    reject: (e: unknown) => void;
+    cancelTimeout?: () => void;
+  }
 >();
 
 let configWorker: Worker | null = null;
 let configSeq = 0;
 const configPending = new Map<
   number,
-  { resolve: (v: ConfigGraph) => void; reject: (e: unknown) => void }
+  {
+    resolve: (v: ConfigGraph) => void;
+    reject: (e: unknown) => void;
+    cancelTimeout?: () => void;
+  }
 >();
 
-function terminateTreeWorker() {
+function terminateTreeWorker(rejectPending = true) {
   treeWorker?.terminate();
   treeWorker = null;
-  for (const [, { reject }] of treePending) reject(new Error('Tree worker reset'));
+  for (const [, { reject, cancelTimeout }] of treePending) {
+    cancelTimeout?.();
+    if (rejectPending) reject(new Error('Tree worker reset'));
+  }
   treePending.clear();
 }
 
-function terminateConfigWorker() {
+function terminateConfigWorker(rejectPending = true) {
   configWorker?.terminate();
   configWorker = null;
-  for (const [, { reject }] of configPending)
-    reject(new Error('Config worker reset'));
+  for (const [, { reject, cancelTimeout }] of configPending) {
+    cancelTimeout?.();
+    if (rejectPending) reject(new Error('Config worker reset'));
+  }
   configPending.clear();
 }
 
@@ -66,10 +82,14 @@ function ensureTreeWorker(): Worker {
       const pending = treePending.get(msg.id);
       if (!pending) return;
       treePending.delete(msg.id);
+      pending.cancelTimeout?.();
       pending.resolve(msg.tree);
     });
     treeWorker.addEventListener('error', (err) => {
-      for (const [, { reject }] of treePending) reject(err);
+      for (const [, { reject, cancelTimeout }] of treePending) {
+        cancelTimeout?.();
+        reject(err);
+      }
       treePending.clear();
     });
   }
@@ -88,10 +108,14 @@ function ensureConfigWorker(): Worker {
       const pending = configPending.get(msg.id);
       if (!pending) return;
       configPending.delete(msg.id);
+      pending.cancelTimeout?.();
       pending.resolve(msg.graph);
     });
     configWorker.addEventListener('error', (err) => {
-      for (const [, { reject }] of configPending) reject(err);
+      for (const [, { reject, cancelTimeout }] of configPending) {
+        cancelTimeout?.();
+        reject(err);
+      }
       configPending.clear();
     });
   }
@@ -121,7 +145,33 @@ export function computeComputationTreeInWorker(
   const id = ++treeSeq;
 
   return new Promise<ComputationTree>((resolve, reject) => {
-    treePending.set(id, { resolve, reject });
+    const timer = setTimeout(() => {
+      // Timed out: compute a smaller tree synchronously
+      treePending.delete(id);
+      terminateTreeWorker(false);
+      const reducedDepth = Math.max(2, Math.floor(payload.depth * 0.6));
+      const tree = getComputationTreeFromInputs(
+        payload.startConfig,
+        payload.transitions,
+        payload.numberOfTapes,
+        payload.blank,
+        reducedDepth,
+        !!payload.compressing
+      );
+      resolve(tree);
+    }, TREE_WORKER_TIMEOUT_MS);
+
+    treePending.set(id, {
+      resolve: (v) => {
+        clearTimeout(timer);
+        resolve(v);
+      },
+      reject: (e) => {
+        clearTimeout(timer);
+        reject(e);
+      },
+      cancelTimeout: () => clearTimeout(timer),
+    });
     worker.postMessage({ id, type: 'computationTree', payload });
   });
 }
@@ -133,7 +183,7 @@ export function computeConfigGraphInWorker(
     return Promise.resolve(
       computeConfigGraph(
         payload.startConfig,
-        payload.targetNodes ?? 2000,
+        payload.targetNodes ?? 8000,
         payload.transitions,
         payload.numberOfTapes,
         payload.blank
@@ -147,7 +197,32 @@ export function computeConfigGraphInWorker(
   const id = ++configSeq;
 
   return new Promise<ConfigGraph>((resolve, reject) => {
-    configPending.set(id, { resolve, reject });
+    const timer = setTimeout(() => {
+      // Timed out: compute a smaller graph synchronously
+      configPending.delete(id);
+      terminateConfigWorker(false);
+      const reducedTarget = Math.max(500, Math.floor((payload.targetNodes ?? 8000) / 2));
+      const graph = computeConfigGraph(
+        payload.startConfig,
+        reducedTarget,
+        payload.transitions,
+        payload.numberOfTapes,
+        payload.blank
+      );
+      resolve(graph);
+    }, CONFIG_WORKER_TIMEOUT_MS);
+
+    configPending.set(id, {
+      resolve: (v) => {
+        clearTimeout(timer);
+        resolve(v);
+      },
+      reject: (e) => {
+        clearTimeout(timer);
+        reject(e);
+      },
+      cancelTimeout: () => clearTimeout(timer),
+    });
     worker.postMessage({ id, type: 'configGraph', payload });
   });
 }

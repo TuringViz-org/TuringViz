@@ -27,8 +27,8 @@ export type LineParseError = {
 
 let schema: any = null;
 let latestConfigGraphJobId = 0;
-const INITIAL_CONFIG_GRAPH_NODES = 300;
-const FULL_CONFIG_GRAPH_NODES = 2000;
+const INITIAL_CONFIG_GRAPH_NODES = 500;
+const FULL_CONFIG_GRAPH_NODES = 8000;
 
 // Loading the schema from the public folder. Call in main.tsx
 export function setTuringMachineSchema(schema2: any) {

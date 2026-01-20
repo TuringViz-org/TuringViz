@@ -59,7 +59,7 @@ import {
 } from './util/constants';
 import { useElkLayout } from './layout/useElkLayout';
 import { buildConfigGraph } from './util/buildConfigGraph';
-import { ConfigNodeMode } from '@utils/constants';
+import { CARDS_CONFIRM_THRESHOLD, ConfigNodeMode } from '@utils/constants';
 import { LayoutSettingsPanel } from './layout/LayoutSettingsPanel';
 
 import { DEFAULT_ELK_OPTS } from '@utils/constants';
@@ -538,6 +538,15 @@ function ConfigGraphCards() {
                 toast.info(
                   `Cards are disabled when there are more than ${CARDS_LIMIT} nodes (current: ${nodeCount}).`
                 );
+                return;
+              }
+              if (
+                v === ConfigNodeMode.CARDS &&
+                nodeCount > CARDS_CONFIRM_THRESHOLD &&
+                !window.confirm(
+                  'Switching to card view can be very slow with many nodes. Continue?'
+                )
+              ) {
                 return;
               }
               setConfigGraphNodeMode(v);

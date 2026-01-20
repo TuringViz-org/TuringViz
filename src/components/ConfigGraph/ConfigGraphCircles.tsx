@@ -39,7 +39,12 @@ import {
 } from './util/constants';
 import type { ConfigGraph as ConfigGraphModel } from '@tmfunctions/ConfigGraph';
 import { buildConfigGraph } from './util/buildConfigGraph';
-import { ConfigNodeMode, DEFAULT_ELK_OPTS, HOVER_POPPER_DELAY_MS } from '@utils/constants';
+import {
+  CARDS_CONFIRM_THRESHOLD,
+  ConfigNodeMode,
+  DEFAULT_ELK_OPTS,
+  HOVER_POPPER_DELAY_MS,
+} from '@utils/constants';
 import { useElkLayout } from '@components/ComputationTree/layout/useElkLayout';
 import { TreeLayoutSettingsPanel as LayoutSettingsPanel } from '@components/ComputationTree/layout/LayoutSettingsPanel';
 import { useDebouncedLayoutRestart } from '@hooks/useDebouncedLayoutRestart';
@@ -1126,6 +1131,15 @@ export function ConfigGraphCircles() {
                 toast.info(
                   `Cards are disabled when there are more than ${CARDS_LIMIT} nodes (current: ${nodeCount}).`
                 );
+                return;
+              }
+              if (
+                v === ConfigNodeMode.CARDS &&
+                nodeCount > CARDS_CONFIRM_THRESHOLD &&
+                !window.confirm(
+                  'Switching to card view can be very slow with many nodes. Continue?'
+                )
+              ) {
                 return;
               }
               setConfigGraphNodeMode(v);

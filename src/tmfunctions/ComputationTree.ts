@@ -30,7 +30,7 @@ function computeConfigTreeNodes(
   blank: string,
   notifyTruncate?: (msg: string) => void
 ): ConfigTreeNode {
-  const TOTAL_MAX_NODES = 2000; // Absolute cap on total nodes to prevent performance issues.
+  const TOTAL_MAX_NODES = 8000; // Absolute cap on total nodes to prevent performance issues.
 
   let alreadyAddedNodes = 0;
 

@@ -17,7 +17,10 @@ export const DEFAULT_ELK_OPTS: ElkOptions = {
 };
 
 // Default depth for computation trees
-export const DEFAULT_TREE_DEPTH = 8;
+export const DEFAULT_TREE_DEPTH = 100;
 
 // Delay before showing hover poppers (in ms)
 export const HOVER_POPPER_DELAY_MS = 500;
+
+// Threshold where switching to card view should be confirmed
+export const CARDS_CONFIRM_THRESHOLD = 30;
