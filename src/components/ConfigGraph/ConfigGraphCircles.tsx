@@ -268,7 +268,11 @@ function NodeDetailPopper({
       ]}
       sx={{ zIndex: (t) => t.zIndex.tooltip }}
     >
-      <ClickAwayListener onClickAway={onClose}>
+      <ClickAwayListener
+        onClickAway={onClose}
+        mouseEvent={false}
+        touchEvent={false}
+      >
         <Paper
           elevation={6}
           onMouseDown={(e) => e.stopPropagation()}
@@ -684,6 +688,7 @@ export function ConfigGraphCircles() {
       const id = evt.target.id();
       const anchor = getAnchorFromEvent(evt);
       setSelected({ type: 'node', id, anchor });
+      setEdgeTooltip({ id: null, anchor: null, reason: null });
       openNodePopper(id, anchor, 'select');
     },
     [setSelected, clearHoverTimer, getAnchorFromEvent, openNodePopper]
@@ -696,6 +701,7 @@ export function ConfigGraphCircles() {
       const id = evt.target.id();
       const anchor = getAnchorFromEvent(evt);
       setSelected({ type: 'edge', id, anchor });
+      setNodePopper({ id: null, anchor: null, reason: null });
       openEdgeTooltip(id, anchor, 'select');
     },
     [setSelected, clearHoverTimer, getAnchorFromEvent, openEdgeTooltip]

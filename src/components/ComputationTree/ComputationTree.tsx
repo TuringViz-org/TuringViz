@@ -297,7 +297,11 @@ function NodeDetailPopper({
       ]}
       sx={{ zIndex: (t) => t.zIndex.tooltip }}
     >
-      <ClickAwayListener onClickAway={onClose}>
+      <ClickAwayListener
+        onClickAway={onClose}
+        mouseEvent={false}
+        touchEvent={false}
+      >
         <Paper
           elevation={6}
           onMouseDown={(e) => e.stopPropagation()}
@@ -846,22 +850,31 @@ function ComputationTreeCircles({ depth, compressing = false }: Props) {
     if (selected.type === 'node' && selected.id) {
       const anchor = selected.anchor ?? getAnchorFromElement(selected.id);
       if (anchor) openNodePopper(selected.id, anchor, 'select');
-      setEdgeTooltip((prev) =>
-        prev.reason === 'select' ? { id: null, anchor: null, reason: null } : prev
+      // Close any edge tooltip and any other node popper
+      setEdgeTooltip({ id: null, anchor: null, reason: null });
+      setNodePopper((prev) =>
+        prev.id === selected.id && prev.reason === 'select'
+          ? prev
+          : { id: selected.id, anchor, reason: 'select' }
       );
-    } else if (nodePopperRef.current.reason === 'select') {
-      setNodePopper({ id: null, anchor: null, reason: null });
+      return;
     }
 
     if (selected.type === 'edge' && selected.id) {
       const anchor = selected.anchor ?? getAnchorFromElement(selected.id);
       if (anchor) openEdgeTooltip(selected.id, anchor, 'select');
-      setNodePopper((prev) =>
-        prev.reason === 'select' ? { id: null, anchor: null, reason: null } : prev
+      setNodePopper({ id: null, anchor: null, reason: null });
+      setEdgeTooltip((prev) =>
+        prev.id === selected.id && prev.reason === 'select'
+          ? prev
+          : { id: selected.id, anchor, reason: 'select' }
       );
-    } else if (edgeTooltipRef.current.reason === 'select') {
-      setEdgeTooltip({ id: null, anchor: null, reason: null });
+      return;
     }
+
+    // Deselection: close both
+    setNodePopper({ id: null, anchor: null, reason: null });
+    setEdgeTooltip({ id: null, anchor: null, reason: null });
   }, [selected, getAnchorFromElement, openNodePopper, openEdgeTooltip]);
 
   // Instantiate Cytoscape once
@@ -925,9 +938,8 @@ function ComputationTreeCircles({ depth, compressing = false }: Props) {
     };
 
     cy.on('tap', onPaneTap);
-    // Use tapstart so the popper opens immediately on press, not on release.
-    cy.on('tapstart', 'node', onNodeTap);
-    cy.on('tapstart', 'edge', onEdgeTap);
+    cy.on('tap', 'node', onNodeTap);
+    cy.on('tap', 'edge', onEdgeTap);
     cy.on('dbltap', 'node', handleNodeDoubleTap);
     cy.on('mouseover', 'node', handleNodeHoverStart);
     cy.on('mouseout', 'node', handleNodeHoverEnd);
