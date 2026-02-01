@@ -30,6 +30,8 @@ export type Options = {
   edgeNodeSep?: number; // spacing between edges and nodes
   padding?: number; // graph padding
   direction?: 'RIGHT' | 'LEFT' | 'UP' | 'DOWN';
+  topoKeyOverride?: string;
+  autoRun?: boolean;
 };
 
 export type LayoutAPI = {
@@ -47,6 +49,8 @@ export function useElkLayout({
   edgeNodeSep = 100,
   padding = 24,
   direction = 'DOWN',
+  topoKeyOverride,
+  autoRun = true,
   onLayout,
 }: Options & {
   nodes: RFNode[];
@@ -83,6 +87,7 @@ export function useElkLayout({
   // Topology key: only node IDs + (unique) source→target pairs
   // This keeps layout re-runs limited to actual structure changes.
   const topoKey = useMemo(() => {
+    if (topoKeyOverride != null) return topoKeyOverride;
     const nIds = nodes
       .map((n) => n.id)
       .sort((a, b) => a.localeCompare(b))
@@ -100,7 +105,7 @@ export function useElkLayout({
       .join('|');
 
     return `${nIds}__${ePairs}`;
-  }, [nodes, edges]);
+  }, [nodes, edges, topoKeyOverride]);
 
   const runLayout = useCallback(async () => {
     if (workerGraphKeyRef.current !== topoKey) {
@@ -198,10 +203,11 @@ export function useElkLayout({
 
   // Automatically recalculate when the topology changes
   useEffect(() => {
+    if (!autoRun) return;
     if (lastTopoKeyRef.current === topoKey) return;
     lastTopoKeyRef.current = topoKey;
     void runLayout();
-  }, [topoKey, runLayout]);
+  }, [topoKey, runLayout, autoRun]);
 
   return { restart, running };
 }

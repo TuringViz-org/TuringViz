@@ -162,7 +162,7 @@ function ConfigGraphCards() {
   // Base graph structure (nodes/edges) extraction
   // ELK will overwrite positions
   const base = useMemo(() => {
-    if (!configGraph) return { nodes: [], edges: [] };
+    if (!configGraph) return { nodes: [], edges: [], topoKey: '' };
     return buildConfigGraph(
       configGraph,
       transitions,
@@ -179,6 +179,7 @@ function ConfigGraphCards() {
 
   const [nodes, setNodes, onNodesChangeRF] = useNodesState(base.nodes);
   const [edges, setEdges, onEdgesChangeRF] = useEdgesState(base.edges);
+  const [structureKey, setStructureKey] = useState('');
 
   const {
     highlightedEdgeId,
@@ -266,7 +267,15 @@ function ConfigGraphCards() {
     );
 
     setEdges((prev) => reconcileEdges(prev, base.edges));
-  }, [base.nodes, base.edges, stateColorMatching, selectableSet, resolveColorForState]);
+    setStructureKey((prev) => (prev === base.topoKey ? prev : base.topoKey));
+  }, [
+    base.nodes,
+    base.edges,
+    base.topoKey,
+    stateColorMatching,
+    selectableSet,
+    resolveColorForState,
+  ]);
 
   // Highlight last transition
   useEffect(() => {
@@ -286,22 +295,7 @@ function ConfigGraphCards() {
 
   // Initial/structural layout + fit handling (ELK)
   // Compute structural topology key locally (IDs + unique source→target pairs)
-  const topoKey = useMemo(() => {
-    const nIds = nodes
-      .map((n) => n.id)
-      .sort()
-      .join('|');
-    const ePairs = Array.from(
-      new Set(
-        edges
-          .filter((e) => e.source !== e.target)
-          .map((e) => `${e.source}→${e.target}`)
-      )
-    )
-      .sort()
-      .join('|');
-    return `${nIds}__${ePairs}`;
-  }, [nodes, edges]);
+  const topoKey = structureKey;
 
   // Start ELK once when nodes are ready
   useEffect(() => {

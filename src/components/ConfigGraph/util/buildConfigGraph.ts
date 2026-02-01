@@ -21,7 +21,7 @@ export function buildConfigGraph(
   transitionsByState: Map<string, Transition[]>,
   currentConfig?: Configuration | null,
   mode: ConfigNodeMode = ConfigNodeMode.CIRCLES
-): { nodes: Node[]; edges: Edge[] } {
+): { nodes: Node[]; edges: Edge[]; topoKey: string } {
   const nodes: Node[] = [];
   const edges: Edge[] = [];
 
@@ -74,5 +74,15 @@ export function buildConfigGraph(
     }
   });
 
-  return { nodes, edges };
+  const nodeIds = nodes.map((n) => n.id).sort();
+  const edgePairs = Array.from(
+    new Set(
+      edges.filter((e) => e.source !== e.target).map((e) => `${e.source}→${e.target}`)
+    )
+  )
+    .sort()
+    .join('|');
+  const topoKey = `${nodeIds.join('|')}__${edgePairs}`;
+
+  return { nodes, edges, topoKey };
 }

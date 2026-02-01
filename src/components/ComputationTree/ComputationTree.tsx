@@ -342,7 +342,6 @@ function useComputationTreeData(
 ): {
   model: ComputationTreeModel | null;
   base: ReturnType<typeof buildComputationTreeGraph>;
-  computing: boolean;
 } {
   const transitions = useGlobalZustand((s) => s.transitions);
   const blank = useGlobalZustand((s) => s.blank);
@@ -356,14 +355,12 @@ function useComputationTreeData(
     edges: [],
     topoKey: '',
   });
-  const [computing, setComputing] = useState(false);
   const requestRef = useRef(0);
 
   useEffect(() => {
     const startConfig = getStartConfiguration();
     const reqId = requestRef.current + 1;
     requestRef.current = reqId;
-    setComputing(true);
 
     computeComputationTreeInWorker({
       depth,
@@ -389,10 +386,6 @@ function useComputationTreeData(
           (msg) => toast.warning(msg)
         );
         setModel(tree);
-      })
-      .finally(() => {
-        if (requestRef.current !== reqId) return;
-        setComputing(false);
       });
   }, [depth, compressing, transitions, blank, numberOfTapes, startState, input]);
 
@@ -401,7 +394,7 @@ function useComputationTreeData(
     setBase(buildComputationTreeGraph(model, transitions, nodeMode));
   }, [model, transitions, nodeMode]);
 
-  return { model, base, computing };
+  return { model, base };
 }
 
 type Props = { depth: number; compressing?: boolean };
@@ -436,6 +429,7 @@ function ComputationTreeCircles({ depth, compressing = false }: Props) {
 
   const [nodes, setNodes] = useState<RFNode[]>(base.nodes);
   const [edges, setEdges] = useState<RFEdge[]>(base.edges);
+  const [structureKey, setStructureKey] = useState('');
 
   // Keep node/edge lookup maps for quick access in event handlers
   const nodeMapRef = useRef<Map<string, RFNode>>(new Map());
@@ -459,6 +453,8 @@ function ComputationTreeCircles({ depth, compressing = false }: Props) {
     edgeNodeSep: computationTreeELKSettings.edgeNodeSep,
     padding: computationTreeELKSettings.padding,
     direction: computationTreeELKSettings.direction,
+    topoKeyOverride: structureKey,
+    autoRun: false,
     onLayout: (positions) => {
       setNodes((prev) =>
         prev.map((n) => {
@@ -537,33 +533,17 @@ function ComputationTreeCircles({ depth, compressing = false }: Props) {
     );
 
     setEdges((prev) => reconcileEdges(prev, base.edges));
+    setStructureKey((prev) => (prev === base.topoKey ? prev : base.topoKey));
   }, [
     model,
     base.nodes,
     base.edges,
+    base.topoKey,
     hideLabels,
     stateColorMatching,
     setNodes,
     setEdges,
   ]);
-
-  // Topology key (nodes + edges, undirected)
-  const topoKey = useMemo(() => {
-    const nIds = nodes
-      .map((n) => n.id)
-      .sort()
-      .join('|');
-    const ePairs = Array.from(
-      new Set(
-        edges
-          .filter((e) => e.source !== e.target)
-          .map((e) => `${e.source}→${e.target}`)
-      )
-    )
-      .sort()
-      .join('|');
-    return `${nIds}__${ePairs}`;
-  }, [nodes, edges]);
 
   // Start ELK once when nodes are ready
   useEffect(() => {
@@ -578,15 +558,15 @@ function ComputationTreeCircles({ depth, compressing = false }: Props) {
   useEffect(() => {
     if (nodes.length === 0) return;
     if (lastTopoKeyRef.current === null) {
-      lastTopoKeyRef.current = topoKey;
+      lastTopoKeyRef.current = structureKey;
       return;
     }
-    if (lastTopoKeyRef.current === topoKey) return;
-    lastTopoKeyRef.current = topoKey;
+    if (lastTopoKeyRef.current === structureKey) return;
+    lastTopoKeyRef.current = structureKey;
 
     scheduleLayoutRestart();
     fitAfterLayoutRef.current = true;
-  }, [topoKey, nodes.length, scheduleLayoutRestart]);
+  }, [structureKey, nodes.length, scheduleLayoutRestart]);
 
   // Start ELK when nodeMode changes
   useEffect(() => {
@@ -1419,6 +1399,7 @@ function ComputationTreeCards({ depth, compressing = false }: Props) {
 
   const [nodes, setNodes, onNodesChange] = useNodesState<RFNode>(base.nodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState<RFEdge>(base.edges);
+  const [structureKey, setStructureKey] = useState('');
 
   const rf = useReactFlow();
   const nodesReady = useNodesInitialized();
@@ -1434,6 +1415,8 @@ function ComputationTreeCards({ depth, compressing = false }: Props) {
     edgeNodeSep: computationTreeELKSettings.edgeNodeSep,
     padding: computationTreeELKSettings.padding,
     direction: computationTreeELKSettings.direction,
+    topoKeyOverride: structureKey,
+    autoRun: false,
     onLayout: (positions) => {
       setNodes((prev) =>
         prev.map((n) => {
@@ -1516,33 +1499,17 @@ function ComputationTreeCards({ depth, compressing = false }: Props) {
     );
 
     setEdges((prev) => reconcileEdges(prev, base.edges));
+    setStructureKey((prev) => (prev === base.topoKey ? prev : base.topoKey));
   }, [
     model,
     base.nodes,
     base.edges,
+    base.topoKey,
     hideLabels,
     stateColorMatching,
     setNodes,
     setEdges,
   ]);
-
-  // Topology key (nodes + edges, undirected)
-  const topoKey = useMemo(() => {
-    const nIds = nodes
-      .map((n) => n.id)
-      .sort()
-      .join('|');
-    const ePairs = Array.from(
-      new Set(
-        edges
-          .filter((e) => e.source !== e.target)
-          .map((e) => `${e.source}→${e.target}`)
-      )
-    )
-      .sort()
-      .join('|');
-    return `${nIds}__${ePairs}`;
-  }, [nodes, edges]);
 
   // Start ELK once when nodes are ready
   useEffect(() => {
@@ -1557,15 +1524,15 @@ function ComputationTreeCards({ depth, compressing = false }: Props) {
   useEffect(() => {
     if (!nodesReady || nodes.length === 0) return;
     if (lastTopoKeyRef.current === null) {
-      lastTopoKeyRef.current = topoKey;
+      lastTopoKeyRef.current = structureKey;
       return;
     }
-    if (lastTopoKeyRef.current === topoKey) return;
-    lastTopoKeyRef.current = topoKey;
+    if (lastTopoKeyRef.current === structureKey) return;
+    lastTopoKeyRef.current = structureKey;
 
     scheduleLayoutRestart();
     fitAfterLayoutRef.current = true;
-  }, [topoKey, nodesReady, nodes.length, scheduleLayoutRestart]);
+  }, [structureKey, nodesReady, nodes.length, scheduleLayoutRestart]);
 
   // Start ELK when nodeMode changes
   useEffect(() => {

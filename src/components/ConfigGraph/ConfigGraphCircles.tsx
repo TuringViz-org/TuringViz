@@ -422,13 +422,14 @@ export function ConfigGraphCircles() {
   const [model, setModel] = useState<ConfigGraphModel | null>(null);
   const transitionsByState = useMemo(() => transitions, [transitions]);
   const base = useMemo(() => {
-    if (!configGraph) return { nodes: [], edges: [] };
+    if (!configGraph) return { nodes: [], edges: [], topoKey: '' };
     setModel(configGraph);
     return buildConfigGraph(configGraph, transitionsByState, currentConfig, ConfigNodeMode.CIRCLES);
   }, [configGraph, transitionsByState, currentConfig]);
 
   const [nodes, setNodes] = useState<RFNode[]>(base.nodes);
   const [edges, setEdges] = useState<RFEdge[]>(base.edges);
+  const [structureKey, setStructureKey] = useState('');
 
   const nodeMapRef = useRef<Map<string, RFNode>>(new Map());
   const edgeMapRef = useRef<Map<string, RFEdge>>(new Map());
@@ -461,6 +462,8 @@ export function ConfigGraphCircles() {
     edgeNodeSep: configGraphELKSettings.edgeNodeSep,
     padding: configGraphELKSettings.padding,
     direction: configGraphELKSettings.direction,
+    topoKeyOverride: structureKey,
+    autoRun: false,
     onLayout: (positions) => {
       setNodes((prev) =>
         prev.map((n) => {
@@ -533,7 +536,16 @@ export function ConfigGraphCircles() {
     );
 
     setEdges((prev) => reconcileEdges(prev, base.edges));
-  }, [configGraph, base.nodes, base.edges, selectableSet, hideLabels, stateColorMatching]);
+    setStructureKey((prev) => (prev === base.topoKey ? prev : base.topoKey));
+  }, [
+    configGraph,
+    base.nodes,
+    base.edges,
+    base.topoKey,
+    selectableSet,
+    hideLabels,
+    stateColorMatching,
+  ]);
 
   // Highlight last transition
   useEffect(() => {
@@ -552,22 +564,7 @@ export function ConfigGraphCircles() {
   }, [configGraph, currentConfig, lastState, lastTransition, lastTransitionTrigger, lastConfig]);
 
   // Topology key
-  const topoKey = useMemo(() => {
-    const nIds = nodes
-      .map((n) => n.id)
-      .sort()
-      .join('|');
-    const ePairs = Array.from(
-      new Set(
-        edges
-          .filter((e) => e.source !== e.target)
-          .map((e) => `${e.source}→${e.target}`)
-      )
-    )
-      .sort()
-      .join('|');
-    return `${nIds}__${ePairs}`;
-  }, [nodes, edges]);
+  const topoKey = structureKey;
 
   // Layout triggers
   useEffect(() => {

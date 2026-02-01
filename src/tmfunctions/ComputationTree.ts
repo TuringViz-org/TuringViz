@@ -278,14 +278,15 @@ function computeCompressedTreeFromInputs(
     },
   ];
 
-  while (queue.length > 0) {
-    const item = queue.shift()!;
+  let head = 0;
+  while (head < queue.length) {
+    const item = queue[head++]!;
 
     if (totalNodes >= TOTAL_MAX_NODES) {
       truncated = true;
       finalizeItem(item, End.NotYetComputed);
-      while (queue.length > 0) {
-        finalizeItem(queue.shift()!, End.NotYetComputed);
+      for (; head < queue.length; head++) {
+        finalizeItem(queue[head]!, End.NotYetComputed);
       }
       break;
     }
@@ -379,7 +380,6 @@ function getComputationTreeFromNodes(
   depth: number,
   compressing: boolean
 ): ComputationTree {
-
   // If compression is not enabled, use the original BFS approach (no changes in logic, just include compressed:false).
   if (!compressing) {
     const edges: ComputationTreeEdge[] = [];
@@ -387,21 +387,16 @@ function getComputationTreeFromNodes(
     let currentId = 0;
     const queue = new Denque<ConfigTreeNode>([tree]);
 
-    // BFS: assign unique IDs to all nodes and build nodes list
+    // BFS: assign IDs and build nodes/edges in one pass.
+    tree.id = currentId++;
+    nodes.push({ config: tree.config, id: tree.id, end: tree.end });
     while (queue.length > 0) {
       const node = queue.shift()!;
-      node.id = currentId++;
-      nodes.push({ config: node.config, id: node.id, end: node.end });
-      for (const [child] of node.children) {
-        queue.push(child);
-      }
-    }
-
-    // BFS: build edges list using the assigned IDs
-    const queue2 = new Denque<ConfigTreeNode>([tree]);
-    while (queue2.length > 0) {
-      const node = queue2.shift()!;
       for (const [child, transitionIndex] of node.children) {
+        if (child.id == null) {
+          child.id = currentId++;
+          nodes.push({ config: child.config, id: child.id, end: child.end });
+        }
         edges.push({
           from: node.id!,
           to: child.id!,
@@ -409,7 +404,7 @@ function getComputationTreeFromNodes(
           compressed: false, // no compression in this mode
           compressedLength: 1,
         });
-        queue2.push(child);
+        queue.push(child);
       }
     }
 
