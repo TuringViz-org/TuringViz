@@ -1,5 +1,6 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ThemeProvider, CssBaseline, Button } from '@mui/material';
+import { toast } from 'sonner';
 import { theme } from '@theme';
 import { MainHeader } from '@components/MainPage/MainHeader';
 import { DashboardLayout } from '@components/MainPage/DashboardLayout';
@@ -15,12 +16,16 @@ import { ConfigGraphWrapper } from '@components/ConfigGraph/ConfigGraph';
 import { ComputationTreeWrapper } from '@components/ComputationTree/ComputationTree';
 import SiteFooter from '@components/Footer/SiteFooter';
 import { useComputationTreeDepth, useGraphZustand } from '@zustands/GraphZustand';
+import { useEditorZustand } from '@zustands/EditorZustand';
 import { DEFAULT_TREE_DEPTH } from '@utils/constants';
+import { extractGistId, fetchGistContent } from '@utils/gist';
 
 export default function App() {
   // Graph Zustand state and setters
   const computationTreeDepth = useComputationTreeDepth();
   const setComputationTreeDepth = useGraphZustand((s) => s.setComputationTreeDepth);
+  const { setCode } = useEditorZustand();
+  const gistInitRef = useRef(false);
 
   // Local state for dialogs and fullscreen
   const [computeOpen, setComputeOpen] = useState(false);
@@ -45,6 +50,44 @@ export default function App() {
   const configFullscreenRef = useRef<HTMLDivElement | null>(null);
   const treePanelRef = useRef<HTMLDivElement | null>(null);
   const treeFullscreenRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (gistInitRef.current) return;
+    gistInitRef.current = true;
+
+    const params = new URLSearchParams(window.location.search);
+    const gistParam = params.get('gist');
+    if (!gistParam) return;
+
+    const gistId = extractGistId(gistParam);
+    if (!gistId) {
+      toast.warning('Invalid gist parameter.');
+      return;
+    }
+
+    const fileName = params.get('file') ?? undefined;
+    const controller = new AbortController();
+    const isAbortError = (error: unknown): boolean =>
+      error instanceof DOMException && error.name === 'AbortError';
+
+    const load = async () => {
+      try {
+        const content = await fetchGistContent(gistId, {
+          fileName,
+          signal: controller.signal,
+        });
+        setCode(content, true);
+      } catch (error) {
+        if (controller.signal.aborted || isAbortError(error)) return;
+        console.error('Failed to load gist:', error);
+        toast.warning('Failed to load gist. Check the ID and try again.');
+      }
+    };
+
+    void load();
+
+    return () => controller.abort();
+  }, [setCode]);
 
   // Handlers for opening/closing "Compute Tree" dialog
   const openCompute = () => {

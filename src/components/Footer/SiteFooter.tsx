@@ -11,6 +11,7 @@ import {
   Grid,
   Link as MuiLink,
   Paper,
+  TextField,
   Stack,
   Tab,
   Tabs,
@@ -30,6 +31,7 @@ import { alpha } from '@mui/material';
 
 import { CodeBlock } from './CodeBlock';
 import { YamlLegend } from './YamlLegend';
+import { extractGistId } from '@utils/gist';
 
 type ActionTab = { label: string; render: () => ReactNode };
 
@@ -621,6 +623,46 @@ function GithubCallToAction() {
   );
 }
 
+function GistGuide() {
+  const [gistInput, setGistInput] = useState('');
+  const gistId = extractGistId(gistInput);
+  const gistUrl = gistId
+    ? `https://turingviz.org/?gist=${encodeURIComponent(gistId)}`
+    : 'https://turingviz.org/?gist=YOUR_ID';
+
+  return (
+    <Box sx={{ mt: 3 }}>
+      <SectionTitle
+        icon={<GitHub />}
+        title="Load from GitHub Gist"
+        subtitle="Generate a shareable URL that preloads a gist in the editor."
+      />
+      <Paper variant="outlined" sx={{ p: 2, borderRadius: 2 }}>
+        <Stack spacing={1.25}>
+          <Typography variant="body2" color="text.secondary">
+            Paste a gist id (or full gist URL) to generate the turingviz.org link.
+          </Typography>
+          <TextField
+            label="Gist id"
+            size="small"
+            value={gistInput}
+            onChange={(event) => setGistInput(event.target.value)}
+            placeholder="2134789tghbsfnsgkhflrup9108u345i"
+          />
+          <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+            Resulting URL
+          </Typography>
+          <CodeBlock language="text" code={gistUrl} />
+          <Typography variant="caption" color="text.secondary">
+            Optional: add <code>&amp;file=machine.yaml</code> to pick a specific file
+            inside the gist.
+          </Typography>
+        </Stack>
+      </Paper>
+    </Box>
+  );
+}
+
 export default function SiteFooter() {
   const [actionTab, setActionTab] = useState(0);
 
@@ -643,6 +685,7 @@ export default function SiteFooter() {
         <Divider sx={{ my: 2 }} />
         <TheoryGrid />
         <YamlSection actionTab={actionTab} onActionTabChange={setActionTab} />
+        <GistGuide />
         <GithubCallToAction />
       </Container>
     </Box>
