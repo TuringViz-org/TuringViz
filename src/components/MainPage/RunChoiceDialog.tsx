@@ -3,6 +3,7 @@ import {
   Box,
   Button,
   Chip,
+  Divider,
   Dialog,
   DialogActions,
   DialogContent,
@@ -17,8 +18,12 @@ import {
   closePendingRunChoiceDialog,
   selectPendingRunChoice,
 } from '@tmfunctions/Running';
-import { isTapePatternRealFieldbyField, isTapeWriteRealFieldbyField } from '@mytypes/TMTypes';
+import {
+  isTapePatternRealFieldbyField,
+  isTapeWriteRealFieldbyField,
+} from '@mytypes/TMTypes';
 import { useGlobalZustand } from '@zustands/GlobalZustand';
+import { Tape } from '@components/TapeList/Tape';
 
 function symbol(value: string, blank: string): string {
   if (value === blank && blank === ' ') return '□';
@@ -60,6 +65,38 @@ export function RunChoiceDialog() {
       <DialogContent dividers>
         {!activeGroup ? null : (
           <Stack spacing={1.25}>
+            <Paper
+              variant="outlined"
+              sx={{
+                p: 1.25,
+                borderRadius: 2,
+                borderColor: (t) => alpha(t.palette.divider, 0.8),
+                backgroundColor: (t) => t.palette.background.paper,
+                position: 'sticky',
+                top: -1,
+                zIndex: 2,
+              }}
+            >
+              <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 0.75 }}>
+                <Typography variant="subtitle2">Current Configuration</Typography>
+                <Chip
+                  size="small"
+                  variant="outlined"
+                  label={`State: ${pendingRunChoice.fromConfig.state}`}
+                />
+              </Stack>
+
+              <Stack spacing={0.25}>
+                {pendingRunChoice.fromConfig.tapes.map((_, tapeIdx) => (
+                  <Tape
+                    key={`current-${tapeIdx}`}
+                    index={tapeIdx}
+                    configuration={pendingRunChoice.fromConfig}
+                  />
+                ))}
+              </Stack>
+            </Paper>
+
             {activeGroup.options.map((option, idx) => {
               const transition = option.transition;
               const tapes = Math.max(
@@ -165,6 +202,29 @@ export function RunChoiceDialog() {
                         </Box>
                       );
                     })}
+                  </Stack>
+
+                  <Divider sx={{ my: 1 }} />
+
+                  <Stack spacing={0.5}>
+                    <Stack direction="row" spacing={1} alignItems="center">
+                      <Typography variant="subtitle2">Resulting Configuration</Typography>
+                      <Chip
+                        size="small"
+                        variant="outlined"
+                        label={`State: ${option.config.state}`}
+                      />
+                    </Stack>
+
+                    <Stack spacing={0.25}>
+                      {option.config.tapes.map((_, tapeIdx) => (
+                        <Tape
+                          key={`preview-${idx}-${tapeIdx}`}
+                          index={tapeIdx}
+                          configuration={option.config}
+                        />
+                      ))}
+                    </Stack>
                   </Stack>
                 </Paper>
               );

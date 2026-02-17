@@ -4,20 +4,24 @@ import { flushSync } from 'react-dom';
 
 import { TapeCell, TapeCellProps } from '@components/TapeList/TapeCell';
 import { useGlobalZustand } from '@zustands/GlobalZustand';
-import { getTapeFieldorBlank } from '@mytypes/TMTypes';
+import { Configuration, getTapeFieldorBlank } from '@mytypes/TMTypes';
 
 import styles from './TapeList.module.css';
 
 export type TapeProps = {
   index: number; //This is the index of the tape, used to identify the tape
+  configuration?: Configuration;
 };
 
-export function Tape({ index }: TapeProps) {
+export function Tape({ index, configuration }: TapeProps) {
   const [propList, setPropList] = React.useState<TapeCellProps[]>([]);
 
-  //Heads and tapes need to be set at the same time, otherwise maybe problems occur with the animation
-  const head = useGlobalZustand((state) => state.heads[index]);
-  const tape = useGlobalZustand((state) => state.tapes[index]);
+  // Heads and tapes need to be set at the same time, otherwise maybe problems occur with the animation.
+  // Keep store subscriptions for normal run view, but allow explicit configuration override for previews.
+  const stateHead = useGlobalZustand((state) => state.heads[index]);
+  const stateTape = useGlobalZustand((state) => state.tapes[index]);
+  const head = configuration ? (configuration.heads[index] ?? 0) : stateHead;
+  const tape = configuration ? configuration.tapes[index] : stateTape;
   const prevHeadRef = useRef<number | null>(null);
 
   const wrapperRef = useRef<SVGGElement>(null);
@@ -29,7 +33,7 @@ export function Tape({ index }: TapeProps) {
     //Update the prevHeadRef to the new head
     prevHeadRef.current = newHead;
 
-    const running = useGlobalZustand.getState().running;
+    const running = configuration ? false : useGlobalZustand.getState().running;
 
     const blank = useGlobalZustand.getState().blank;
 
