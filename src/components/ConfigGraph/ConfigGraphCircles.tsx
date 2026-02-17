@@ -88,7 +88,6 @@ import {
 } from '@zustands/GraphZustand';
 import { reconcileEdges, reconcileNodes } from '@utils/reactflow';
 import { setConfiguration } from '@tmfunctions/Running';
-import { hashConfig } from '@mytypes/TMTypes';
 import type { Configuration } from '@mytypes/TMTypes';
 import {
   getPointerSnapshot,
@@ -112,6 +111,11 @@ type EdgeTooltipState = {
   id: string | null;
   anchor: Anchor | null;
   reason: 'hover' | 'select' | null;
+};
+
+type ViewportSnapshot = {
+  zoom: number;
+  pan: { x: number; y: number };
 };
 
 const makeVirtualAnchor = (anchor: Anchor | null): VirtualElement => {
@@ -310,23 +314,13 @@ export function ConfigGraphCircles() {
   const theme = useTheme();
   const cyRef = useRef<CyCore | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const viewportRef = useRef<ViewportSnapshot | null>(null);
 
   // Global Zustand states
   const configGraph = useGlobalZustand((s) => s.configGraph);
-  const currentState = useGlobalZustand((s) => s.currentState);
-  const tapes = useGlobalZustand((s) => s.tapes);
-  const heads = useGlobalZustand((s) => s.heads);
-  const lastState = useGlobalZustand((s) => s.lastState);
-  const lastConfig = useGlobalZustand((s) => s.lastConfig);
-  const lastTransition = useGlobalZustand((s) => s.lastTransition);
-  const lastTransitionTrigger = useGlobalZustand((s) => s.lastTransitionTrigger);
   const transitions = useGlobalZustand((s) => s.transitions);
   const stateColorMatching = useGlobalZustand((s) => s.stateColorMatching);
-
-  const currentConfig = useMemo(
-    () => ({ state: currentState, tapes, heads }),
-    [currentState, tapes, heads]
-  );
+  const machineLoadVersion = useGlobalZustand((s) => s.machineLoadVersion);
 
   // Graph Zustand state and setters
   const configGraphNodeMode = useConfigGraphNodeMode();
@@ -342,7 +336,6 @@ export function ConfigGraphCircles() {
     hoveredState,
     setHoveredState,
     highlightedEdgeId,
-    setHighlightedEdgeId,
   } = useGraphUI();
   const resolveColorForState = useCallback(
     (stateName?: string) => {
@@ -424,8 +417,13 @@ export function ConfigGraphCircles() {
   const base = useMemo(() => {
     if (!configGraph) return { nodes: [], edges: [], topoKey: '' };
     setModel(configGraph);
-    return buildConfigGraph(configGraph, transitionsByState, currentConfig, ConfigNodeMode.CIRCLES);
-  }, [configGraph, transitionsByState, currentConfig]);
+    return buildConfigGraph(
+      configGraph,
+      transitionsByState,
+      undefined,
+      ConfigNodeMode.CIRCLES
+    );
+  }, [configGraph, transitionsByState]);
 
   const [nodes, setNodes] = useState<RFNode[]>(base.nodes);
   const [edges, setEdges] = useState<RFEdge[]>(base.edges);
@@ -440,16 +438,6 @@ export function ConfigGraphCircles() {
   useEffect(() => {
     edgeMapRef.current = new Map(edges.map((e) => [e.id, e]));
   }, [edges]);
-
-  // Selectable set (children of current config)
-  const selectableSet = useMemo(() => {
-    if (!configGraph) return new Set<string>();
-    const currHash = hashConfig(currentConfig);
-    const entry = configGraph.Graph.get(currHash);
-    if (!entry) return new Set<string>();
-    if (entry.next.length <= 1) return new Set<string>();
-    return new Set(entry.next.map(([toHash]) => toHash));
-  }, [configGraph, currentConfig]);
 
   // ELK Layout
   const layout = useElkLayout({
@@ -482,24 +470,11 @@ export function ConfigGraphCircles() {
     });
   }, [configGraphNodeMode]);
 
-  const nodesCountRef = useRef(0);
-  const edgesCountRef = useRef(0);
   const didInitialLayoutRef = useRef(false);
   const lastTopoKeyRef = useRef<string | null>(null);
   const fitAfterLayoutRef = useRef(false);
   const prevRunningRef = useRef(layout.running);
-  const layoutRunningRef = useRef(layout.running);
-  const manualFitPendingRef = useRef(false);
-
-  useEffect(() => {
-    nodesCountRef.current = nodes.length;
-  }, [nodes.length]);
-  useEffect(() => {
-    edgesCountRef.current = edges.length;
-  }, [edges.length]);
-  useEffect(() => {
-    layoutRunningRef.current = layout.running;
-  }, [layout.running]);
+  const pendingMachineLoadFitRef = useRef(false);
 
   // Disable cards if too many nodes
   const nodeCount = model?.Graph?.size ?? 0;
@@ -528,7 +503,6 @@ export function ConfigGraphCircles() {
 
         return {
           ...(node.data as any),
-          isSelectable: selectableSet.has(node.id),
           showLabel: !hideLabels,
           stateColor: mappedColor,
         };
@@ -542,26 +516,9 @@ export function ConfigGraphCircles() {
     base.nodes,
     base.edges,
     base.topoKey,
-    selectableSet,
     hideLabels,
     stateColorMatching,
   ]);
-
-  // Highlight last transition
-  useEffect(() => {
-    if (!configGraph) return;
-    if (!lastState || lastTransition === -1) return;
-
-    const toHash = hashConfig(currentConfig);
-    const fromHash = lastConfig ? hashConfig(lastConfig) : null;
-    if (!fromHash) return;
-
-    const highlightedId = `${fromHash}→${toHash}#${lastTransition}`;
-    setHighlightedEdgeId(highlightedId);
-
-    const t = setTimeout(() => setHighlightedEdgeId(null), 400);
-    return () => clearTimeout(t);
-  }, [configGraph, currentConfig, lastState, lastTransition, lastTransitionTrigger, lastConfig]);
 
   // Topology key
   const topoKey = structureKey;
@@ -614,21 +571,39 @@ export function ConfigGraphCircles() {
     []
   );
 
+  const isContainerVisible = useCallback(() => {
+    const el = containerRef.current;
+    return !!el && el.clientWidth > 0 && el.clientHeight > 0;
+  }, []);
+
+  // Re-center on every successful "Load Machine".
+  useEffect(() => {
+    pendingMachineLoadFitRef.current = !isContainerVisible();
+    if (nodes.length === 0) return;
+    scheduleLayoutRestart();
+    fitAfterLayoutRef.current = true;
+  }, [machineLoadVersion, scheduleLayoutRestart, nodes.length, isContainerVisible]);
+
+  const restoreViewport = useCallback(() => {
+    const cy = cyRef.current;
+    const viewport = viewportRef.current;
+    if (!cy || !viewport) return;
+    cy.viewport(viewport);
+  }, []);
+
   useEffect(() => {
     const justFinished = prevRunningRef.current && !layout.running;
     if (justFinished) {
       if (fitAfterLayoutRef.current && nodes.length > 0) {
         fitAfterLayoutRef.current = false;
         runFitView();
-      }
-
-      if (manualFitPendingRef.current && nodesCountRef.current > 0) {
-        manualFitPendingRef.current = false;
-        runFitView();
+        if (isContainerVisible()) {
+          pendingMachineLoadFitRef.current = false;
+        }
       }
     }
     prevRunningRef.current = layout.running;
-  }, [layout.running, nodes.length, runFitView]);
+  }, [layout.running, nodes.length, runFitView, isContainerVisible]);
 
   // Event helpers
   const getAnchorFromEvent = useCallback(
@@ -784,6 +759,10 @@ export function ConfigGraphCircles() {
     cy.autoungrabify(true);
     cy.zoom(0.1);
     cy.center();
+    viewportRef.current = {
+      zoom: cy.zoom(),
+      pan: { ...cy.pan() },
+    };
 
     const onPaneTap = (evt: any) => {
       if (evt.target !== cy) return;
@@ -814,10 +793,17 @@ export function ConfigGraphCircles() {
       setSelected({ type: 'edge', id, anchor });
       setEdgeTooltip({ id, anchor, reason: 'select' });
     };
+    const onViewportChanged = () => {
+      viewportRef.current = {
+        zoom: cy.zoom(),
+        pan: { ...cy.pan() },
+      };
+    };
 
     cy.on('tap', onPaneTap);
     cy.on('tap', 'node', onNodeTap);
     cy.on('tap', 'edge', onEdgeTap);
+    cy.on('pan zoom', onViewportChanged);
     cy.on('dbltap', 'node', handleNodeDoubleTap);
     cy.on('mouseover', 'node', handleNodeHoverStart);
     cy.on('mouseout', 'node', handleNodeHoverEnd);
@@ -829,6 +815,7 @@ export function ConfigGraphCircles() {
       cy.off('tap', onPaneTap);
       cy.off('tap', 'node', onNodeTap);
       cy.off('tap', 'edge', onEdgeTap);
+      cy.off('pan zoom', onViewportChanged);
       cy.off('dbltap', 'node', handleNodeDoubleTap);
       cy.off('mouseover', 'node', handleNodeHoverStart);
       cy.off('mouseout', 'node', handleNodeHoverEnd);
@@ -990,28 +977,30 @@ export function ConfigGraphCircles() {
     if (!cy || !el || typeof ResizeObserver === 'undefined') return;
     const ro = new ResizeObserver(() => {
       cy.resize();
-      if (layoutRunningRef.current) {
-        manualFitPendingRef.current = true;
+      if (
+        pendingMachineLoadFitRef.current &&
+        nodes.length > 0 &&
+        isContainerVisible()
+      ) {
+        pendingMachineLoadFitRef.current = false;
+        runFitView();
         return;
       }
-      if (nodesCountRef.current > 0) {
-        manualFitPendingRef.current = false;
-        runFitView();
-      }
+      restoreViewport();
     });
     ro.observe(el);
     return () => ro.disconnect();
-  }, [runFitView]);
+  }, [restoreViewport, runFitView, nodes.length, isContainerVisible]);
 
   // Portal switch fit
   const scheduleFitAfterSwitch = useCallback(() => {
-    if (layoutRunningRef.current) {
-      manualFitPendingRef.current = true;
-      return;
-    }
-    manualFitPendingRef.current = false;
-    runFitView();
-  }, [runFitView]);
+    const cy = cyRef.current;
+    if (!cy) return;
+    requestAnimationFrame(() => {
+      cy.resize();
+      restoreViewport();
+    });
+  }, [restoreViewport]);
 
   useEffect(() => {
     const handler: EventListener = (event) => {
@@ -1045,17 +1034,6 @@ export function ConfigGraphCircles() {
       edgeNodeSep: configGraphNodeMode === ConfigNodeMode.CARDS ? 300 : 100,
     });
   }, [configGraphNodeMode]);
-
-  const focusCurrentConfig = useCallback(() => {
-    if (!configGraph) return;
-    const id = hashConfig(currentConfig);
-    const exists = nodes.some((n) => n.id === id);
-    if (!exists) {
-      toast.info('Current configuration is (not) yet present in the graph.');
-      return;
-    }
-    runFitView(id);
-  }, [configGraph, currentConfig, nodes, runFitView]);
 
   return (
     <Box
@@ -1145,22 +1123,6 @@ export function ConfigGraphCircles() {
             }}
           >
             Recalculate layout
-          </Button>
-
-          <Button
-            size="small"
-            variant="contained"
-            onClick={focusCurrentConfig}
-            startIcon={<CenterFocusStrong fontSize="small" />}
-            sx={{
-              height: CONTROL_HEIGHT,
-              borderRadius: 1.5,
-              textTransform: 'none',
-              px: 1.25,
-              backgroundColor: (t) => t.palette.accent.main,
-            }}
-          >
-            Focus
           </Button>
 
           <ToggleButtonGroup

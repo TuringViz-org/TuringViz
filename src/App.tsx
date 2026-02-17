@@ -6,6 +6,7 @@ import { MainHeader } from '@components/MainPage/MainHeader';
 import { DashboardLayout } from '@components/MainPage/DashboardLayout';
 import { RunControls } from '@components/MainPage/RunControls';
 import { ComputeTreeDialog } from '@components/MainPage/ComputeTreeDialog';
+import { RunChoiceDialog } from '@components/MainPage/RunChoiceDialog';
 import {
   FullscreenPortals,
   type FullscreenPortalConfig,
@@ -141,7 +142,6 @@ export default function App() {
       setRender: setConfigFsRender,
       fallbackRef: configPanelRef,
       fullscreenRef: configFullscreenRef,
-      actions: runControls,
       content: <ConfigGraphWrapper />,
     },
     {
@@ -192,6 +192,7 @@ export default function App() {
         onClose={closeCompute}
         onConfirm={handleComputeConfirm}
       />
+      <RunChoiceDialog />
 
       {/* Fullscreen portals for graphs */}
       <FullscreenPortals items={fullscreenConfigs} />

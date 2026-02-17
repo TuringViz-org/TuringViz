@@ -101,6 +101,11 @@ type EdgeTooltipState = {
   reason: 'hover' | 'select' | null;
 };
 
+type ViewportSnapshot = {
+  zoom: number;
+  pan: { x: number; y: number };
+};
+
 const rfNodeTypes = {
   [NodeType.CONFIG]: ConfigNode,
   [NodeType.CONFIG_CARD]: ConfigCardNode,
@@ -403,10 +408,12 @@ function ComputationTreeCircles({ depth, compressing = false }: Props) {
   const theme = useTheme();
   const cyRef = useRef<CyCore | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const viewportRef = useRef<ViewportSnapshot | null>(null);
 
   // Global Zustand state
   const transitions = useGlobalZustand((s) => s.transitions);
   const stateColorMatching = useGlobalZustand((s) => s.stateColorMatching);
+  const machineLoadVersion = useGlobalZustand((s) => s.machineLoadVersion);
 
   // Graph Zustand state and setters
   const computationTreeNodeMode = useComputationTreeNodeMode();
@@ -475,24 +482,11 @@ function ComputationTreeCircles({ depth, compressing = false }: Props) {
   }, [computationTreeNodeMode]);
 
   // Performance + layout tracking
-  const nodesCountRef = useRef(0);
-  const edgesCountRef = useRef(0);
   const didInitialLayoutRef = useRef(false);
   const lastTopoKeyRef = useRef<string | null>(null);
   const fitAfterLayoutRef = useRef(false);
   const prevRunningRef = useRef(layout.running);
-  const layoutRunningRef = useRef(layout.running);
-  const manualFitPendingRef = useRef(false);
-
-  useEffect(() => {
-    nodesCountRef.current = nodes.length;
-  }, [nodes.length]);
-  useEffect(() => {
-    edgesCountRef.current = edges.length;
-  }, [edges.length]);
-  useEffect(() => {
-    layoutRunningRef.current = layout.running;
-  }, [layout.running]);
+  const pendingMachineLoadFitRef = useRef(false);
 
   // Disable cards mode if too many nodes
   const nodeCount = model?.nodes?.length ?? 0;
@@ -586,22 +580,40 @@ function ComputationTreeCircles({ depth, compressing = false }: Props) {
     });
   }, []);
 
+  const isContainerVisible = useCallback(() => {
+    const el = containerRef.current;
+    return !!el && el.clientWidth > 0 && el.clientHeight > 0;
+  }, []);
+
+  // Re-center on every successful "Load Machine".
+  useEffect(() => {
+    pendingMachineLoadFitRef.current = !isContainerVisible();
+    if (nodes.length === 0) return;
+    scheduleLayoutRestart();
+    fitAfterLayoutRef.current = true;
+  }, [machineLoadVersion, scheduleLayoutRestart, nodes.length, isContainerVisible]);
+
+  const restoreViewport = useCallback(() => {
+    const cy = cyRef.current;
+    const viewport = viewportRef.current;
+    if (!cy || !viewport) return;
+    cy.viewport(viewport);
+  }, []);
+
   useEffect(() => {
     const justFinished = prevRunningRef.current && !layout.running;
     if (justFinished) {
       if (fitAfterLayoutRef.current && nodes.length > 0) {
         fitAfterLayoutRef.current = false;
         runFitView();
-      }
-
-      if (manualFitPendingRef.current && nodesCountRef.current > 0) {
-        manualFitPendingRef.current = false;
-        runFitView();
+        if (isContainerVisible()) {
+          pendingMachineLoadFitRef.current = false;
+        }
       }
     }
 
     prevRunningRef.current = layout.running;
-  }, [layout.running, nodes.length, runFitView]);
+  }, [layout.running, nodes.length, runFitView, isContainerVisible]);
 
   // Event helpers ------------------------------------------------------------
   const hoverTimerRef = useRef<number | null>(null);
@@ -878,6 +890,10 @@ function ComputationTreeCircles({ depth, compressing = false }: Props) {
     cy.autoungrabify(true);
     cy.zoom(0.1);
     cy.center();
+    viewportRef.current = {
+      zoom: cy.zoom(),
+      pan: { ...cy.pan() },
+    };
 
     const onPaneTap = (evt: any) => {
       if (evt.target !== cy) return;
@@ -916,10 +932,17 @@ function ComputationTreeCircles({ depth, compressing = false }: Props) {
       });
       setEdgeTooltip({ id, anchor, reason: 'select' });
     };
+    const onViewportChanged = () => {
+      viewportRef.current = {
+        zoom: cy.zoom(),
+        pan: { ...cy.pan() },
+      };
+    };
 
     cy.on('tap', onPaneTap);
     cy.on('tap', 'node', onNodeTap);
     cy.on('tap', 'edge', onEdgeTap);
+    cy.on('pan zoom', onViewportChanged);
     cy.on('dbltap', 'node', handleNodeDoubleTap);
     cy.on('mouseover', 'node', handleNodeHoverStart);
     cy.on('mouseout', 'node', handleNodeHoverEnd);
@@ -931,6 +954,7 @@ function ComputationTreeCircles({ depth, compressing = false }: Props) {
       cy.off('tap', onPaneTap);
       cy.off('tap', 'node', onNodeTap);
       cy.off('tap', 'edge', onEdgeTap);
+      cy.off('pan zoom', onViewportChanged);
       cy.off('dbltap', 'node', handleNodeDoubleTap);
       cy.off('mouseover', 'node', handleNodeHoverStart);
       cy.off('mouseout', 'node', handleNodeHoverEnd);
@@ -1076,28 +1100,30 @@ function ComputationTreeCircles({ depth, compressing = false }: Props) {
     if (!cy || !el || typeof ResizeObserver === 'undefined') return;
     const ro = new ResizeObserver(() => {
       cy.resize();
-      if (layoutRunningRef.current) {
-        manualFitPendingRef.current = true;
+      if (
+        pendingMachineLoadFitRef.current &&
+        nodes.length > 0 &&
+        isContainerVisible()
+      ) {
+        pendingMachineLoadFitRef.current = false;
+        runFitView();
         return;
       }
-      if (nodesCountRef.current > 0) {
-        manualFitPendingRef.current = false;
-        runFitView();
-      }
+      restoreViewport();
     });
     ro.observe(el);
     return () => ro.disconnect();
-  }, [runFitView]);
+  }, [restoreViewport, runFitView, nodes.length, isContainerVisible]);
 
   // Portal switch fit handling
   const scheduleFitAfterSwitch = useCallback(() => {
-    if (layoutRunningRef.current) {
-      manualFitPendingRef.current = true;
-      return;
-    }
-    manualFitPendingRef.current = false;
-    runFitView();
-  }, [runFitView]);
+    const cy = cyRef.current;
+    if (!cy) return;
+    requestAnimationFrame(() => {
+      cy.resize();
+      restoreViewport();
+    });
+  }, [restoreViewport]);
 
   useEffect(() => {
     const handler: EventListener = (event) => {
@@ -1377,6 +1403,7 @@ function ComputationTreeCards({ depth, compressing = false }: Props) {
   // Global Zustand state
   const transitions = useGlobalZustand((s) => s.transitions);
   const stateColorMatching = useGlobalZustand((s) => s.stateColorMatching);
+  const machineLoadVersion = useGlobalZustand((s) => s.machineLoadVersion);
 
   // Graph Zustand state and setters
   const computationTreeNodeMode = useComputationTreeNodeMode();
@@ -1540,6 +1567,13 @@ function ComputationTreeCards({ depth, compressing = false }: Props) {
     scheduleLayoutRestart();
     fitAfterLayoutRef.current = true;
   }, [computationTreeNodeMode, scheduleLayoutRestart, nodes.length]);
+
+  // Re-center on every successful "Load Machine".
+  useEffect(() => {
+    if (!nodesReady || nodes.length === 0) return;
+    scheduleLayoutRestart();
+    fitAfterLayoutRef.current = true;
+  }, [machineLoadVersion, nodesReady, nodes.length, scheduleLayoutRestart]);
 
   const runFitView = useCallback(() => {
     requestAnimationFrame(() => {

@@ -30,7 +30,6 @@ import {
   ViewAgenda,
   Cached,
   Tune,
-  CenterFocusStrong,
 } from '@mui/icons-material';
 import { alpha, useTheme } from '@mui/material/styles';
 import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
@@ -43,7 +42,6 @@ import { FloatingEdge } from './edges/FloatingEdge';
 import { LoopEdge } from './edges/LoopEdge';
 import { LegendPanel } from '@components/shared/LegendPanel';
 
-import { hashConfig } from '@mytypes/TMTypes';
 import { useGlobalZustand } from '@zustands/GlobalZustand';
 import {
   useConfigGraphNodeMode,
@@ -123,16 +121,10 @@ function ConfigGraphCards() {
   const theme = useTheme();
   // Global Zustand states
   const configGraph = useGlobalZustand((s) => s.configGraph);
-  const currentState = useGlobalZustand((s) => s.currentState);
-  const tapes = useGlobalZustand((s) => s.tapes);
-  const heads = useGlobalZustand((s) => s.heads);
-  const lastState = useGlobalZustand((s) => s.lastState);
-  const lastConfig = useGlobalZustand((s) => s.lastConfig);
   const transitions = useGlobalZustand((s) => s.transitions);
-  const lastTransition = useGlobalZustand((s) => s.lastTransition);
-  const lastTransitionTrigger = useGlobalZustand((s) => s.lastTransitionTrigger);
   const stateColorMatching = useGlobalZustand((s) => s.stateColorMatching);
   const configGraphVersion = useGlobalZustand((s) => s.configGraphVersion);
+  const machineLoadVersion = useGlobalZustand((s) => s.machineLoadVersion);
 
   // Graph Zustand state and setters
   const configGraphNodeMode = useConfigGraphNodeMode();
@@ -153,53 +145,18 @@ function ConfigGraphCards() {
 
   const rf = useReactFlow();
 
-  // Current configuration memoization (used for highlighting current node)
-  const currentConfig = useMemo(
-    () => ({ state: currentState, tapes, heads }),
-    [currentState, tapes, heads]
-  );
-
   // Base graph structure (nodes/edges) extraction
   // ELK will overwrite positions
   const base = useMemo(() => {
     if (!configGraph) return { nodes: [], edges: [], topoKey: '' };
-    return buildConfigGraph(
-      configGraph,
-      transitions,
-      currentConfig,
-      configGraphNodeMode
-    );
-  }, [
-    configGraph,
-    transitions,
-    currentConfig,
-    configGraphNodeMode,
-    configGraphVersion,
-  ]);
+    return buildConfigGraph(configGraph, transitions, undefined, configGraphNodeMode);
+  }, [configGraph, transitions, configGraphNodeMode, configGraphVersion]);
 
   const [nodes, setNodes, onNodesChangeRF] = useNodesState(base.nodes);
   const [edges, setEdges, onEdgesChangeRF] = useEdgesState(base.edges);
   const [structureKey, setStructureKey] = useState('');
 
-  const {
-    highlightedEdgeId,
-    setHighlightedEdgeId,
-    hoveredState,
-    setHoveredState,
-    selected,
-    setSelected,
-  } = useGraphUI();
-
-  // Selectable configurations from current (children in graph)
-  const selectableSet = useMemo(() => {
-    if (!configGraph) return new Set<string>();
-    const currHash = hashConfig(currentConfig);
-    const entry = configGraph.Graph.get(currHash);
-    if (!entry) return new Set<string>();
-    // Only show selectable if more than one option
-    if (entry.next.length <= 1) return new Set<string>();
-    return new Set(entry.next.map(([toHash]) => toHash));
-  }, [configGraph, currentConfig]);
+  const { hoveredState, setHoveredState, selected, setSelected } = useGraphUI();
 
   // ELK Layout Hook (sole positioning engine)
   const layout = useElkLayout({
@@ -259,7 +216,6 @@ function ConfigGraphCards() {
 
         return {
           ...(n.data as any),
-          isSelectable: selectableSet.has(n.id),
           showLabel: !hideLabels,
           stateColor: mappedColor,
         };
@@ -273,25 +229,8 @@ function ConfigGraphCards() {
     base.edges,
     base.topoKey,
     stateColorMatching,
-    selectableSet,
     resolveColorForState,
   ]);
-
-  // Highlight last transition
-  useEffect(() => {
-    if (!configGraph) return;
-    if (!lastState || lastTransition === -1) return;
-
-    const toHash = hashConfig(currentConfig);
-    const fromHash = lastConfig ? hashConfig(lastConfig) : null;
-    if (!fromHash) return;
-
-    const highlightedId = `${fromHash}→${toHash}#${lastTransition}`;
-    setHighlightedEdgeId(highlightedId);
-
-    const t = setTimeout(() => setHighlightedEdgeId(null), 400);
-    return () => clearTimeout(t);
-  }, [configGraph, currentConfig, lastState, lastTransition, lastTransitionTrigger]);
 
   // Initial/structural layout + fit handling (ELK)
   // Compute structural topology key locally (IDs + unique source→target pairs)
@@ -326,6 +265,13 @@ function ConfigGraphCards() {
     layout.restart();
     fitAfterLayoutRef.current = true;
   }, [configGraphNodeMode]);
+
+  // Re-center on every successful "Load Machine".
+  useEffect(() => {
+    if (!nodesReady || nodes.length === 0) return;
+    layout.restart();
+    fitAfterLayoutRef.current = true;
+  }, [machineLoadVersion, nodesReady, nodes.length, layout]);
 
   // Fit after ELK transitions from running -> idle
   const runFitView = useCallback(() => {
@@ -445,24 +391,6 @@ function ConfigGraphCards() {
     (configGraph?.Graph.size ?? 0) >= COLOR_STATE_SWITCH &&
     configGraphNodeMode === ConfigNodeMode.CIRCLES;
 
-  // Focus current configuration button handler
-  const focusCurrentConfig = useCallback(() => {
-    if (!configGraph) return;
-    const id = hashConfig(currentConfig);
-    const exists = nodes.some((n) => n.id === id);
-    if (!exists) {
-      toast.info('Current configuration is (not) yet present in the graph.');
-      return;
-    }
-    rf.fitView({
-      nodes: [{ id }],
-      padding: 0.2,
-      minZoom: 0.2,
-      maxZoom: 1.5,
-      duration: 600,
-    });
-  }, [rf, nodes, configGraph, currentConfig]);
-
   return (
     <ReactFlow
       id="ConfigGraph"
@@ -523,7 +451,7 @@ function ConfigGraphCards() {
         }}
         running={layout.running}
       />
-      {/* Top-left controls panel (recalculate layout, focus current, and node mode switch) */}
+      {/* Top-left controls panel (recalculate layout and node mode switch) */}
       <Panel position="top-left">
         <Stack direction="row" spacing={1} alignItems="center">
           {/* Button for recalculating layout */}
@@ -541,23 +469,6 @@ function ConfigGraphCards() {
             }}
           >
             Recalculate layout
-          </Button>
-
-          {/* Button for focusing current configuration */}
-          <Button
-            size="small"
-            variant="contained"
-            onClick={() => focusCurrentConfig()}
-            startIcon={<CenterFocusStrong fontSize="small" />}
-            sx={{
-              height: CONTROL_HEIGHT,
-              borderRadius: 1.5,
-              textTransform: 'none',
-              px: 1.25,
-              backgroundColor: (theme) => theme.palette.accent.main,
-            }}
-          >
-            Focus
           </Button>
 
           {/* Node rendering mode toggle */}

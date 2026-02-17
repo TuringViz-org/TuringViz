@@ -148,6 +148,7 @@ function useAutoLayout({
   rawEdges,
   rf,
   portalId,
+  machineLoadVersion,
 }: {
   layout: ReturnType<typeof useElkLayout>;
   nodes: TMGraphNode[];
@@ -155,6 +156,7 @@ function useAutoLayout({
   rawEdges: TMGraphEdge[];
   rf: ReturnType<typeof useReactFlow>;
   portalId: string;
+  machineLoadVersion: number;
 }) {
   const scheduleLayoutRestart = useDebouncedLayoutRestart(layout);
   const nodesReady = useNodesInitialized();
@@ -207,6 +209,13 @@ function useAutoLayout({
     scheduleLayoutRestart();
     fitAfterLayoutRef.current = true;
   }, [topoKey, nodesReady, nodes.length, scheduleLayoutRestart]);
+
+  // Re-center on every successful "Load Machine".
+  useEffect(() => {
+    if (!nodesReady || nodes.length === 0) return;
+    scheduleLayoutRestart();
+    fitAfterLayoutRef.current = true;
+  }, [machineLoadVersion, nodesReady, nodes.length, scheduleLayoutRestart]);
 
   const runFitView = useCallback(() => {
     requestAnimationFrame(() => {
@@ -273,6 +282,7 @@ function TMGraph() {
   const lastState = useGlobalZustand((s) => s.lastState);
   const lastTransition = useGlobalZustand((s) => s.lastTransition);
   const lastTransitionTrigger = useGlobalZustand((s) => s.lastTransitionTrigger);
+  const machineLoadVersion = useGlobalZustand((s) => s.machineLoadVersion);
 
   const tmGraphELKSettings = useTMGraphELKSettings();
   const setTMGraphELKSettings = useGraphZustand((s) => s.setTMGraphELKSettings);
@@ -320,6 +330,7 @@ function TMGraph() {
     rawEdges,
     rf,
     portalId: 'tmGraph',
+    machineLoadVersion,
   });
 
   const [settingsOpen, setSettingsOpen] = useState(false);

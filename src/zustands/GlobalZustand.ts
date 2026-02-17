@@ -5,6 +5,24 @@ import { Transition, TapeContent, Configuration } from '@mytypes/TMTypes';
 import { ConfigGraph } from '@tmfunctions/ConfigGraph';
 import { getColorMatching} from '@utils/ColorMatching';
 
+export type RunChoiceOption = {
+  config: Configuration;
+  transitionIndex: number;
+  transition: Transition;
+};
+
+export type RunChoiceStateGroup = {
+  nextState: string;
+  edgeId: string;
+  options: RunChoiceOption[];
+};
+
+export type PendingRunChoice = {
+  fromConfig: Configuration;
+  byState: RunChoiceStateGroup[];
+  selectedState: string | null;
+};
+
 interface GlobalZustand {
   //For the initialization of the TM
   setAll: (
@@ -77,6 +95,9 @@ interface GlobalZustand {
   configGraphVersion: number;
   incrementConfigGraphVersion: () => void;
 
+  // Increments each time a machine is loaded from the editor.
+  machineLoadVersion: number;
+
   lastTransitionTrigger: number;
   triggerTransition: () => void;
 
@@ -86,6 +107,13 @@ interface GlobalZustand {
 
   lastConfig: Configuration | null;
   setLastConfig: (config: Configuration | null) => void;
+
+  pendingRunChoice: PendingRunChoice | null;
+  setPendingRunChoice: (pendingRunChoice: PendingRunChoice | null) => void;
+  setPendingRunChoiceState: (state: string | null) => void;
+  runChoiceHighlightedTMEdges: string[];
+  setRunChoiceHighlightedTMEdges: (edgeIds: string[]) => void;
+  clearRunChoice: () => void;
 
   reset: () => void;
 }
@@ -110,6 +138,9 @@ export const useGlobalZustand = create<GlobalZustand>((set) => ({
       input: Array.from({ length: numberOfTapes }, () => [[], []]),
       stateColorMatching: getColorMatching(states, prev.stateColorMatching),
       lastConfig: null,
+      pendingRunChoice: null,
+      runChoiceHighlightedTMEdges: [],
+      machineLoadVersion: prev.machineLoadVersion + 1,
     }));
   },
 
@@ -163,12 +194,29 @@ export const useGlobalZustand = create<GlobalZustand>((set) => ({
   incrementConfigGraphVersion: () =>
     set((state) => ({ configGraphVersion: state.configGraphVersion + 1 })),
 
+  machineLoadVersion: 0,
+
   lastTransitionTrigger: 0,
   triggerTransition: () =>
     set((state) => ({ lastTransitionTrigger: state.lastTransitionTrigger + 1 })),
 
   stateColorMatching: new Map<string, string>(),
   setStateColorMatching: (stateColorMatching) => set({ stateColorMatching: stateColorMatching }),
+
+  pendingRunChoice: null,
+  setPendingRunChoice: (pendingRunChoice) => set({ pendingRunChoice }),
+  setPendingRunChoiceState: (state) =>
+    set((s) => {
+      if (!s.pendingRunChoice) return {};
+      return { pendingRunChoice: { ...s.pendingRunChoice, selectedState: state } };
+    }),
+  runChoiceHighlightedTMEdges: [],
+  setRunChoiceHighlightedTMEdges: (edgeIds) => set({ runChoiceHighlightedTMEdges: edgeIds }),
+  clearRunChoice: () =>
+    set({
+      pendingRunChoice: null,
+      runChoiceHighlightedTMEdges: [],
+    }),
 
   reset: () =>
     set({
@@ -188,6 +236,9 @@ export const useGlobalZustand = create<GlobalZustand>((set) => ({
       input: [[[], []]],
       stateColorMatching: new Map<string, string>(),
       lastConfig: null,
+      pendingRunChoice: null,
+      runChoiceHighlightedTMEdges: [],
+      machineLoadVersion: 0,
     }),
 
   lastConfig: null,
