@@ -33,7 +33,7 @@ const TAB_LAYOUTS: Record<AppTab, LayoutMode> = {
     gridTemplateAreas: { xs: '"tm" "editor"', md: '"tm editor"' },
   },
   run: {
-    gridTemplateColumns: { xs: 'minmax(0, 1fr)', md: 'minmax(0, 3fr) minmax(0, 2fr)' },
+    gridTemplateColumns: { xs: 'minmax(0, 1fr)', md: 'minmax(0, 1fr) minmax(0, 1fr)' },
     gridTemplateAreas: { xs: '"tm" "tapes"', md: '"tm tapes"' },
   },
   configurationGraph: {

@@ -203,7 +203,7 @@ const CodeEditor: React.FC = () => {
       <Stack
         direction={{ xs: 'column', sm: 'row' }}
         spacing={1}
-        sx={{ mb: 1, flexShrink: 0 }}
+        sx={{ mb: 0, flexShrink: 0 }}
       >
         <Button
           fullWidth
