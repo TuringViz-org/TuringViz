@@ -17,6 +17,11 @@ import {
 import Ajv from 'ajv';
 import { computeConfigGraph } from '@tmfunctions/ConfigGraph';
 import { computeConfigGraphInWorker } from './graphWorkerClient';
+import { useGraphZustand } from '@zustands/GraphZustand';
+import {
+  DEFAULT_CONFIG_GRAPH_TARGET_NODES,
+  MIN_CONFIG_GRAPH_TARGET_NODES,
+} from './constants';
 
 export type LineParseError = {
   message: string;
@@ -28,7 +33,7 @@ export type LineParseError = {
 let schema: any = null;
 let latestConfigGraphJobId = 0;
 const INITIAL_CONFIG_GRAPH_NODES = 500;
-const FULL_CONFIG_GRAPH_NODES = 8000;
+const FULL_CONFIG_GRAPH_NODES = DEFAULT_CONFIG_GRAPH_TARGET_NODES;
 
 // Loading the schema from the public folder. Call in main.tsx
 export function setTuringMachineSchema(schema2: any) {
@@ -315,10 +320,16 @@ export function parseYaml(editorstring: string): LineParseError[] {
     tapes: newinput,
     heads: Array(numberOfTapes).fill(0), // all tape heads start at position 0
   };
+  const configuredTargetNodes = Math.max(
+    MIN_CONFIG_GRAPH_TARGET_NODES,
+    useGraphZustand.getState().configGraphTargetNodes ?? FULL_CONFIG_GRAPH_NODES
+  );
+  const initialTargetNodes = Math.min(INITIAL_CONFIG_GRAPH_NODES, configuredTargetNodes);
+
   // Compute an initial configuration graph quickly on the main thread
   const initialConfigGraph = computeConfigGraph(
     startConfig,
-    INITIAL_CONFIG_GRAPH_NODES,
+    initialTargetNodes,
     transitions,
     numberOfTapes,
     blank
@@ -338,7 +349,7 @@ export function parseYaml(editorstring: string): LineParseError[] {
     transitions,
     numberOfTapes,
     blank,
-    targetNodes: FULL_CONFIG_GRAPH_NODES,
+    targetNodes: configuredTargetNodes,
   })
     .then((graph) => {
       if (jobId !== latestConfigGraphJobId) return; // newer parse supersedes this result

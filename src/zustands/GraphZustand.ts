@@ -6,6 +6,7 @@ import { subscribeWithSelector } from 'zustand/middleware';
 import {
   ConfigNodeMode,
   DEFAULT_ELK_OPTS,
+  DEFAULT_CONFIG_GRAPH_TARGET_NODES,
   DEFAULT_TREE_DEPTH,
 } from '@utils/constants';
 import type { ElkOptions } from '@mytypes/graphTypes';
@@ -25,6 +26,7 @@ interface GraphZustandState {
 
   // Other
   computationTreeDepth: number;
+  configGraphTargetNodes: number;
 }
 
 interface GraphZustandActions {
@@ -39,6 +41,7 @@ interface GraphZustandActions {
 
   // Other
   setComputationTreeDepth: (depth: Updater<number>) => void;
+  setConfigGraphTargetNodes: (nodes: Updater<number>) => void;
 
   // Utilities
   reset: () => void;
@@ -55,6 +58,7 @@ const initialState: GraphZustandState = {
   computationTreeELKSettings: { ...DEFAULT_ELK_OPTS },
 
   computationTreeDepth: DEFAULT_TREE_DEPTH,
+  configGraphTargetNodes: DEFAULT_CONFIG_GRAPH_TARGET_NODES,
 };
 
 /**
@@ -126,6 +130,17 @@ export const useGraphZustand = create<GraphZustand>()(
         false
       ),
 
+    setConfigGraphTargetNodes: (nodes) =>
+      set(
+        (s) => ({
+          configGraphTargetNodes:
+            typeof nodes === 'function'
+              ? (nodes as (prev: number) => number)(s.configGraphTargetNodes)
+              : nodes,
+        }),
+        false
+      ),
+
     // Utilities
     reset: () => set(() => ({ ...initialState }), false),
   }))
@@ -146,3 +161,6 @@ export const useComputationTreeELKSettings = () =>
 
 export const useComputationTreeDepth = () =>
   useGraphZustand((s) => s.computationTreeDepth);
+
+export const useConfigGraphTargetNodes = () =>
+  useGraphZustand((s) => s.configGraphTargetNodes);

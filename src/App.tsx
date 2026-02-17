@@ -6,6 +6,7 @@ import { MainHeader } from '@components/MainPage/MainHeader';
 import { DashboardLayout } from '@components/MainPage/DashboardLayout';
 import { RunControls } from '@components/MainPage/RunControls';
 import { ComputeTreeDialog } from '@components/MainPage/ComputeTreeDialog';
+import { ComputeConfigGraphDialog } from '@components/MainPage/ComputeConfigGraphDialog';
 import { RunChoiceDialog } from '@components/MainPage/RunChoiceDialog';
 import {
   FullscreenPortals,
@@ -17,15 +18,24 @@ import { TMGraphWrapper } from '@components/TMGraph/TMGraph';
 import { ConfigGraphWrapper } from '@components/ConfigGraph/ConfigGraph';
 import { ComputationTreeWrapper } from '@components/ComputationTree/ComputationTree';
 import SiteFooter from '@components/Footer/SiteFooter';
-import { useComputationTreeDepth, useGraphZustand } from '@zustands/GraphZustand';
+import {
+  useComputationTreeDepth,
+  useConfigGraphTargetNodes,
+  useGraphZustand,
+} from '@zustands/GraphZustand';
 import { useEditorZustand } from '@zustands/EditorZustand';
-import { DEFAULT_TREE_DEPTH } from '@utils/constants';
+import { DEFAULT_TREE_DEPTH, MIN_CONFIG_GRAPH_TARGET_NODES } from '@utils/constants';
 import { extractGistId, fetchGistContent } from '@utils/gist';
+import { recomputeConfigGraphWithTargetNodes } from '@tmfunctions/ConfigGraph';
 
 export default function App() {
   // Graph Zustand state and setters
   const computationTreeDepth = useComputationTreeDepth();
+  const configGraphTargetNodes = useConfigGraphTargetNodes();
   const setComputationTreeDepth = useGraphZustand((s) => s.setComputationTreeDepth);
+  const setConfigGraphTargetNodes = useGraphZustand(
+    (s) => s.setConfigGraphTargetNodes
+  );
   const { setCode } = useEditorZustand();
   const gistInitRef = useRef(false);
 
@@ -34,6 +44,9 @@ export default function App() {
   const [pendingDepth, setPendingDepth] = useState<number>(DEFAULT_TREE_DEPTH);
   const [pendingCompressed, setPendingCompressed] = useState<boolean>(false);
   const [compressed, setCompressed] = useState<boolean>(false);
+  const [computeConfigOpen, setComputeConfigOpen] = useState(false);
+  const [pendingConfigTargetNodes, setPendingConfigTargetNodes] =
+    useState<number>(configGraphTargetNodes);
   const [activeTab, setActiveTab] = useState<AppTab>('input');
 
   // Fullscreen states
@@ -112,7 +125,34 @@ export default function App() {
     }
   };
 
+  const openComputeConfigGraph = () => {
+    setPendingConfigTargetNodes(configGraphTargetNodes);
+    setComputeConfigOpen(true);
+  };
+  const closeComputeConfigGraph = () => setComputeConfigOpen(false);
+
+  const handleComputeConfigConfirm = async () => {
+    const safeTargetNodes = Math.max(
+      MIN_CONFIG_GRAPH_TARGET_NODES,
+      Math.floor(pendingConfigTargetNodes)
+    );
+    setConfigGraphTargetNodes(safeTargetNodes);
+    setComputeConfigOpen(false);
+
+    const ok = await recomputeConfigGraphWithTargetNodes(safeTargetNodes);
+    if (!ok) {
+      toast.warning(
+        'Could not compute configuration graph. Please make sure a machine is loaded.'
+      );
+    }
+  };
+
   const runControls = <RunControls />;
+  const configFullscreenActions = (
+    <Button size="small" variant="contained" onClick={openComputeConfigGraph}>
+      Compute Graph
+    </Button>
+  );
   const treeFullscreenActions = (
     <Button size="small" variant="contained" onClick={openCompute}>
       Compute Tree
@@ -142,6 +182,7 @@ export default function App() {
       setRender: setConfigFsRender,
       fallbackRef: configPanelRef,
       fullscreenRef: configFullscreenRef,
+      actions: configFullscreenActions,
       content: <ConfigGraphWrapper />,
     },
     {
@@ -180,6 +221,7 @@ export default function App() {
         onOpenTmFullscreen={() => setTmFsOpen(true)}
         onOpenConfigFullscreen={() => setConfigFsOpen(true)}
         onOpenTreeFullscreen={() => setTreeFsOpen(true)}
+        onOpenComputeConfigGraph={openComputeConfigGraph}
         onOpenCompute={openCompute}
       />
 
@@ -191,6 +233,15 @@ export default function App() {
         onCompressedChange={setPendingCompressed}
         onClose={closeCompute}
         onConfirm={handleComputeConfirm}
+      />
+      <ComputeConfigGraphDialog
+        open={computeConfigOpen}
+        targetNodes={pendingConfigTargetNodes}
+        onTargetNodesChange={setPendingConfigTargetNodes}
+        onClose={closeComputeConfigGraph}
+        onConfirm={() => {
+          void handleComputeConfigConfirm();
+        }}
       />
       <RunChoiceDialog />
 

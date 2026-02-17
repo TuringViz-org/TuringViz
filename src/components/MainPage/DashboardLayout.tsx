@@ -19,6 +19,7 @@ type DashboardLayoutProps = {
   onOpenTmFullscreen: () => void;
   onOpenConfigFullscreen: () => void;
   onOpenTreeFullscreen: () => void;
+  onOpenComputeConfigGraph: () => void;
   onOpenCompute: () => void;
 };
 
@@ -59,6 +60,7 @@ export function DashboardLayout({
   onOpenTmFullscreen,
   onOpenConfigFullscreen,
   onOpenTreeFullscreen,
+  onOpenComputeConfigGraph,
   onOpenCompute,
 }: DashboardLayoutProps) {
   const layout = TAB_LAYOUTS[activeTab];
@@ -179,20 +181,29 @@ export function DashboardLayout({
             title="Configuration Graph"
             minHeight={graphPanelMinHeight}
             actions={
-              <Tooltip title="Open Fullscreen">
-                <IconButton
+              <>
+                <Button
                   size="small"
-                  onClick={onOpenConfigFullscreen}
-                  sx={{
-                    border: '1px solid',
-                    borderColor: (theme) => theme.palette.divider,
-                    bgcolor: (theme) => theme.palette.background.paper,
-                    '&:hover': { bgcolor: (theme) => theme.palette.action.hover },
-                  }}
+                  variant="contained"
+                  onClick={onOpenComputeConfigGraph}
                 >
-                  <OpenInFullIcon fontSize="small" />
-                </IconButton>
-              </Tooltip>
+                  Compute Graph
+                </Button>
+                <Tooltip title="Open Fullscreen">
+                  <IconButton
+                    size="small"
+                    onClick={onOpenConfigFullscreen}
+                    sx={{
+                      border: '1px solid',
+                      borderColor: (theme) => theme.palette.divider,
+                      bgcolor: (theme) => theme.palette.background.paper,
+                      '&:hover': { bgcolor: (theme) => theme.palette.action.hover },
+                    }}
+                  >
+                    <OpenInFullIcon fontSize="small" />
+                  </IconButton>
+                </Tooltip>
+              </>
             }
           >
             <div

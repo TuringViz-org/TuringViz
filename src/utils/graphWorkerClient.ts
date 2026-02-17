@@ -3,6 +3,7 @@ import type { ComputationTree } from '@tmfunctions/ComputationTree';
 import { getComputationTreeFromInputs } from '@tmfunctions/ComputationTree';
 import type { ConfigGraph } from '@tmfunctions/ConfigGraph';
 import { computeConfigGraph } from '@tmfunctions/ConfigGraph';
+import { MIN_CONFIG_GRAPH_TARGET_NODES } from './constants';
 
 const TREE_WORKER_TIMEOUT_MS = 4500;
 const CONFIG_WORKER_TIMEOUT_MS = 4500;
@@ -201,7 +202,10 @@ export function computeConfigGraphInWorker(
       // Timed out: compute a smaller graph synchronously
       configPending.delete(id);
       terminateConfigWorker(false);
-      const reducedTarget = Math.max(500, Math.floor((payload.targetNodes ?? 8000) / 2));
+      const reducedTarget = Math.max(
+        MIN_CONFIG_GRAPH_TARGET_NODES,
+        Math.floor((payload.targetNodes ?? 8000) / 2)
+      );
       const graph = computeConfigGraph(
         payload.startConfig,
         reducedTarget,
