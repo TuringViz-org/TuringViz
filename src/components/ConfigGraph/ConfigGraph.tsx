@@ -578,9 +578,10 @@ export function ConfigGraph() {
 }
 
 export function ConfigGraphWrapper() {
+  const machineLoadVersion = useGlobalZustand((s) => s.machineLoadVersion);
   return (
     <ReactFlowProvider>
-      <GraphUIProvider>
+      <GraphUIProvider key={machineLoadVersion}>
         <ConfigGraph />
       </GraphUIProvider>
     </ReactFlowProvider>

@@ -437,6 +437,7 @@ function ComputationTreeCircles({ depth, compressing = false }: Props) {
   const [nodes, setNodes] = useState<RFNode[]>(base.nodes);
   const [edges, setEdges] = useState<RFEdge[]>(base.edges);
   const [structureKey, setStructureKey] = useState('');
+  const [containerVisible, setContainerVisible] = useState(true);
 
   // Keep node/edge lookup maps for quick access in event handlers
   const nodeMapRef = useRef<Map<string, RFNode>>(new Map());
@@ -585,6 +586,10 @@ function ComputationTreeCircles({ depth, compressing = false }: Props) {
     return !!el && el.clientWidth > 0 && el.clientHeight > 0;
   }, []);
 
+  useEffect(() => {
+    setContainerVisible(isContainerVisible());
+  }, [isContainerVisible]);
+
   // Re-center on every successful "Load Machine".
   useEffect(() => {
     pendingMachineLoadFitRef.current = !isContainerVisible();
@@ -717,6 +722,41 @@ function ComputationTreeCircles({ depth, compressing = false }: Props) {
     const pos = ele.renderedPosition();
     return { top: rect.top + pos.y, left: rect.left + pos.x };
   }, []);
+
+  const prevContainerVisibleRef = useRef(containerVisible);
+  useEffect(() => {
+    const becameVisible = !prevContainerVisibleRef.current && containerVisible;
+    prevContainerVisibleRef.current = containerVisible;
+    if (!becameVisible) return;
+
+    setNodePopper((prev) => {
+      if (prev.reason !== 'select' || !prev.id) return prev;
+      const anchor = getAnchorFromElement(prev.id);
+      if (!anchor) return prev;
+      if (
+        prev.anchor &&
+        Math.abs(prev.anchor.top - anchor.top) < 0.5 &&
+        Math.abs(prev.anchor.left - anchor.left) < 0.5
+      ) {
+        return prev;
+      }
+      return { ...prev, anchor };
+    });
+
+    setEdgeTooltip((prev) => {
+      if (prev.reason !== 'select' || !prev.id) return prev;
+      const anchor = getAnchorFromElement(prev.id);
+      if (!anchor) return prev;
+      if (
+        prev.anchor &&
+        Math.abs(prev.anchor.top - anchor.top) < 0.5 &&
+        Math.abs(prev.anchor.left - anchor.left) < 0.5
+      ) {
+        return prev;
+      }
+      return { ...prev, anchor };
+    });
+  }, [containerVisible, getAnchorFromElement]);
 
   const openNodePopper = useCallback(
     (id: string, anchor: Anchor, reason: 'hover' | 'select') => {
@@ -1099,11 +1139,13 @@ function ComputationTreeCircles({ depth, compressing = false }: Props) {
     const el = containerRef.current;
     if (!cy || !el || typeof ResizeObserver === 'undefined') return;
     const ro = new ResizeObserver(() => {
+      const visibleNow = isContainerVisible();
+      setContainerVisible(visibleNow);
       cy.resize();
       if (
         pendingMachineLoadFitRef.current &&
         nodes.length > 0 &&
-        isContainerVisible()
+        visibleNow
       ) {
         pendingMachineLoadFitRef.current = false;
         runFitView();
@@ -1121,9 +1163,10 @@ function ComputationTreeCircles({ depth, compressing = false }: Props) {
     if (!cy) return;
     requestAnimationFrame(() => {
       cy.resize();
+      setContainerVisible(isContainerVisible());
       restoreViewport();
     });
-  }, [restoreViewport]);
+  }, [restoreViewport, isContainerVisible]);
 
   useEffect(() => {
     const handler: EventListener = (event) => {
@@ -1354,7 +1397,7 @@ function ComputationTreeCircles({ depth, compressing = false }: Props) {
       <NodeDetailPopper
         node={nodePopper.id ? nodeMapRef.current.get(nodePopper.id) ?? null : null}
         anchor={nodePopper.anchor}
-        open={!!nodePopper.id && !!nodePopper.anchor}
+        open={containerVisible && !!nodePopper.id && !!nodePopper.anchor}
         onClose={() => {
           setSelected({ type: null, id: null });
           setNodePopper({ id: null, anchor: null, reason: null });
@@ -1363,7 +1406,7 @@ function ComputationTreeCircles({ depth, compressing = false }: Props) {
 
       {/* Edge tooltip */}
       <EdgeTooltip
-        open={!!edgeTooltip.id && !!edgeTooltip.anchor}
+        open={containerVisible && !!edgeTooltip.id && !!edgeTooltip.anchor}
         anchorEl={makeVirtualAnchor(edgeTooltip.anchor)}
         transition={
           edgeTooltip.id ? (edgeMapRef.current.get(edgeTooltip.id)?.data as any)?.transition : undefined
@@ -1886,9 +1929,10 @@ export function ComputationTreeWrapper({
   depth?: number;
   compressing?: boolean;
 }) {
+  const machineLoadVersion = useGlobalZustand((s) => s.machineLoadVersion);
   return (
     <ReactFlowProvider>
-      <GraphUIProvider>
+      <GraphUIProvider key={machineLoadVersion}>
         <ComputationTree depth={depth} compressing={compressing} />
       </GraphUIProvider>
     </ReactFlowProvider>
