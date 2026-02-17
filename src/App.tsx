@@ -10,6 +10,7 @@ import {
   FullscreenPortals,
   type FullscreenPortalConfig,
 } from '@components/MainPage/FullscreenPortals';
+import { type AppTab } from '@components/MainPage/appTabs';
 import { AppToaster } from '@components/MainPage/AppToaster';
 import { TMGraphWrapper } from '@components/TMGraph/TMGraph';
 import { ConfigGraphWrapper } from '@components/ConfigGraph/ConfigGraph';
@@ -32,6 +33,7 @@ export default function App() {
   const [pendingDepth, setPendingDepth] = useState<number>(DEFAULT_TREE_DEPTH);
   const [pendingCompressed, setPendingCompressed] = useState<boolean>(false);
   const [compressed, setCompressed] = useState<boolean>(false);
+  const [activeTab, setActiveTab] = useState<AppTab>('input');
 
   // Fullscreen states
   const [tmFsOpen, setTmFsOpen] = useState(false);
@@ -144,7 +146,7 @@ export default function App() {
     },
     {
       id: 'computationTree',
-      title: 'Computation Tree — Fullscreen',
+      title: 'Configuration Tree — Fullscreen',
       open: treeFsOpen,
       onClose: () => setTreeFsOpen(false),
       render: treeFsRender,
@@ -164,10 +166,11 @@ export default function App() {
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
-      <MainHeader />
+      <MainHeader activeTab={activeTab} onTabChange={setActiveTab} />
 
       {/* Display graph panels */}
       <DashboardLayout
+        activeTab={activeTab}
         tmPanelRef={tmPanelRef}
         configPanelRef={configPanelRef}
         treePanelRef={treePanelRef}
@@ -193,7 +196,7 @@ export default function App() {
       {/* Fullscreen portals for graphs */}
       <FullscreenPortals items={fullscreenConfigs} />
 
-      <SiteFooter />
+      <SiteFooter activeTab={activeTab} />
       <AppToaster />
     </ThemeProvider>
   );

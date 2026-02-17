@@ -9,8 +9,16 @@ export function PanelCard(props: {
   actions?: React.ReactNode;
   minHeight?: ResponsiveStyleValue<number | string>;
   denseBodyPadding?: boolean;
+  fillHeight?: boolean;
 }) {
-  const { title, children, actions, minHeight, denseBodyPadding = false } = props;
+  const {
+    title,
+    children,
+    actions,
+    minHeight,
+    denseBodyPadding = false,
+    fillHeight = true,
+  } = props;
 
   return (
     <Paper
@@ -18,7 +26,7 @@ export function PanelCard(props: {
       sx={{
         borderRadius: 2,
         overflow: 'hidden',
-        height: '100%',
+        height: fillHeight ? '100%' : 'auto',
         display: 'flex',
         flexDirection: 'column',
       }}

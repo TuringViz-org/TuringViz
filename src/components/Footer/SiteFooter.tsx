@@ -32,6 +32,7 @@ import { alpha } from '@mui/material';
 import { CodeBlock } from './CodeBlock';
 import { YamlLegend } from './YamlLegend';
 import { extractGistId } from '@utils/gist';
+import type { AppTab } from '@components/MainPage/appTabs';
 
 type ActionTab = { label: string; render: () => ReactNode };
 
@@ -194,115 +195,139 @@ function TheoryCard({
   );
 }
 
-function TheoryGrid() {
+function TheoryGrid({ activeTab }: { activeTab: AppTab }) {
+  const showTm = activeTab === 'input' || activeTab === 'run';
+  const showConfiguration =
+    activeTab === 'run' ||
+    activeTab === 'configurationGraph' ||
+    activeTab === 'configurationTree';
+  const showConfigGraph = activeTab === 'configurationGraph';
+  const showTree = activeTab === 'configurationTree';
+
+  const cardCount = [
+    showTm,
+    showConfiguration,
+    showConfigGraph,
+    showTree,
+  ].filter(Boolean).length;
+  const mdSpan = cardCount > 1 ? 6 : 12;
+
   return (
     <Grid container spacing={2}>
-      <Grid size={{ xs: 12, md: 6 }}>
-        <TheoryCard icon={<SchemaOutlined />} title="What is a Turing Machine?">
-          <Typography variant="body2" sx={{ mb: 1.25 }}>
-            A (possibly nondeterministic) <strong>k-tape Turing Machine</strong> is a
-            tuple <em>M = (Q, Σ, Γ, b, k, δ, q₀)</em> where:
-          </Typography>
-          <Stack spacing={0.5} sx={{ mb: 1.5 }}>
-            <Bullet>
-              <em>Q</em> finite set of states, <em>q₀ ∈ Q</em> start state.
-            </Bullet>
-            <Bullet>
-              <em>Σ ⊆ Γ \ &#123;b&#125;</em> input alphabet, <em>Γ</em> tape
-              alphabet, <em>b</em> blank.
-            </Bullet>
-            <Bullet>
-              <em>k</em> number of tapes.
-            </Bullet>
-            <Bullet>
+      {showTm && (
+        <Grid size={{ xs: 12, md: mdSpan }}>
+          <TheoryCard icon={<SchemaOutlined />} title="What is a Turing Machine?">
+            <Typography variant="body2" sx={{ mb: 1.25 }}>
+              A (possibly nondeterministic) <strong>k-tape Turing Machine</strong> is
+              a tuple <em>M = (Q, Σ, Γ, b, k, δ, q₀)</em> where:
+            </Typography>
+            <Stack spacing={0.5} sx={{ mb: 1.5 }}>
+              <Bullet>
+                <em>Q</em> finite set of states, <em>q₀ ∈ Q</em> start state.
+              </Bullet>
+              <Bullet>
+                <em>Σ ⊆ Γ \ &#123;b&#125;</em> input alphabet, <em>Γ</em> tape
+                alphabet, <em>b</em> blank.
+              </Bullet>
+              <Bullet>
+                <em>k</em> number of tapes.
+              </Bullet>
+              <Bullet>
+                <em>
+                  δ: Q × Γ<sup style={{ marginLeft: '2px' }}>k</sup> → 𝒫(Q × Γ
+                  <sup style={{ marginLeft: '2px' }}>k</sup> × &#123;L,S,R&#125;
+                  <sup style={{ marginLeft: '2px' }}>k</sup>)
+                </em>{' '}
+                transition relation (set-valued for nondeterminism).
+              </Bullet>
+            </Stack>
+            <Typography variant="body2">
+              Each step chooses a transition matching the <em>k</em> symbols under the
+              heads, optionally writes new symbols, moves heads (
+              <em>L</em>/<em>S</em>/<em>R</em>), and changes state.
+            </Typography>
+          </TheoryCard>
+        </Grid>
+      )}
+
+      {showConfiguration && (
+        <Grid size={{ xs: 12, md: mdSpan }}>
+          <TheoryCard
+            icon={<DataObjectOutlined />}
+            title="Configuration (Snapshot in a Run)"
+          >
+            <Typography variant="body2" sx={{ mb: 1.25 }}>
+              A <strong>configuration</strong> encodes the current state, head
+              positions, and finite tape contents: <em>C = (q, h, T)</em> with{' '}
+              <em>q ∈ Q</em>,{' '}
               <em>
-                δ: Q × Γ<sup style={{ marginLeft: '2px' }}>k</sup> → 𝒫(Q × Γ
-                <sup style={{ marginLeft: '2px' }}>k</sup> × &#123;L,S,R&#125;
-                <sup style={{ marginLeft: '2px' }}>k</sup>)
+                h ∈ ℤ<sup style={{ marginLeft: '2px' }}>k</sup>
+              </em>
+              , and{' '}
+              <em>
+                T ∈ B<sup style={{ marginLeft: '2px' }}>k</sup>
               </em>{' '}
-              transition relation (set-valued for nondeterminism).
-            </Bullet>
-          </Stack>
-          <Typography variant="body2">
-            Each step chooses a transition matching the <em>k</em> symbols under the
-            heads, optionally writes new symbols, moves heads (<em>L</em>/<em>S</em>/
-            <em>R</em>), and changes state.
-          </Typography>
-        </TheoryCard>
-      </Grid>
+              (finite windows of tapes).
+            </Typography>
+            <Stack spacing={0.5} sx={{ mb: 1.5 }}>
+              <Bullet>
+                Start configuration <em>C₀(x)</em> places the input words on tapes
+                starting at index 0; heads start at 0.
+              </Bullet>
+              <Bullet>
+                One machine step transforms a configuration to its successor using δ.
+              </Bullet>
+            </Stack>
+            <Typography variant="body2">
+              Here, <em>B</em> denotes the set of finite tape assignments (“windows”):
+              each <em>T ∈ B</em> is a mapping <em>T:[c…d] → Γ</em> for some integers{' '}
+              <em>c ≤ d</em>, i.e., a contiguous finite segment of tape cells labeled
+              with symbols from <em>Γ</em>.
+            </Typography>
+          </TheoryCard>
+        </Grid>
+      )}
 
-      <Grid size={{ xs: 12, md: 6 }}>
-        <TheoryCard
-          icon={<DataObjectOutlined />}
-          title="Configuration (Snapshot in a Run)"
-        >
-          <Typography variant="body2" sx={{ mb: 1.25 }}>
-            A <strong>configuration</strong> encodes the current state, head
-            positions, and finite tape contents: <em>C = (q, h, T)</em> with{' '}
-            <em>q ∈ Q</em>,{' '}
-            <em>
-              h ∈ ℤ<sup style={{ marginLeft: '2px' }}>k</sup>
-            </em>
-            , and{' '}
-            <em>
-              T ∈ B<sup style={{ marginLeft: '2px' }}>k</sup>
-            </em>{' '}
-            (finite windows of tapes).
-          </Typography>
-          <Stack spacing={0.5} sx={{ mb: 1.5 }}>
-            <Bullet>
-              Start configuration <em>C₀(x)</em> places the input words on tapes
-              starting at index 0; heads start at 0.
-            </Bullet>
-            <Bullet>
-              One machine step transforms a configuration to its successor using δ.
-            </Bullet>
-          </Stack>
-          <Typography variant="body2">
-            Here, <em>B</em> denotes the set of finite tape assignments (“windows”):
-            each <em>T ∈ B</em> is a mapping <em>T:[c…d] → Γ</em> for some integers{' '}
-            <em>c ≤ d</em>, i.e., a contiguous finite segment of tape cells labeled
-            with symbols from <em>Γ</em>.
-          </Typography>
-        </TheoryCard>
-      </Grid>
+      {showConfigGraph && (
+        <Grid size={{ xs: 12, md: mdSpan }}>
+          <TheoryCard icon={<SchemaOutlined />} title="Configuration Graph">
+            <Typography variant="body2" sx={{ mb: 1.25 }}>
+              For a fixed input <em>x</em>, nodes are all configurations reachable
+              from <em>C₀(x)</em>. A directed edge <em>C → C′</em> represents one
+              step. Deterministic machines have ≤1 outgoing edge per node;
+              nondeterministic machines may branch.
+            </Typography>
+            <Stack spacing={0.5}>
+              <Bullet>
+                Start node is <em>C₀(x)</em>. Leaves are halting configurations.
+              </Bullet>
+              <Bullet>
+                In the app, you can switch the node visualization (compact circles ↔
+                detailed cards) and highlight the current configuration.
+              </Bullet>
+            </Stack>
+          </TheoryCard>
+        </Grid>
+      )}
 
-      <Grid size={{ xs: 12, md: 6 }}>
-        <TheoryCard icon={<SchemaOutlined />} title="Configuration Graph">
-          <Typography variant="body2" sx={{ mb: 1.25 }}>
-            For a fixed input <em>x</em>, nodes are all configurations reachable from{' '}
-            <em>C₀(x)</em>. A directed edge <em>C → C′</em> represents one step.
-            Deterministic machines have ≤1 outgoing edge per node; nondeterministic
-            machines may branch.
-          </Typography>
-          <Stack spacing={0.5}>
-            <Bullet>
-              Start node is <em>C₀(x)</em>. Leaves are halting configurations.
-            </Bullet>
-            <Bullet>
-              In the app, you can switch the node visualization (compact circles ↔
-              detailed cards) and highlight the current configuration.
-            </Bullet>
-          </Stack>
-        </TheoryCard>
-      </Grid>
-
-      <Grid size={{ xs: 12, md: 6 }}>
-        <TheoryCard icon={<AccountTreeOutlined />} title="Computation Tree">
-          <Typography variant="body2" sx={{ mb: 1.25 }}>
-            The tree “unrolls” the run history from <em>C₀(x)</em>: each node’s
-            children are its immediate successors. The same configuration may appear
-            multiple times if reached via different paths.
-          </Typography>
-          <Stack spacing={0.5}>
-            <Bullet>Every root-to-leaf path corresponds to one possible run.</Bullet>
-            <Bullet>
-              In the app, compute the tree up to a chosen depth and inspect branches
-              interactively.
-            </Bullet>
-          </Stack>
-        </TheoryCard>
-      </Grid>
+      {showTree && (
+        <Grid size={{ xs: 12, md: mdSpan }}>
+          <TheoryCard icon={<AccountTreeOutlined />} title="Computation Tree">
+            <Typography variant="body2" sx={{ mb: 1.25 }}>
+              The tree “unrolls” the run history from <em>C₀(x)</em>: each node’s
+              children are its immediate successors. The same configuration may appear
+              multiple times if reached via different paths.
+            </Typography>
+            <Stack spacing={0.5}>
+              <Bullet>Every root-to-leaf path corresponds to one possible run.</Bullet>
+              <Bullet>
+                In the app, compute the tree up to a chosen depth and inspect
+                branches interactively.
+              </Bullet>
+            </Stack>
+          </TheoryCard>
+        </Grid>
+      )}
     </Grid>
   );
 }
@@ -663,8 +688,9 @@ function GistGuide() {
   );
 }
 
-export default function SiteFooter() {
+export default function SiteFooter({ activeTab }: { activeTab: AppTab }) {
   const [actionTab, setActionTab] = useState(0);
+  const showYaml = activeTab === 'input';
 
   return (
     <Box
@@ -683,9 +709,13 @@ export default function SiteFooter() {
       >
         <FooterIntro />
         <Divider sx={{ my: 2 }} />
-        <TheoryGrid />
-        <YamlSection actionTab={actionTab} onActionTabChange={setActionTab} />
-        <GistGuide />
+        <TheoryGrid activeTab={activeTab} />
+        {showYaml ? (
+          <>
+            <YamlSection actionTab={actionTab} onActionTabChange={setActionTab} />
+            <GistGuide />
+          </>
+        ) : null}
         <GithubCallToAction />
       </Container>
     </Box>
