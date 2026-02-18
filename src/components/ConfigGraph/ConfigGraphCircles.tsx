@@ -381,6 +381,7 @@ export function ConfigGraphCircles() {
   });
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [containerVisible, setContainerVisible] = useState(true);
+  const [viewportReady, setViewportReady] = useState(false);
 
   const clearHoverTimer = useCallback(() => {
     if (hoverTimerRef.current != null) {
@@ -485,6 +486,11 @@ export function ConfigGraphCircles() {
   const fitAfterLayoutRef = useRef(false);
   const prevRunningRef = useRef(layout.running);
   const pendingMachineLoadFitRef = useRef(false);
+  const awaitingInitialRevealRef = useRef(false);
+  const lastHandledMachineLoadRef = useRef<number>(-1);
+  useEffect(() => {
+    if (nodes.length === 0) setViewportReady(false);
+  }, [nodes.length]);
 
   // Disable cards if too many nodes
   const nodeCount = model?.Graph?.size ?? 0;
@@ -537,6 +543,8 @@ export function ConfigGraphCircles() {
   useEffect(() => {
     if (!didInitialLayoutRef.current && nodes.length > 0) {
       didInitialLayoutRef.current = true;
+      awaitingInitialRevealRef.current = true;
+      setViewportReady(false);
       scheduleLayoutRestart();
       fitAfterLayoutRef.current = true;
     }
@@ -563,7 +571,7 @@ export function ConfigGraphCircles() {
 
   // Fit view
   const runFitView = useCallback(
-    (focusId?: string) => {
+    (focusId?: string, onDone?: () => void) => {
       const cy = cyRef.current;
       if (!cy) return;
       requestAnimationFrame(() => {
@@ -572,10 +580,12 @@ export function ConfigGraphCircles() {
           const ele = cy.getElementById(focusId);
           if (ele && ele.length > 0) {
             cy.fit(ele, 60);
+            onDone?.();
             return;
           }
         }
         cy.fit(cy.elements(), 30);
+        onDone?.();
       });
     },
     []
@@ -592,11 +602,15 @@ export function ConfigGraphCircles() {
 
   // Re-center on every successful "Load Machine".
   useEffect(() => {
+    if (lastHandledMachineLoadRef.current === machineLoadVersion) return;
     pendingMachineLoadFitRef.current = !isContainerVisible();
+    awaitingInitialRevealRef.current = true;
+    setViewportReady(false);
     if (nodes.length === 0) return;
+    lastHandledMachineLoadRef.current = machineLoadVersion;
     scheduleLayoutRestart();
     fitAfterLayoutRef.current = true;
-  }, [machineLoadVersion, scheduleLayoutRestart, nodes.length, isContainerVisible]);
+  }, [machineLoadVersion, nodes.length, isContainerVisible]);
 
   const restoreViewport = useCallback(() => {
     const cy = cyRef.current;
@@ -610,10 +624,16 @@ export function ConfigGraphCircles() {
     if (justFinished) {
       if (fitAfterLayoutRef.current && nodes.length > 0) {
         fitAfterLayoutRef.current = false;
-        runFitView();
-        if (isContainerVisible()) {
-          pendingMachineLoadFitRef.current = false;
-        }
+        runFitView(undefined, () => {
+          const visibleNow = isContainerVisible();
+          if (visibleNow) {
+            pendingMachineLoadFitRef.current = false;
+          }
+          if (visibleNow && awaitingInitialRevealRef.current) {
+            awaitingInitialRevealRef.current = false;
+            setViewportReady(true);
+          }
+        });
       }
     }
     prevRunningRef.current = layout.running;
@@ -1034,7 +1054,12 @@ export function ConfigGraphCircles() {
         visibleNow
       ) {
         pendingMachineLoadFitRef.current = false;
-        runFitView();
+        runFitView(undefined, () => {
+          if (awaitingInitialRevealRef.current) {
+            awaitingInitialRevealRef.current = false;
+            setViewportReady(true);
+          }
+        });
         return;
       }
       restoreViewport();
@@ -1106,6 +1131,9 @@ export function ConfigGraphCircles() {
         sx={{
           position: 'absolute',
           inset: 0,
+          opacity: viewportReady ? 1 : 0,
+          pointerEvents: viewportReady ? 'auto' : 'none',
+          transition: 'opacity 120ms ease',
         }}
       />
 

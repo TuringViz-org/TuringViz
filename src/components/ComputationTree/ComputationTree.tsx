@@ -447,6 +447,7 @@ function ComputationTreeCircles({ depth, compressing = false }: Props) {
   const [edges, setEdges] = useState<RFEdge[]>(base.edges);
   const [structureKey, setStructureKey] = useState('');
   const [containerVisible, setContainerVisible] = useState(true);
+  const [viewportReady, setViewportReady] = useState(false);
 
   // Keep node/edge lookup maps for quick access in event handlers
   const nodeMapRef = useRef<Map<string, RFNode>>(new Map());
@@ -497,6 +498,11 @@ function ComputationTreeCircles({ depth, compressing = false }: Props) {
   const fitAfterLayoutRef = useRef(false);
   const prevRunningRef = useRef(layout.running);
   const pendingMachineLoadFitRef = useRef(false);
+  const awaitingInitialRevealRef = useRef(false);
+  const lastHandledMachineLoadRef = useRef<number>(-1);
+  useEffect(() => {
+    if (nodes.length === 0) setViewportReady(false);
+  }, [nodes.length]);
 
   // Disable cards mode if too many nodes
   const nodeCount = model?.nodes?.length ?? 0;
@@ -553,6 +559,8 @@ function ComputationTreeCircles({ depth, compressing = false }: Props) {
   useEffect(() => {
     if (!didInitialLayoutRef.current && nodes.length > 0) {
       didInitialLayoutRef.current = true;
+      awaitingInitialRevealRef.current = true;
+      setViewportReady(false);
       scheduleLayoutRestart();
       fitAfterLayoutRef.current = true;
     }
@@ -580,13 +588,14 @@ function ComputationTreeCircles({ depth, compressing = false }: Props) {
   }, [computationTreeNodeMode, scheduleLayoutRestart, nodes.length]);
 
   // Fit helper for Cytoscape
-  const runFitView = useCallback(() => {
+  const runFitView = useCallback((onDone?: () => void) => {
     const cy = cyRef.current;
     if (!cy) return;
 
     requestAnimationFrame(() => {
       cy.resize();
       cy.fit(cy.elements(), 30);
+      onDone?.();
     });
   }, []);
 
@@ -601,11 +610,15 @@ function ComputationTreeCircles({ depth, compressing = false }: Props) {
 
   // Re-center on every successful "Load Machine".
   useEffect(() => {
+    if (lastHandledMachineLoadRef.current === machineLoadVersion) return;
     pendingMachineLoadFitRef.current = !isContainerVisible();
+    awaitingInitialRevealRef.current = true;
+    setViewportReady(false);
     if (nodes.length === 0) return;
+    lastHandledMachineLoadRef.current = machineLoadVersion;
     scheduleLayoutRestart();
     fitAfterLayoutRef.current = true;
-  }, [machineLoadVersion, scheduleLayoutRestart, nodes.length, isContainerVisible]);
+  }, [machineLoadVersion, nodes.length, isContainerVisible]);
 
   const restoreViewport = useCallback(() => {
     const cy = cyRef.current;
@@ -619,10 +632,16 @@ function ComputationTreeCircles({ depth, compressing = false }: Props) {
     if (justFinished) {
       if (fitAfterLayoutRef.current && nodes.length > 0) {
         fitAfterLayoutRef.current = false;
-        runFitView();
-        if (isContainerVisible()) {
-          pendingMachineLoadFitRef.current = false;
-        }
+        runFitView(() => {
+          const visibleNow = isContainerVisible();
+          if (visibleNow) {
+            pendingMachineLoadFitRef.current = false;
+          }
+          if (visibleNow && awaitingInitialRevealRef.current) {
+            awaitingInitialRevealRef.current = false;
+            setViewportReady(true);
+          }
+        });
       }
     }
 
@@ -1157,7 +1176,12 @@ function ComputationTreeCircles({ depth, compressing = false }: Props) {
         visibleNow
       ) {
         pendingMachineLoadFitRef.current = false;
-        runFitView();
+        runFitView(() => {
+          if (awaitingInitialRevealRef.current) {
+            awaitingInitialRevealRef.current = false;
+            setViewportReady(true);
+          }
+        });
         return;
       }
       restoreViewport();
@@ -1229,6 +1253,9 @@ function ComputationTreeCircles({ depth, compressing = false }: Props) {
         sx={{
           position: 'absolute',
           inset: 0,
+          opacity: viewportReady ? 1 : 0,
+          pointerEvents: viewportReady ? 'auto' : 'none',
+          transition: 'opacity 120ms ease',
         }}
       />
 
@@ -1535,6 +1562,9 @@ function ComputationTreeCards({ depth, compressing = false }: Props) {
   const layoutRunningRef = useRef(layout.running);
   const nodesReadyRef = useRef(nodesReady);
   const manualFitPendingRef = useRef(false);
+  const awaitingInitialRevealRef = useRef(false);
+  const lastHandledMachineLoadRef = useRef<number>(-1);
+  const [viewportReady, setViewportReady] = useState(false);
 
   useEffect(() => {
     nodesCountRef.current = nodes.length;
@@ -1548,6 +1578,9 @@ function ComputationTreeCards({ depth, compressing = false }: Props) {
   useEffect(() => {
     nodesReadyRef.current = nodesReady;
   }, [nodesReady]);
+  useEffect(() => {
+    if (nodes.length === 0) setViewportReady(false);
+  }, [nodes.length]);
 
   // Disable cards mode if too many nodes
   const nodeCount = model?.nodes?.length ?? 0;
@@ -1605,6 +1638,8 @@ function ComputationTreeCards({ depth, compressing = false }: Props) {
   useEffect(() => {
     if (!didInitialLayoutRef.current && nodesReady && nodes.length > 0) {
       didInitialLayoutRef.current = true;
+      awaitingInitialRevealRef.current = true;
+      setViewportReady(false);
       scheduleLayoutRestart();
       fitAfterLayoutRef.current = true;
     }
@@ -1634,14 +1669,19 @@ function ComputationTreeCards({ depth, compressing = false }: Props) {
   // Re-center on every successful "Load Machine".
   useEffect(() => {
     if (!nodesReady || nodes.length === 0) return;
+    if (lastHandledMachineLoadRef.current === machineLoadVersion) return;
+    lastHandledMachineLoadRef.current = machineLoadVersion;
+    awaitingInitialRevealRef.current = true;
+    setViewportReady(false);
     scheduleLayoutRestart();
     fitAfterLayoutRef.current = true;
-  }, [machineLoadVersion, nodesReady, nodes.length, scheduleLayoutRestart]);
+  }, [machineLoadVersion, nodesReady, nodes.length]);
 
-  const runFitView = useCallback(() => {
+  const runFitView = useCallback((onDone?: () => void) => {
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
         rf.fitView({ padding: 0.2, duration: 0 });
+        onDone?.();
       });
     });
   }, [rf]);
@@ -1651,9 +1691,13 @@ function ComputationTreeCards({ depth, compressing = false }: Props) {
     if (justFinished) {
       if (fitAfterLayoutRef.current && nodes.length > 0) {
         fitAfterLayoutRef.current = false;
-        runFitView();
+        runFitView(() => {
+          if (awaitingInitialRevealRef.current) {
+            awaitingInitialRevealRef.current = false;
+            setViewportReady(true);
+          }
+        });
       }
-
       if (manualFitPendingRef.current && nodesCountRef.current > 0) {
         manualFitPendingRef.current = false;
         runFitView();
@@ -1703,7 +1747,12 @@ function ComputationTreeCards({ depth, compressing = false }: Props) {
       return;
     }
     manualFitPendingRef.current = false;
-    runFitView();
+    runFitView(() => {
+      if (awaitingInitialRevealRef.current) {
+        awaitingInitialRevealRef.current = false;
+        setViewportReady(true);
+      }
+    });
   }, [runFitView]);
 
   useEffect(() => {
@@ -1742,7 +1791,14 @@ function ComputationTreeCards({ depth, compressing = false }: Props) {
   return (
     <ReactFlow
       id="ComputationTreeCards"
-      style={{ width: '100%', height: '100%', minHeight: 360 }}
+      style={{
+        width: '100%',
+        height: '100%',
+        minHeight: 360,
+        opacity: viewportReady ? 1 : 0,
+        pointerEvents: viewportReady ? 'auto' : 'none',
+        transition: 'opacity 120ms ease',
+      }}
       nodes={nodes}
       edges={edges}
       onNodesChange={onNodesChange}

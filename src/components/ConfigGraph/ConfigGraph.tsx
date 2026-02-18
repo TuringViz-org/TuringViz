@@ -187,6 +187,9 @@ function ConfigGraphCards() {
   const nodesReadyRef = useRef(nodesReady);
   const prevRunningRef = useRef(layout.running); // Detect running -> idle
   const manualFitPendingRef = useRef(false);
+  const awaitingInitialRevealRef = useRef(false);
+  const lastHandledMachineLoadRef = useRef<number>(-1);
+  const [viewportReady, setViewportReady] = useState(false);
 
   useEffect(() => {
     nodesCountRef.current = nodes.length;
@@ -200,6 +203,9 @@ function ConfigGraphCards() {
   useEffect(() => {
     nodesReadyRef.current = nodesReady;
   }, [nodesReady]);
+  useEffect(() => {
+    if (nodes.length === 0) setViewportReady(false);
+  }, [nodes.length]);
 
   // Sync builder output into RF state; keep previous size/data; ELK will set positions afterwards
   useEffect(() => {
@@ -238,6 +244,8 @@ function ConfigGraphCards() {
   useEffect(() => {
     if (!didInitialLayoutRef.current && nodesReady && nodes.length > 0) {
       didInitialLayoutRef.current = true;
+      awaitingInitialRevealRef.current = true;
+      setViewportReady(false);
       layout.restart();
       fitAfterLayoutRef.current = true;
     }
@@ -267,15 +275,20 @@ function ConfigGraphCards() {
   // Re-center on every successful "Load Machine".
   useEffect(() => {
     if (!nodesReady || nodes.length === 0) return;
+    if (lastHandledMachineLoadRef.current === machineLoadVersion) return;
+    lastHandledMachineLoadRef.current = machineLoadVersion;
+    awaitingInitialRevealRef.current = true;
+    setViewportReady(false);
     layout.restart();
     fitAfterLayoutRef.current = true;
-  }, [machineLoadVersion, nodesReady, nodes.length, layout]);
+  }, [machineLoadVersion, nodesReady, nodes.length]);
 
   // Fit after ELK transitions from running -> idle
-  const runFitView = useCallback(() => {
+  const runFitView = useCallback((onDone?: () => void) => {
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
         rf.fitView({ padding: 0.2, duration: 0 });
+        onDone?.();
       });
     });
   }, [rf]);
@@ -285,7 +298,12 @@ function ConfigGraphCards() {
     if (justFinished) {
       if (fitAfterLayoutRef.current && nodes.length > 0) {
         fitAfterLayoutRef.current = false;
-        runFitView();
+        runFitView(() => {
+          if (awaitingInitialRevealRef.current) {
+            awaitingInitialRevealRef.current = false;
+            setViewportReady(true);
+          }
+        });
       }
 
       if (manualFitPendingRef.current && nodesCountRef.current > 0) {
@@ -339,7 +357,12 @@ function ConfigGraphCards() {
       return;
     }
     manualFitPendingRef.current = false;
-    runFitView();
+    runFitView(() => {
+      if (awaitingInitialRevealRef.current) {
+        awaitingInitialRevealRef.current = false;
+        setViewportReady(true);
+      }
+    });
   }, [runFitView]);
 
   useEffect(() => {
@@ -391,7 +414,14 @@ function ConfigGraphCards() {
   return (
     <ReactFlow
       id="ConfigGraph"
-      style={{ width: '100%', height: '100%', minHeight: 360 }}
+      style={{
+        width: '100%',
+        height: '100%',
+        minHeight: 360,
+        opacity: viewportReady ? 1 : 0,
+        pointerEvents: viewportReady ? 'auto' : 'none',
+        transition: 'opacity 120ms ease',
+      }}
       nodes={nodes}
       edges={edges}
       onNodesChange={onNodesChangeRF}
