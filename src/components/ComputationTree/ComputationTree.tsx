@@ -174,6 +174,15 @@ const resolveStateColor = (
 function getCyStyles(theme: ReturnType<typeof useTheme>): Stylesheet[] {
   return [
     {
+      selector: 'core',
+      style: {
+        'active-bg-opacity': 0,
+        'active-bg-size': 0,
+        'selection-box-opacity': 0,
+        'selection-box-border-width': 0,
+      },
+    },
+    {
       selector: 'node',
       style: {
         width: 'data(width)',
@@ -919,7 +928,7 @@ function ComputationTreeCircles({ depth, compressing = false }: Props) {
       container,
       elements: [],
       style: cyStyles,
-      wheelSensitivity: 0.2,
+      wheelSensitivity: 0.6,
       minZoom: 0.05,
       maxZoom: 2.5,
     });
