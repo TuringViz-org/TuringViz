@@ -1,5 +1,5 @@
 // src/components/MainPage/RunControl.tsx
-import { ButtonGroup, Button } from '@mui/material';
+import { ButtonGroup, Button, useTheme } from '@mui/material';
 import { PlayArrow, Stop, SkipNext, RestartAlt } from '@mui/icons-material';
 import { useGlobalZustand } from '@zustands/GlobalZustand';
 import {
@@ -26,31 +26,52 @@ const buttonAlignSx = {
 } as const;
 
 export function RunControls() {
+  const theme = useTheme();
   const isRunningLive = useGlobalZustand((state) => state.runningLive);
+  const makeControlButtonSx = (bg: string, hover: string) => ({
+    ...buttonAlignSx,
+    color: theme.palette.getContrastText(bg),
+    backgroundColor: bg,
+    borderColor: `${bg} !important`,
+    '&:hover': {
+      backgroundColor: hover,
+      borderColor: `${hover} !important`,
+    },
+    '&.Mui-disabled': {
+      color: theme.palette.action.disabled,
+      backgroundColor: theme.palette.action.disabledBackground,
+      borderColor: `${theme.palette.action.disabledBackground} !important`,
+    },
+  });
 
   return (
-    <ButtonGroup size="small" variant="contained">
+    <ButtonGroup
+      size="small"
+      variant="contained"
+      sx={{
+        '& .MuiButtonGroup-grouped': {
+          boxShadow: 'none',
+        },
+        '& .MuiButtonGroup-grouped:not(:first-of-type)': {
+          borderLeftColor: 'transparent',
+        },
+      }}
+    >
       {!isRunningLive ? (
         <Button
           onClick={() => startRunningLive()}
+          disableElevation
           startIcon={<PlayArrow fontSize="small" />}
-          sx={{
-            ...buttonAlignSx,
-            bgcolor: 'primary.main',
-            '&:hover': { bgcolor: 'primary.dark' },
-          }}
+          sx={makeControlButtonSx(theme.palette.primary.main, theme.palette.primary.dark)}
         >
           Start
         </Button>
       ) : (
         <Button
           onClick={() => stopRunningLive()}
+          disableElevation
           startIcon={<Stop fontSize="small" />}
-          sx={{
-            ...buttonAlignSx,
-            bgcolor: 'error.main',
-            '&:hover': { bgcolor: 'error.dark' },
-          }}
+          sx={makeControlButtonSx(theme.palette.error.main, theme.palette.error.dark)}
         >
           Stop
         </Button>
@@ -59,24 +80,18 @@ export function RunControls() {
       <Button
         onClick={() => makeStep()}
         disabled={isRunningLive}
+        disableElevation
         startIcon={<SkipNext fontSize="small" />}
-        sx={{
-          ...buttonAlignSx,
-          bgcolor: 'primary.dark',
-          '&:hover': { bgcolor: 'primary.main' },
-        }}
+        sx={makeControlButtonSx(theme.palette.primary.dark, theme.palette.primary.main)}
       >
         Step
       </Button>
 
       <Button
         onClick={() => runningReset()}
+        disableElevation
         startIcon={<RestartAlt fontSize="small" />}
-        sx={(theme) => ({
-          ...buttonAlignSx,
-          backgroundColor: theme.palette.accent.main,
-          '&:hover': { backgroundColor: theme.palette.accent.main },
-        })}
+        sx={makeControlButtonSx(theme.palette.accent.main, theme.palette.accent.main)}
       >
         Reset
       </Button>

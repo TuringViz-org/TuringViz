@@ -29,6 +29,21 @@ function TapeList() {
   const setRunSpeedMs = useGlobalZustand((state) => state.setRunSpeedMs);
   const isSmallScreen = useMediaQuery(theme.breakpoints.down('sm'));
   const stepsPerSecond = (1000 / runSpeedMs).toFixed(2);
+  const makeControlButtonSx = (bg: string, hover: string) => ({
+    alignItems: 'center',
+    color: theme.palette.getContrastText(bg),
+    backgroundColor: bg,
+    borderColor: `${bg} !important`,
+    '&:hover': {
+      backgroundColor: hover,
+      borderColor: `${hover} !important`,
+    },
+    '&.Mui-disabled': {
+      color: theme.palette.action.disabled,
+      backgroundColor: theme.palette.action.disabledBackground,
+      borderColor: `${theme.palette.action.disabledBackground} !important`,
+    },
+  });
 
   return (
     <Stack spacing={1}>
@@ -106,32 +121,35 @@ function TapeList() {
             alignSelf: isSmallScreen ? 'stretch' : 'start',
             '& .MuiButtonGroup-grouped': {
               minWidth: isSmallScreen ? '100%' : undefined,
+              boxShadow: 'none',
+            },
+            '& .MuiButtonGroup-grouped:not(:first-of-type)': {
+              borderLeftColor: 'transparent',
             },
           }}
         >
           {!isRunningLive ? (
             <Button
               onClick={() => startRunningLive()}
+              disableElevation
               startIcon={
                 <PlayArrow fontSize="small" sx={{ transform: 'translateY(-1px)' }} />
               }
-              sx={{
-                alignItems: 'center',
-                backgroundColor: theme.palette.primary.main,
-              }}
+              sx={makeControlButtonSx(
+                theme.palette.primary.main,
+                theme.palette.primary.dark
+              )}
             >
               Start
             </Button>
           ) : (
             <Button
               onClick={() => stopRunningLive()}
+              disableElevation
               startIcon={
                 <Stop fontSize="small" sx={{ transform: 'translateY(-1px)' }} />
               }
-              sx={{
-                alignItems: 'center',
-                backgroundColor: theme.palette.error.main,
-              }}
+              sx={makeControlButtonSx(theme.palette.error.main, theme.palette.error.dark)}
             >
               Stop
             </Button>
@@ -139,22 +157,27 @@ function TapeList() {
           <Button
             onClick={() => makeStep()}
             disabled={isRunningLive}
+            disableElevation
             startIcon={
               <SkipNext fontSize="small" sx={{ transform: 'translateY(-1px)' }} />
             }
-            sx={{
-              alignItems: 'center',
-              backgroundColor: theme.palette.primary.dark,
-            }}
+            sx={makeControlButtonSx(
+              theme.palette.primary.dark,
+              theme.palette.primary.main
+            )}
           >
             Step
           </Button>
           <Button
             onClick={() => runningReset()}
+            disableElevation
             startIcon={
               <RestartAlt fontSize="small" sx={{ transform: 'translateY(-1px)' }} />
             }
-            sx={{ alignItems: 'center', backgroundColor: theme.palette.accent.main }}
+            sx={makeControlButtonSx(
+              theme.palette.accent.main,
+              theme.palette.accent.main
+            )}
           >
             Reset
           </Button>
