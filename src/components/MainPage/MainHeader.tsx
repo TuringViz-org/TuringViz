@@ -9,6 +9,7 @@ import {
   useTheme,
 } from '@mui/material';
 import ExampleMenu from '@components/MainPage/ExampleMenu';
+import RecentMachinesMenu from '@components/MainPage/RecentMachinesMenu';
 import { APP_TABS, type AppTab } from './appTabs';
 
 type MainHeaderProps = {
@@ -84,7 +85,10 @@ export function MainHeader({ activeTab, onTabChange }: MainHeaderProps) {
             ))}
           </Tabs>
         </Stack>
-        <ExampleMenu />
+        <Stack direction="row" spacing={0.5}>
+          <RecentMachinesMenu />
+          <ExampleMenu />
+        </Stack>
       </Toolbar>
     </AppBar>
   );

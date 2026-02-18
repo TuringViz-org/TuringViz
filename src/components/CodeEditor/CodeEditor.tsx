@@ -35,13 +35,18 @@ const CodeEditor: React.FC = () => {
   );
   const setComputationTreeDepth = useGraphZustand((s) => s.setComputationTreeDepth);
 
-  const { code, nonce } = useEditorZustand();
+  const { code, nonce, rememberRecentMachine } = useEditorZustand();
 
-  const handleLoadClick = () => {
+  const handleLoadClick = (recordRecent = false) => {
     const monaco = monacoRef.current;
     const model = modelRef.current;
     const editor = editorRef.current;
     if (!monaco || !model || !editor) return;
+
+    const currentValue = editor.getValue();
+    if (recordRecent) {
+      rememberRecentMachine(currentValue);
+    }
 
     // Clear any existing markers
     monaco.editor.setModelMarkers(model, 'manual', []);
@@ -49,7 +54,6 @@ const CodeEditor: React.FC = () => {
     clearListenerRef.current = null;
 
     // Parse the YAML content from the editor
-    const currentValue = editor.getValue();
     const errors = parseYaml(currentValue);
 
     if (errors.length === 0) {
@@ -215,7 +219,7 @@ const CodeEditor: React.FC = () => {
           size="medium"
           variant="contained"
           color={isClean ? 'primary' : 'accent'}
-          onClick={handleLoadClick}
+          onClick={() => handleLoadClick(true)}
           sx={{ minHeight: '100%', borderRadius: 0 }}
         >
           Load Machine
