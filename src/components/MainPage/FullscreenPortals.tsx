@@ -12,6 +12,7 @@ export type FullscreenPortalConfig = {
   onClose: () => void;
   render: boolean;
   setRender: (value: boolean) => void;
+  enabled?: boolean;
   fallbackRef: MutableRefObject<HTMLDivElement | null>;
   fullscreenRef: MutableRefObject<HTMLDivElement | null>;
   actions?: ReactNode;
@@ -39,6 +40,7 @@ export function FullscreenPortals({ items }: { items: FullscreenPortalConfig[] }
         <PortalBridge
           key={`${item.id}-bridge`}
           active={item.open && item.render}
+          enabled={item.enabled ?? true}
           fallbackRef={item.fallbackRef}
           targetRef={item.fullscreenRef}
           id={item.id}

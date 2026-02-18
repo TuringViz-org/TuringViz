@@ -1,12 +1,23 @@
-// src/components/MainPage/DashboardLayout.tsx
-import { useEffect, type MutableRefObject } from 'react';
-import { Container, Tooltip, IconButton, Button, Box } from '@mui/material';
+import { lazy, Suspense, useEffect, useState, type MutableRefObject } from 'react';
+import {
+  Container,
+  Tooltip,
+  IconButton,
+  Button,
+  Box,
+  CircularProgress,
+  Stack,
+  Typography,
+} from '@mui/material';
 import OpenInFullIcon from '@mui/icons-material/OpenInFull';
+import type { Theme } from '@mui/material/styles';
+
 import { PanelCard } from '@components/MainPage/PanelCard';
-import TapeList from '@components/TapeList/TapeList';
-import CodeEditor from '@components/CodeEditor/CodeEditor';
 import styles from '../../App.module.css';
 import type { AppTab } from './appTabs';
+
+const LazyTapeList = lazy(() => import('@components/TapeList/TapeList'));
+const LazyCodeEditor = lazy(() => import('@components/CodeEditor/CodeEditor'));
 
 type DashboardLayoutProps = {
   activeTab: AppTab;
@@ -48,6 +59,33 @@ const TAB_LAYOUTS: Record<AppTab, LayoutMode> = {
 };
 
 const graphPanelMinHeight = { xs: 460, sm: 540, md: 680 };
+const fullscreenButtonSx = {
+  border: '1px solid',
+  borderColor: (theme: Theme) => theme.palette.divider,
+  bgcolor: (theme: Theme) => theme.palette.background.paper,
+  '&:hover': { bgcolor: (theme: Theme) => theme.palette.action.hover },
+};
+
+function PanelLoadingFallback({ label }: { label: string }) {
+  return (
+    <Stack alignItems="center" justifyContent="center" sx={{ height: '100%' }} spacing={1}>
+      <CircularProgress size={22} />
+      <Typography variant="caption" color="text.secondary">
+        {label}
+      </Typography>
+    </Stack>
+  );
+}
+
+function FullscreenButton({ onClick }: { onClick: () => void }) {
+  return (
+    <Tooltip title="Open Fullscreen">
+      <IconButton size="small" onClick={onClick} sx={fullscreenButtonSx}>
+        <OpenInFullIcon fontSize="small" />
+      </IconButton>
+    </Tooltip>
+  );
+}
 
 export function DashboardLayout({
   activeTab,
@@ -70,6 +108,20 @@ export function DashboardLayout({
   const tapesVisible = activeTab === 'run';
   const configVisible = activeTab === 'configurationGraph';
   const treeVisible = activeTab === 'configurationTree';
+  const [editorMounted, setEditorMounted] = useState(editorVisible);
+  const [tapesMounted, setTapesMounted] = useState(false);
+
+  useEffect(() => {
+    if (editorVisible) {
+      setEditorMounted(true);
+    }
+  }, [editorVisible]);
+
+  useEffect(() => {
+    if (tapesVisible) {
+      setTapesMounted(true);
+    }
+  }, [tapesVisible]);
 
   useEffect(() => {
     const raf = requestAnimationFrame(() => {
@@ -112,22 +164,7 @@ export function DashboardLayout({
           <PanelCard
             title="Turing Machine"
             minHeight={graphPanelMinHeight}
-            actions={
-              <Tooltip title="Open Fullscreen">
-                <IconButton
-                  size="small"
-                  onClick={onOpenTmFullscreen}
-                  sx={{
-                    border: '1px solid',
-                    borderColor: (theme) => theme.palette.divider,
-                    bgcolor: (theme) => theme.palette.background.paper,
-                    '&:hover': { bgcolor: (theme) => theme.palette.action.hover },
-                  }}
-                >
-                  <OpenInFullIcon fontSize="small" />
-                </IconButton>
-              </Tooltip>
-            }
+            actions={<FullscreenButton onClick={onOpenTmFullscreen} />}
           >
             <div
               ref={tmPanelRef}
@@ -147,7 +184,9 @@ export function DashboardLayout({
           }}
         >
           <PanelCard title="Editor" minHeight={graphPanelMinHeight} hideHeader>
-            <CodeEditor />
+            <Suspense fallback={<PanelLoadingFallback label="Loading editor..." />}>
+              {editorMounted ? <LazyCodeEditor /> : null}
+            </Suspense>
           </PanelCard>
         </Box>
 
@@ -163,7 +202,9 @@ export function DashboardLayout({
           }}
         >
           <PanelCard title="Tapes" denseBodyPadding fillHeight={false}>
-            <TapeList />
+            <Suspense fallback={<PanelLoadingFallback label="Loading tapes..." />}>
+              {tapesMounted ? <LazyTapeList /> : null}
+            </Suspense>
           </PanelCard>
         </Box>
 
@@ -182,27 +223,10 @@ export function DashboardLayout({
             minHeight={graphPanelMinHeight}
             actions={
               <>
-                <Button
-                  size="small"
-                  variant="contained"
-                  onClick={onOpenComputeConfigGraph}
-                >
+                <Button size="small" variant="contained" onClick={onOpenComputeConfigGraph}>
                   Compute Graph
                 </Button>
-                <Tooltip title="Open Fullscreen">
-                  <IconButton
-                    size="small"
-                    onClick={onOpenConfigFullscreen}
-                    sx={{
-                      border: '1px solid',
-                      borderColor: (theme) => theme.palette.divider,
-                      bgcolor: (theme) => theme.palette.background.paper,
-                      '&:hover': { bgcolor: (theme) => theme.palette.action.hover },
-                    }}
-                  >
-                    <OpenInFullIcon fontSize="small" />
-                  </IconButton>
-                </Tooltip>
+                <FullscreenButton onClick={onOpenConfigFullscreen} />
               </>
             }
           >
@@ -233,22 +257,7 @@ export function DashboardLayout({
                 <Button size="small" variant="contained" onClick={onOpenCompute}>
                   Compute Tree
                 </Button>
-                <Tooltip title="Open Fullscreen">
-                  <IconButton
-                    size="small"
-                    onClick={onOpenTreeFullscreen}
-                    sx={{
-                      border: '1px solid',
-                      borderColor: (theme) => theme.palette.divider,
-                      bgcolor: (theme) => theme.palette.background.paper,
-                      '&:hover': {
-                        bgcolor: (theme) => theme.palette.action.hover,
-                      },
-                    }}
-                  >
-                    <OpenInFullIcon fontSize="small" />
-                  </IconButton>
-                </Tooltip>
+                <FullscreenButton onClick={onOpenTreeFullscreen} />
               </>
             }
           >

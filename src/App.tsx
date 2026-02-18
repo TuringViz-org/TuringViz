@@ -1,22 +1,19 @@
-import { useEffect, useRef, useState } from 'react';
-import { ThemeProvider, CssBaseline, Button } from '@mui/material';
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { ThemeProvider, CssBaseline, Button, CircularProgress, Stack } from '@mui/material';
 import { toast } from 'sonner';
+
 import { theme } from '@theme';
 import { MainHeader } from '@components/MainPage/MainHeader';
 import { DashboardLayout } from '@components/MainPage/DashboardLayout';
 import { RunControls } from '@components/MainPage/RunControls';
 import { ComputeTreeDialog } from '@components/MainPage/ComputeTreeDialog';
 import { ComputeConfigGraphDialog } from '@components/MainPage/ComputeConfigGraphDialog';
-import { RunChoiceDialog } from '@components/MainPage/RunChoiceDialog';
 import {
   FullscreenPortals,
   type FullscreenPortalConfig,
 } from '@components/MainPage/FullscreenPortals';
 import { type AppTab } from '@components/MainPage/appTabs';
 import { AppToaster } from '@components/MainPage/AppToaster';
-import { TMGraphWrapper } from '@components/TMGraph/TMGraph';
-import { ConfigGraphWrapper } from '@components/ConfigGraph/ConfigGraph';
-import { ComputationTreeWrapper } from '@components/ComputationTree/ComputationTree';
 import SiteFooter from '@components/Footer/SiteFooter';
 import {
   useComputationTreeDepth,
@@ -25,11 +22,54 @@ import {
 } from '@zustands/GraphZustand';
 import { useEditorZustand } from '@zustands/EditorZustand';
 import { DEFAULT_TREE_DEPTH, MIN_CONFIG_GRAPH_TARGET_NODES } from '@utils/constants';
-import { extractGistId, fetchGistContent } from '@utils/gist';
 import { recomputeConfigGraphWithTargetNodes } from '@tmfunctions/ConfigGraph';
+import { useFullscreenState } from '@components/MainPage/hooks/useFullscreenState';
+import { useGistBootstrap } from '@components/MainPage/hooks/useGistBootstrap';
+import {
+  LazyTMGraphWrapper,
+  LazyConfigGraphWrapper,
+  LazyComputationTreeWrapper,
+  LazyRunChoiceDialog,
+} from '@components/MainPage/lazyPanels';
+
+const graphLoader = (
+  <Stack alignItems="center" justifyContent="center" sx={{ height: '100%' }} spacing={1}>
+    <CircularProgress size={26} />
+  </Stack>
+);
+
+function sanitizeTargetNodes(value: number): number {
+  return Math.max(MIN_CONFIG_GRAPH_TARGET_NODES, Math.floor(value));
+}
+
+function useDeferredPanelMount(activeTab: AppTab) {
+  const [hasMountedConfigGraph, setHasMountedConfigGraph] = useState(false);
+  const [hasMountedTree, setHasMountedTree] = useState(false);
+
+  const configTabActive = activeTab === 'configurationGraph';
+  const treeTabActive = activeTab === 'configurationTree';
+
+  useEffect(() => {
+    if (configTabActive) {
+      setHasMountedConfigGraph(true);
+    }
+  }, [configTabActive]);
+
+  useEffect(() => {
+    if (treeTabActive) {
+      setHasMountedTree(true);
+    }
+  }, [treeTabActive]);
+
+  return {
+    hasMountedConfigGraph,
+    hasMountedTree,
+    configTabActive,
+    treeTabActive,
+  };
+}
 
 export default function App() {
-  // Graph Zustand state and setters
   const computationTreeDepth = useComputationTreeDepth();
   const configGraphTargetNodes = useConfigGraphTargetNodes();
   const setComputationTreeDepth = useGraphZustand((s) => s.setComputationTreeDepth);
@@ -37,29 +77,26 @@ export default function App() {
     (s) => s.setConfigGraphTargetNodes
   );
   const { setCode } = useEditorZustand();
-  const gistInitRef = useRef(false);
 
-  // Local state for dialogs and fullscreen
+  useGistBootstrap(setCode);
+
+  // Dialog state
   const [computeOpen, setComputeOpen] = useState(false);
   const [pendingDepth, setPendingDepth] = useState<number>(DEFAULT_TREE_DEPTH);
   const [pendingCompressed, setPendingCompressed] = useState<boolean>(false);
   const [compressed, setCompressed] = useState<boolean>(false);
+
   const [computeConfigOpen, setComputeConfigOpen] = useState(false);
   const [pendingConfigTargetNodes, setPendingConfigTargetNodes] =
     useState<number>(configGraphTargetNodes);
+
   const [activeTab, setActiveTab] = useState<AppTab>('input');
 
-  // Fullscreen states
-  const [tmFsOpen, setTmFsOpen] = useState(false);
-  const [tmFsRender, setTmFsRender] = useState(false);
+  // Fullscreen state
+  const tmFullscreen = useFullscreenState();
+  const configFullscreen = useFullscreenState();
+  const treeFullscreen = useFullscreenState();
 
-  const [configFsOpen, setConfigFsOpen] = useState(false);
-  const [configFsRender, setConfigFsRender] = useState(false);
-
-  const [treeFsOpen, setTreeFsOpen] = useState(false);
-  const [treeFsRender, setTreeFsRender] = useState(false);
-
-  // Refs for panels and fullscreen containers
   const tmPanelRef = useRef<HTMLDivElement | null>(null);
   const tmFullscreenRef = useRef<HTMLDivElement | null>(null);
   const configPanelRef = useRef<HTMLDivElement | null>(null);
@@ -67,75 +104,41 @@ export default function App() {
   const treePanelRef = useRef<HTMLDivElement | null>(null);
   const treeFullscreenRef = useRef<HTMLDivElement | null>(null);
 
-  useEffect(() => {
-    if (gistInitRef.current) return;
-    gistInitRef.current = true;
+  const { hasMountedConfigGraph, hasMountedTree, configTabActive, treeTabActive } =
+    useDeferredPanelMount(activeTab);
 
-    const params = new URLSearchParams(window.location.search);
-    const gistParam = params.get('gist');
-    if (!gistParam) return;
-
-    const gistId = extractGistId(gistParam);
-    if (!gistId) {
-      toast.warning('Invalid gist parameter.');
-      return;
-    }
-
-    const fileName = params.get('file') ?? undefined;
-    const controller = new AbortController();
-    const isAbortError = (error: unknown): boolean =>
-      error instanceof DOMException && error.name === 'AbortError';
-
-    const load = async () => {
-      try {
-        const content = await fetchGistContent(gistId, {
-          fileName,
-          signal: controller.signal,
-        });
-        setCode(content, true);
-      } catch (error) {
-        if (controller.signal.aborted || isAbortError(error)) return;
-        console.error('Failed to load gist:', error);
-        toast.warning('Failed to load gist. Check the ID and try again.');
-      }
-    };
-
-    void load();
-
-    return () => controller.abort();
-  }, [setCode]);
-
-  // Handlers for opening/closing "Compute Tree" dialog
-  const openCompute = () => {
+  const openCompute = useCallback(() => {
     setPendingDepth(computationTreeDepth);
     setPendingCompressed(compressed);
     setComputeOpen(true);
-  };
-  const closeCompute = () => setComputeOpen(false);
+  }, [computationTreeDepth, compressed]);
 
-  // Handler for computing the tree with selected options
-  const handleComputeConfirm = () => {
+  const handleComputeConfirm = useCallback(() => {
     setComputationTreeDepth(pendingDepth);
     setCompressed(pendingCompressed);
     setComputeOpen(false);
 
-    if (treeFsOpen) {
-      setTreeFsRender(false);
-      requestAnimationFrame(() => setTreeFsRender(true));
+    // Re-render the tree in fullscreen after settings changes so sizing stays correct.
+    if (treeFullscreen.open) {
+      treeFullscreen.setRender(false);
+      requestAnimationFrame(() => treeFullscreen.setRender(true));
     }
-  };
+  }, [
+    pendingDepth,
+    pendingCompressed,
+    setComputationTreeDepth,
+    treeFullscreen.open,
+    treeFullscreen.setRender,
+  ]);
 
-  const openComputeConfigGraph = () => {
+  const openComputeConfigGraph = useCallback(() => {
     setPendingConfigTargetNodes(configGraphTargetNodes);
     setComputeConfigOpen(true);
-  };
-  const closeComputeConfigGraph = () => setComputeConfigOpen(false);
+  }, [configGraphTargetNodes]);
 
-  const handleComputeConfigConfirm = async () => {
-    const safeTargetNodes = Math.max(
-      MIN_CONFIG_GRAPH_TARGET_NODES,
-      Math.floor(pendingConfigTargetNodes)
-    );
+  const handleComputeConfigConfirm = useCallback(async () => {
+    const safeTargetNodes = sanitizeTargetNodes(pendingConfigTargetNodes);
+
     setConfigGraphTargetNodes(safeTargetNodes);
     setComputeConfigOpen(false);
 
@@ -145,82 +148,124 @@ export default function App() {
         'Could not compute configuration graph. Please make sure a machine is loaded.'
       );
     }
-  };
+  }, [pendingConfigTargetNodes, setConfigGraphTargetNodes]);
 
-  const runControls = <RunControls />;
-  const configFullscreenActions = (
-    <Button size="small" variant="contained" onClick={openComputeConfigGraph}>
-      Compute Graph
-    </Button>
-  );
-  const treeFullscreenActions = (
-    <Button size="small" variant="contained" onClick={openCompute}>
-      Compute Tree
-    </Button>
-  );
+  // Keep TM graph mounted to preserve viewport and selection state across tabs.
+  const tmGraphEnabled = true;
 
-  // Configuration for all fullscreen portals
-  const fullscreenConfigs: FullscreenPortalConfig[] = [
-    {
-      id: 'tmGraph',
-      title: 'Turing Machine — Fullscreen',
-      open: tmFsOpen,
-      onClose: () => setTmFsOpen(false),
-      render: tmFsRender,
-      setRender: setTmFsRender,
-      fallbackRef: tmPanelRef,
-      fullscreenRef: tmFullscreenRef,
-      actions: runControls,
-      content: <TMGraphWrapper />,
-    },
-    {
-      id: 'configGraph',
-      title: 'Configuration Graph — Fullscreen',
-      open: configFsOpen,
-      onClose: () => setConfigFsOpen(false),
-      render: configFsRender,
-      setRender: setConfigFsRender,
-      fallbackRef: configPanelRef,
-      fullscreenRef: configFullscreenRef,
-      actions: configFullscreenActions,
-      content: <ConfigGraphWrapper />,
-    },
-    {
-      id: 'computationTree',
-      title: 'Configuration Tree — Fullscreen',
-      open: treeFsOpen,
-      onClose: () => setTreeFsOpen(false),
-      render: treeFsRender,
-      setRender: setTreeFsRender,
-      fallbackRef: treePanelRef,
-      fullscreenRef: treeFullscreenRef,
-      actions: treeFullscreenActions,
-      content: (
-        <ComputationTreeWrapper
-          depth={computationTreeDepth}
-          compressing={compressed}
-        />
-      ),
-    },
-  ];
+  const configGraphEnabled =
+    configTabActive ||
+    hasMountedConfigGraph ||
+    configFullscreen.open ||
+    configFullscreen.render;
+
+  const treeEnabled =
+    treeTabActive || hasMountedTree || treeFullscreen.open || treeFullscreen.render;
+
+  const fullscreenConfigs: FullscreenPortalConfig[] = useMemo(
+    () => [
+      {
+        id: 'tmGraph',
+        title: 'Turing Machine — Fullscreen',
+        open: tmFullscreen.open,
+        onClose: tmFullscreen.closeFullscreen,
+        render: tmFullscreen.render,
+        setRender: tmFullscreen.setRender,
+        fallbackRef: tmPanelRef,
+        fullscreenRef: tmFullscreenRef,
+        actions: <RunControls />,
+        enabled: tmGraphEnabled,
+        content: tmGraphEnabled ? (
+          <Suspense fallback={graphLoader}>
+            <LazyTMGraphWrapper />
+          </Suspense>
+        ) : null,
+      },
+      {
+        id: 'configGraph',
+        title: 'Configuration Graph — Fullscreen',
+        open: configFullscreen.open,
+        onClose: configFullscreen.closeFullscreen,
+        render: configFullscreen.render,
+        setRender: configFullscreen.setRender,
+        fallbackRef: configPanelRef,
+        fullscreenRef: configFullscreenRef,
+        actions: (
+          <Button size="small" variant="contained" onClick={openComputeConfigGraph}>
+            Compute Graph
+          </Button>
+        ),
+        enabled: configGraphEnabled,
+        content: configGraphEnabled ? (
+          <Suspense fallback={graphLoader}>
+            <LazyConfigGraphWrapper />
+          </Suspense>
+        ) : null,
+      },
+      {
+        id: 'computationTree',
+        title: 'Configuration Tree — Fullscreen',
+        open: treeFullscreen.open,
+        onClose: treeFullscreen.closeFullscreen,
+        render: treeFullscreen.render,
+        setRender: treeFullscreen.setRender,
+        fallbackRef: treePanelRef,
+        fullscreenRef: treeFullscreenRef,
+        actions: (
+          <Button size="small" variant="contained" onClick={openCompute}>
+            Compute Tree
+          </Button>
+        ),
+        enabled: treeEnabled,
+        content: treeEnabled ? (
+          <Suspense fallback={graphLoader}>
+            <LazyComputationTreeWrapper
+              depth={computationTreeDepth}
+              compressing={compressed}
+            />
+          </Suspense>
+        ) : null,
+      },
+    ],
+    [
+      tmFullscreen.open,
+      tmFullscreen.closeFullscreen,
+      tmFullscreen.render,
+      tmFullscreen.setRender,
+      tmGraphEnabled,
+      configFullscreen.open,
+      configFullscreen.closeFullscreen,
+      configFullscreen.render,
+      configFullscreen.setRender,
+      configGraphEnabled,
+      treeFullscreen.open,
+      treeFullscreen.closeFullscreen,
+      treeFullscreen.render,
+      treeFullscreen.setRender,
+      treeEnabled,
+      computationTreeDepth,
+      compressed,
+      openCompute,
+      openComputeConfigGraph,
+    ]
+  );
 
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
       <MainHeader activeTab={activeTab} onTabChange={setActiveTab} />
 
-      {/* Display graph panels */}
       <DashboardLayout
         activeTab={activeTab}
         tmPanelRef={tmPanelRef}
         configPanelRef={configPanelRef}
         treePanelRef={treePanelRef}
-        tmFsOpen={tmFsOpen}
-        configFsOpen={configFsOpen}
-        treeFsOpen={treeFsOpen}
-        onOpenTmFullscreen={() => setTmFsOpen(true)}
-        onOpenConfigFullscreen={() => setConfigFsOpen(true)}
-        onOpenTreeFullscreen={() => setTreeFsOpen(true)}
+        tmFsOpen={tmFullscreen.open}
+        configFsOpen={configFullscreen.open}
+        treeFsOpen={treeFullscreen.open}
+        onOpenTmFullscreen={tmFullscreen.openFullscreen}
+        onOpenConfigFullscreen={configFullscreen.openFullscreen}
+        onOpenTreeFullscreen={treeFullscreen.openFullscreen}
         onOpenComputeConfigGraph={openComputeConfigGraph}
         onOpenCompute={openCompute}
       />
@@ -231,21 +276,24 @@ export default function App() {
         compressed={pendingCompressed}
         onDepthChange={setPendingDepth}
         onCompressedChange={setPendingCompressed}
-        onClose={closeCompute}
+        onClose={() => setComputeOpen(false)}
         onConfirm={handleComputeConfirm}
       />
+
       <ComputeConfigGraphDialog
         open={computeConfigOpen}
         targetNodes={pendingConfigTargetNodes}
         onTargetNodesChange={setPendingConfigTargetNodes}
-        onClose={closeComputeConfigGraph}
+        onClose={() => setComputeConfigOpen(false)}
         onConfirm={() => {
           void handleComputeConfigConfirm();
         }}
       />
-      <RunChoiceDialog />
 
-      {/* Fullscreen portals for graphs */}
+      <Suspense fallback={null}>
+        <LazyRunChoiceDialog />
+      </Suspense>
+
       <FullscreenPortals items={fullscreenConfigs} />
 
       <SiteFooter activeTab={activeTab} />

@@ -5,7 +5,6 @@ import {
   getCurrentConfiguration,
   nextConfigurationsFromState,
 } from '@tmfunctions/Configurations';
-import { printTMState } from '@utils/printTMState';
 import {
   useGlobalZustand,
   type PendingRunChoice,
@@ -57,12 +56,6 @@ function applyStepTransition(
   store.triggerTransition();
   store.setLastConfig(currentConfig);
   store.clearRunChoice();
-
-  if (import.meta.env.DEV) {
-    console.log(nextConfig.state);
-    console.log(transitionIndex);
-    console.log('TM State: ', printTMState());
-  }
 }
 
 function groupPendingChoices(

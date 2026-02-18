@@ -63,16 +63,15 @@ const CodeEditor: React.FC = () => {
       setIsClean(true);
       setConfigGraphNodeMode(ConfigNodeMode.CIRCLES);
       setComputationTreeNodeMode(ConfigNodeMode.CIRCLES);
-
-      console.log('Machine loaded successfully!');
       return;
     }
 
     // If there are errors, mark as dirty
     setIsClean(currentValue === lastLoadedValueRef.current);
 
-    // print the errors to the console for debugging
-    console.error('YAML parsing errors:', errors);
+    if (import.meta.env.DEV) {
+      console.error('YAML parsing errors:', errors);
+    }
 
     // Create the markers from the errors
     const markers = errors.map((e) => ({
