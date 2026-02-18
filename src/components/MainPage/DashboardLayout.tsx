@@ -146,7 +146,7 @@ export function DashboardLayout({
             '& > *': { flex: 1, minWidth: 0, minHeight: 0 },
           }}
         >
-          <PanelCard title="Editor" minHeight={graphPanelMinHeight}>
+          <PanelCard title="Editor" minHeight={graphPanelMinHeight} hideHeader>
             <CodeEditor />
           </PanelCard>
         </Box>

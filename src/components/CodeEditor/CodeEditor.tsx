@@ -203,14 +203,21 @@ const CodeEditor: React.FC = () => {
       <Stack
         direction={{ xs: 'column', sm: 'row' }}
         spacing={1}
-        sx={{ mb: 0, flexShrink: 0 }}
+        sx={{
+          mb: 0,
+          flexShrink: 0,
+          minHeight: 50,
+          borderBottom: '1px solid',
+          borderColor: 'divider',
+        }}
       >
         <Button
           fullWidth
-          size="small"
+          size="medium"
           variant="contained"
           color={isClean ? 'primary' : 'accent'}
           onClick={handleLoadClick}
+          sx={{ minHeight: '100%', borderRadius: 0 }}
         >
           Load Machine
         </Button>
@@ -220,8 +227,8 @@ const CodeEditor: React.FC = () => {
         style={{
           flex: 1,
           minHeight: 0,
-          border: '1px solid #ccc',
-          borderRadius: 8,
+          border: 'none',
+          borderRadius: 0,
           overflow: 'hidden',
         }}
       >
