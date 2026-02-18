@@ -1,91 +1,171 @@
 // src/tmfunctions/Running.ts
 import { toast } from 'sonner';
 
-import { getCurrentConfiguration } from '@tmfunctions/Configurations';
-import { printTMState } from '@utils/printTMState';
-import { useGlobalZustand } from '@zustands/GlobalZustand';
-import { Configuration, hashConfig } from '@mytypes/TMTypes';
-import { computeDeeperGraphFromState } from '@tmfunctions/ConfigGraph';
+import {
+  getCurrentConfiguration,
+  nextConfigurationsFromState,
+} from '@tmfunctions/Configurations';
+import {
+  useGlobalZustand,
+  type PendingRunChoice,
+  type RunChoiceOption,
+} from '@zustands/GlobalZustand';
+import { Configuration, Move, type Transition, hashConfig } from '@mytypes/TMTypes';
 
-//Returned boolean is whether everything went fine or not
+function buildFallbackTransition(
+  fromState: string,
+  toState: string,
+  tapeCount: number
+): Transition {
+  return {
+    from: fromState,
+    to: toState,
+    tapecondition: Array.from({ length: tapeCount }, () => ({})),
+    write: Array.from({ length: tapeCount }, () => ({})),
+    direction: Array.from({ length: tapeCount }, () => Move.S),
+  };
+}
+
+function getNextChoices(currentConfig: Configuration): RunChoiceOption[] {
+  const store = useGlobalZustand.getState();
+  const perStateTransitions = store.transitions.get(currentConfig.state) ?? [];
+  const raw = nextConfigurationsFromState(currentConfig);
+
+  return raw.map(([config, transitionIndex]) => ({
+    config,
+    transitionIndex,
+    transition:
+      perStateTransitions[transitionIndex] ??
+      buildFallbackTransition(currentConfig.state, config.state, store.numberOfTapes),
+  }));
+}
+
+function applyStepTransition(
+  currentConfig: Configuration,
+  nextConfig: Configuration,
+  transitionIndex: number
+) {
+  const store = useGlobalZustand.getState();
+
+  store.setRunning(true);
+  store.setLastState(currentConfig.state);
+  store.setLastTransition(transitionIndex);
+  store.setTapes(nextConfig.tapes);
+  store.setHeads(nextConfig.heads);
+  store.setCurrentState(nextConfig.state);
+  store.triggerTransition();
+  store.setLastConfig(currentConfig);
+  store.clearRunChoice();
+}
+
+function groupPendingChoices(
+  currentConfig: Configuration,
+  choices: RunChoiceOption[]
+): PendingRunChoice {
+  const grouped = new Map<string, RunChoiceOption[]>();
+
+  for (const choice of choices) {
+    const bucket = grouped.get(choice.config.state) ?? [];
+    bucket.push(choice);
+    grouped.set(choice.config.state, bucket);
+  }
+
+  const byState = Array.from(grouped.entries())
+    .map(([nextState, options]) => ({
+      nextState,
+      edgeId: `${currentConfig.state}→${nextState}`,
+      options,
+    }))
+    .sort((a, b) => a.nextState.localeCompare(b.nextState));
+
+  return {
+    fromConfig: currentConfig,
+    byState,
+    selectedState: byState.length === 1 ? byState[0].nextState : null,
+  };
+}
+
+// Returned boolean is whether a step was executed.
 export function makeStep(): boolean {
-  const currentconfig = getCurrentConfiguration();
-  const configgraph = useGlobalZustand.getState().configGraph;
+  const store = useGlobalZustand.getState();
+  const currentConfig = getCurrentConfiguration();
 
-  if (!configgraph) {
-    console.error(
-      'Configuration graph is not loaded. Please load the graph before running the machine.'
-    );
+  if (store.pendingRunChoice) {
+    toast.warning('Please resolve the pending transition choice first.');
     return false;
   }
 
-  const graph = configgraph.Graph;
+  const choices = getNextChoices(currentConfig);
 
-  let currentNode = graph.get(hashConfig(currentconfig));
-
-  if (!currentNode) {
-    console.error(
-      'Current configuration is not in the graph. This sould never happen!'
-    );
-    return false;
-  }
-
-  if (!currentNode.computed) {
-    computeDeeperGraphFromState(currentconfig, 10); //Compute 10 more configurations from the current configuration
-    console.warn(
-      'Current configuration is not computed yet. Next configurations were computed.'
-    );
-  }
-
-  currentNode = graph.get(hashConfig(currentconfig))!; //Re-get the current node after computing deeper
-
-  if (currentNode.next.length > 1) {
-    console.warn(
-      'There are multiple next configurations available. Please choose one from the graph.'
-    );
-    toast.warning(
-      'Multiple next configurations available. Please choose one from the configuration graph.'
-    );
-    return false;
-  }
-
-  if (currentNode.next.length === 0) {
+  if (choices.length === 0) {
     console.warn('No next configuration available. The machine has stopped.');
     return false;
   }
 
-  //If we are here, we can safely assume that there is exactly one next configuration available
-  const nextConfig = graph.get(currentNode.next[0][0]); //Get the first next configuration
+  if (choices.length === 1) {
+    applyStepTransition(currentConfig, choices[0].config, choices[0].transitionIndex);
+    return true;
+  }
 
-  if (!nextConfig) {
-    console.error(
-      'Next configuration is not found in the graph. Probably its a halting state!'
+  const pending = groupPendingChoices(currentConfig, choices);
+  store.setRunning(false);
+  store.setRunningLive(false);
+  store.setPendingRunChoice(pending);
+  store.setRunChoiceHighlightedTMEdges(pending.byState.map((entry) => entry.edgeId));
+
+  if (pending.byState.length === 1) {
+    toast.info('Multiple next configurations found. Choose one in the dialog.');
+  } else {
+    toast.info(
+      'Multiple next states found. Click a highlighted TM transition to choose the next configuration.'
     );
+  }
+
+  return false;
+}
+
+export function selectPendingRunChoice(nextState: string, optionIndex: number): boolean {
+  const store = useGlobalZustand.getState();
+  const pending = store.pendingRunChoice;
+  if (!pending) return false;
+
+  const currentConfig = getCurrentConfiguration();
+  if (hashConfig(currentConfig) !== hashConfig(pending.fromConfig)) {
+    store.clearRunChoice();
+    toast.warning('Pending transition choice became stale and was cleared.');
     return false;
   }
 
-  //Set the last state and last transition in the global Zustand
-  useGlobalZustand.getState().setLastState(currentconfig.state);
-  useGlobalZustand.getState().setLastTransition(currentNode.next[0][1]);
+  const group = pending.byState.find((entry) => entry.nextState === nextState);
+  if (!group) return false;
 
-  //Set the new configuration in the global Zustand
-  useGlobalZustand.getState().setRunning(true);
-  useGlobalZustand.getState().setTapes(nextConfig.config.tapes);
-  useGlobalZustand.getState().setHeads(nextConfig.config.heads);
-  useGlobalZustand.getState().setCurrentState(nextConfig.config.state);
+  const option = group.options[optionIndex];
+  if (!option) return false;
 
-  //Trigger the update of the lastTransition to be visualized in the TMGraph
-  useGlobalZustand.getState().triggerTransition();
+  applyStepTransition(pending.fromConfig, option.config, option.transitionIndex);
+  return true;
+}
 
-  //set the last configuration
-  useGlobalZustand.getState().setLastConfig(currentconfig);
+export function closePendingRunChoiceDialog() {
+  const store = useGlobalZustand.getState();
+  if (!store.pendingRunChoice) return;
+  store.setPendingRunChoiceState(null);
+}
 
-  if (import.meta.env.DEV) {
-    console.log(nextConfig.config.state);
-    console.log(currentNode.next[0][1]); //This is the index of the transition that was taken to get to the next configuration
-    console.log('TM State: ', printTMState());
-  }
+export function clearPendingRunChoice() {
+  useGlobalZustand.getState().clearRunChoice();
+}
 
+export function handleTMGraphRunChoiceEdgeClick(from: string, to: string): boolean {
+  const store = useGlobalZustand.getState();
+  const pending = store.pendingRunChoice;
+  if (!pending) return false;
+  if (pending.fromConfig.state !== from) return false;
+
+  const group = pending.byState.find((entry) => entry.nextState === to);
+  if (!group) return false;
+
+  store.setPendingRunChoiceState(to);
   return true;
 }
 
@@ -97,11 +177,12 @@ export function startRunningLive(runningID: number = -1) {
     currentRunningID += 1;
   }
   if (makeStep()) {
+    const delayMs = useGlobalZustand.getState().runSpeedMs;
     setTimeout(() => {
       if (!useGlobalZustand.getState().runningLive) return;
-      if (currentRunningID !== useGlobalZustand.getState().runningLiveID) return; //A new running session was started, so we stop this one
+      if (currentRunningID !== useGlobalZustand.getState().runningLiveID) return;
       startRunningLive(currentRunningID);
-    }, 700); //700ms delay between steps
+    }, delayMs);
   } else {
     useGlobalZustand.getState().setRunningLive(false);
   }
@@ -112,63 +193,51 @@ export function stopRunningLive() {
 }
 
 export function runningReset() {
-  const numTapes = useGlobalZustand.getState().tapes.length;
-  useGlobalZustand.getState().setRunningLive(false);
-  useGlobalZustand.getState().setRunning(false);
-  useGlobalZustand
-    .getState()
-    .setCurrentState(useGlobalZustand.getState().startState);
-  useGlobalZustand.getState().setHeads(Array(numTapes).fill(0));
-  useGlobalZustand
-    .getState()
-    .setTapes(useGlobalZustand.getState().input.map((tape) => [...tape]));
-  useGlobalZustand.getState().setLastState('');
-  useGlobalZustand.getState().setLastTransition(-1);
-  useGlobalZustand.getState().setLastConfig(null);
+  const store = useGlobalZustand.getState();
+  const numTapes = store.tapes.length;
+
+  store.setRunningLive(false);
+  store.setRunning(false);
+  store.setCurrentState(store.startState);
+  store.setHeads(Array(numTapes).fill(0));
+  store.setTapes(store.input.map((tape) => [...tape]));
+  store.setLastState('');
+  store.setLastTransition(-1);
+  store.setLastConfig(null);
+  store.clearRunChoice();
 }
 
 export function setConfiguration(config: Configuration) {
-  //Check if the configuration is a next configuration of the current configuration
-  const currentconfig = getCurrentConfiguration();
-  const currentconfighash = hashConfig(currentconfig);
-  const configgraph = useGlobalZustand.getState().configGraph;
-  if (!configgraph) return;
-  const graph = configgraph.Graph;
-  const currentNode = graph.get(hashConfig(currentconfig));
-  if (!currentNode) return;
+  const store = useGlobalZustand.getState();
+  const currentConfig = getCurrentConfiguration();
+  const targetHash = hashConfig(config);
+
   let isNext = false;
   let transitionIndex = -1;
+  const nextChoices = getNextChoices(currentConfig);
 
-  for (const [nextHash, index] of currentNode.next) {
-    if (nextHash === hashConfig(config)) {
+  for (const choice of nextChoices) {
+    if (hashConfig(choice.config) === targetHash) {
       isNext = true;
-      transitionIndex = index;
+      transitionIndex = choice.transitionIndex;
       break;
     }
   }
 
-  useGlobalZustand.getState().setRunningLive(false);
-  useGlobalZustand.getState().incrementRunningLiveID();
+  store.setRunningLive(false);
+  store.incrementRunningLiveID();
+  store.clearRunChoice();
 
   if (!isNext) {
-    useGlobalZustand.getState().setRunning(false);
-    useGlobalZustand.getState().setCurrentState(config.state);
-    useGlobalZustand.getState().setHeads(config.heads);
-    useGlobalZustand.getState().setTapes(config.tapes);
-    useGlobalZustand.getState().setLastState('');
-    useGlobalZustand.getState().setLastTransition(-1);
-    useGlobalZustand.getState().setLastConfig(null);
+    store.setRunning(false);
+    store.setCurrentState(config.state);
+    store.setHeads(config.heads);
+    store.setTapes(config.tapes);
+    store.setLastState('');
+    store.setLastTransition(-1);
+    store.setLastConfig(null);
     return;
   }
 
-  useGlobalZustand.getState().setRunning(true);
-  useGlobalZustand.getState().setLastState(currentconfig.state);
-  useGlobalZustand.getState().setLastTransition(transitionIndex);
-  useGlobalZustand.getState().setCurrentState(config.state);
-  useGlobalZustand.getState().setHeads(config.heads);
-  useGlobalZustand.getState().setTapes(config.tapes);
-  useGlobalZustand.getState().setLastConfig(currentconfig);
-
-  //Trigger the update of the lastTransition to be visualized in the TMGraph
-  useGlobalZustand.getState().triggerTransition();
+  applyStepTransition(currentConfig, config, transitionIndex);
 }

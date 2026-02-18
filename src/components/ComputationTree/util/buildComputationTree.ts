@@ -15,6 +15,11 @@ import {
 } from '@tmfunctions/ComputationTree';
 import { ConfigNodeMode } from '@utils/constants';
 import { Transition } from '@mytypes/TMTypes';
+import {
+  GRAPH_EDGE_BASE_WIDTH,
+  GRAPH_EDGE_COMPRESSED_WIDTH,
+  GRAPH_EDGE_MARKER_SIZE,
+} from '@components/shared/edgeVisualConstants';
 
 export type BuildResult = {
   nodes: RFNode[];
@@ -78,10 +83,14 @@ export function buildComputationTreeGraph(
         compressed: isCompressed,
         compressedLength: compLen,
       },
-      markerEnd: { type: MarkerType.ArrowClosed, width: 16, height: 16 },
+      markerEnd: {
+        type: MarkerType.ArrowClosed,
+        width: GRAPH_EDGE_MARKER_SIZE,
+        height: GRAPH_EDGE_MARKER_SIZE,
+      },
       style: isCompressed
-        ? { strokeWidth: 2, strokeDasharray: '6 4' }
-        : { strokeWidth: 1.5 },
+        ? { strokeWidth: GRAPH_EDGE_COMPRESSED_WIDTH, strokeDasharray: '6 4' }
+        : { strokeWidth: GRAPH_EDGE_BASE_WIDTH },
       label: isCompressed ? label : undefined,
     };
   });

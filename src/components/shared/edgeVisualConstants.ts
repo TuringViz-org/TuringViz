@@ -1,0 +1,6 @@
+export const GRAPH_EDGE_BASE_WIDTH = 4.2;
+export const GRAPH_EDGE_COMPRESSED_WIDTH = 5.0;
+export const GRAPH_EDGE_HOVER_WIDTH = 6.2;
+export const GRAPH_EDGE_ACTIVE_WIDTH = 7.0;
+export const GRAPH_EDGE_ARROW_SCALE = 1.55;
+export const GRAPH_EDGE_MARKER_SIZE = 26;

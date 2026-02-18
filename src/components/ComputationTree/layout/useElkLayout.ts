@@ -1,15 +1,22 @@
 // src/components/ConfigGraph/layout/useElkLayout.ts
-import { useEffect, useMemo, useRef, useState } from 'react';
-import Elk, { ElkNode, ElkExtendedEdge } from 'elkjs/lib/elk.bundled.js';
-import {
-  type Node as RFNode,
-  useNodesInitialized,
-  useReactFlow,
-  useStore,
-  type ReactFlowState,
-} from '@xyflow/react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import Elk, { ElkExtendedEdge, ElkNode } from 'elkjs/lib/elk.bundled.js';
+import type { Edge as RFEdge, Node as RFNode } from '@xyflow/react';
 
-import { CONFIG_NODE_DIAMETER } from '../util/constants';
+import {
+  CONFIG_NODE_DIAMETER,
+} from '../util/constants';
+
+const createElkWithWorker = () => {
+  if (typeof Worker === 'undefined') return new Elk();
+
+  return new Elk({
+    workerFactory: () =>
+      new Worker(new URL('elkjs/lib/elk-worker.js', import.meta.url), {
+        name: 'elk-layout-worker',
+      }),
+  });
+};
 
 export type ElkAlgo = 'layered' | 'force' | 'mrtree' | 'stress' | 'radial';
 
@@ -21,6 +28,8 @@ export type Options = {
   edgeNodeSep?: number; // spacing between edges and nodes
   padding?: number; // graph padding
   direction?: 'RIGHT' | 'LEFT' | 'UP' | 'DOWN';
+  topoKeyOverride?: string;
+  autoRun?: boolean;
 };
 
 export type LayoutAPI = {
@@ -28,9 +37,9 @@ export type LayoutAPI = {
   running: boolean; // Is ELK currently computing?
 };
 
-const elementCountSelector = (s: ReactFlowState) => s.nodes.length + s.edges.length;
-
 export function useElkLayout({
+  nodes,
+  edges,
   algorithm = 'layered',
   nodeSep = 70,
   rankSep = 120,
@@ -38,45 +47,74 @@ export function useElkLayout({
   edgeNodeSep = 100,
   padding = 24,
   direction = 'DOWN',
-}: Options = {}): LayoutAPI {
-  const nodesInitialized = useNodesInitialized();
-  const elementCount = useStore(elementCountSelector);
-  const { getNodes, getEdges, setNodes } = useReactFlow();
+  topoKeyOverride,
+  autoRun = true,
+  onLayout,
+}: Options & {
+  nodes: RFNode[];
+  edges: RFEdge[];
+  onLayout: (positions: Map<string, { x: number; y: number }>) => void;
+}): LayoutAPI {
+  const nodesRef = useRef(nodes);
+  const edgesRef = useRef(edges);
+  const onLayoutRef = useRef(onLayout);
 
   const elkRef = useRef<InstanceType<typeof Elk> | null>(null);
   const [running, setRunning] = useState(false);
   const lastTopoKeyRef = useRef<string>('');
+  const workerGraphKeyRef = useRef<string>('');
 
   // Create ELK instance once (kept across renders)
-  if (!elkRef.current) elkRef.current = new Elk();
+  if (!elkRef.current) elkRef.current = createElkWithWorker();
+
+  useEffect(
+    () => () => {
+      elkRef.current?.terminateWorker();
+      elkRef.current = null;
+      workerGraphKeyRef.current = '';
+    },
+    []
+  );
+
+  useEffect(() => {
+    nodesRef.current = nodes;
+    edgesRef.current = edges;
+    onLayoutRef.current = onLayout;
+  }, [nodes, edges, onLayout]);
 
   // Topology key: only node IDs + (unique) source→target pairs
   // This keeps layout re-runs limited to actual structure changes.
   const topoKey = useMemo(() => {
-    const ns = getNodes();
-    const es = getEdges();
-
-    const nIds = ns
+    if (topoKeyOverride != null) return topoKeyOverride;
+    const nIds = nodes
       .map((n) => n.id)
-      .sort()
+      .sort((a, b) => a.localeCompare(b))
       .join('|');
 
     // Collapse parallel edges to a unique set of source→target identifiers
     const ePairs = Array.from(
       new Set(
-        es.filter((e) => e.source !== e.target).map((e) => `${e.source}→${e.target}`)
+        edges
+          .filter((e) => e.source !== e.target)
+          .map((e) => `${e.source}→${e.target}`)
       )
     )
       .sort()
       .join('|');
 
     return `${nIds}__${ePairs}`;
-  }, [elementCount]);
+  }, [nodes, edges, topoKeyOverride]);
 
-  const runLayout = async () => {
+  const runLayout = useCallback(async () => {
+    if (workerGraphKeyRef.current !== topoKey) {
+      elkRef.current?.terminateWorker();
+      elkRef.current = createElkWithWorker();
+      workerGraphKeyRef.current = topoKey;
+    }
+
     const elk = elkRef.current!;
-    const rfNodes = getNodes();
-    const rfEdges = getEdges();
+    const rfNodes = nodesRef.current;
+    const rfEdges = edgesRef.current;
 
     if (!rfNodes.length) return;
 
@@ -135,16 +173,20 @@ export function useElkLayout({
         posById.set(c.id, { x: c.x ?? 0, y: c.y ?? 0 });
       }
 
-      setNodes((prev: RFNode[]) =>
-        prev.map((n) => {
-          const p = posById.get(n.id);
-          return p ? { ...n, position: p } : n;
-        })
-      );
+      onLayoutRef.current?.(posById);
     } finally {
       setRunning(false);
     }
-  };
+  }, [
+    algorithm,
+    nodeSep,
+    rankSep,
+    edgeSep,
+    edgeNodeSep,
+    padding,
+    direction,
+    topoKey,
+  ]);
 
   // Fit view after layout if requested
   const restart = () => {
@@ -154,11 +196,11 @@ export function useElkLayout({
 
   // Automatically recalculate when the topology changes
   useEffect(() => {
-    if (!nodesInitialized) return;
+    if (!autoRun) return;
     if (lastTopoKeyRef.current === topoKey) return;
     lastTopoKeyRef.current = topoKey;
     void runLayout();
-  }, [nodesInitialized, topoKey]);
+  }, [topoKey, runLayout, autoRun]);
 
   return { restart, running };
 }

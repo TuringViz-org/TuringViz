@@ -1,7 +1,10 @@
 // src/tmfunctions/ConfigGraph.ts
 import { Configuration, Transition, hashConfig } from '@mytypes/TMTypes';
 import { nextConfigurations } from '@tmfunctions/Configurations';
+import { getStartConfiguration } from '@tmfunctions/Configurations';
 import { useGlobalZustand } from '@zustands/GlobalZustand';
+import { computeConfigGraphInWorker } from '@utils/graphWorkerClient';
+import { MIN_CONFIG_GRAPH_TARGET_NODES } from '@utils/constants';
 
 //Graph is represented as follows: Map<string, {config: Configuration, computed: boolean, next: [Configuration, number][]}>
 export type ConfigGraph = {
@@ -12,6 +15,8 @@ export type ConfigGraph = {
     { config: Configuration; computed: boolean; next: [string, number][] }
   >;
 };
+
+let latestConfigGraphComputeRequestId = 0;
 //Here: the string is the hashed config, computed tells us if next is already computed for this config, next is the next configurations (hashed) and their transition indices in the state of the config (previous one)
 
 //Can be used to compute more configurations in the graph, later too. Needs to be called on configs that haven't been computed yet.
@@ -157,4 +162,46 @@ export function computeConfigGraph(
     startconfighash: startConfigHash,
     Graph: graphMap,
   };
+}
+
+export async function recomputeConfigGraphWithTargetNodes(
+  targetNodes: number
+): Promise<boolean> {
+  const store = useGlobalZustand.getState();
+  if (store.startState === '' || store.transitions.size === 0) {
+    console.warn('No machine loaded. Please load a machine before computing the graph.');
+    return false;
+  }
+
+  const safeTargetNodes = Math.max(
+    MIN_CONFIG_GRAPH_TARGET_NODES,
+    Math.floor(targetNodes)
+  );
+  const startConfig = getStartConfiguration();
+  const startHash = hashConfig(startConfig);
+  const requestId = ++latestConfigGraphComputeRequestId;
+
+  try {
+    const graph = await computeConfigGraphInWorker({
+      startConfig,
+      transitions: store.transitions,
+      numberOfTapes: store.numberOfTapes,
+      blank: store.blank,
+      targetNodes: safeTargetNodes,
+    });
+
+    if (requestId !== latestConfigGraphComputeRequestId) return false;
+
+    const latest = useGlobalZustand.getState();
+    if (hashConfig(getStartConfiguration()) !== startHash) {
+      return false;
+    }
+
+    latest.setConfigGraph(graph);
+    latest.incrementConfigGraphVersion();
+    return true;
+  } catch (error) {
+    console.error('Failed to recompute configuration graph:', error);
+    return false;
+  }
 }

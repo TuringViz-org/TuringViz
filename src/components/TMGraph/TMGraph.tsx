@@ -109,14 +109,21 @@ function useHighlightedTransition({
   lastTransition,
   transitions,
   lastTransitionTrigger,
+  runSpeedMs,
   setHighlightedEdgeId,
 }: {
   lastState: BuildTMGraphArgs[4];
   lastTransition: number;
   transitions: BuildTMGraphArgs[1];
   lastTransitionTrigger: unknown;
+  runSpeedMs: number;
   setHighlightedEdgeId: (edgeId: string | null) => void;
 }) {
+  const runSpeedMsRef = useRef(runSpeedMs);
+  useEffect(() => {
+    runSpeedMsRef.current = runSpeedMs;
+  }, [runSpeedMs]);
+
   useEffect(() => {
     if (!lastState || lastTransition === -1) return;
 
@@ -130,7 +137,12 @@ function useHighlightedTransition({
     const edgeId = `${from}→${to}`;
     setHighlightedEdgeId(edgeId);
 
-    const timeout = setTimeout(() => setHighlightedEdgeId(null), 400);
+    // Keep edge highlight shorter for fast run speeds so repeated hits can still pulse.
+    const highlightMs = Math.max(
+      60,
+      Math.min(400, Math.round(runSpeedMsRef.current * 0.55))
+    );
+    const timeout = setTimeout(() => setHighlightedEdgeId(null), highlightMs);
     return () => clearTimeout(timeout);
   }, [
     lastTransition,
@@ -148,6 +160,7 @@ function useAutoLayout({
   rawEdges,
   rf,
   portalId,
+  machineLoadVersion,
 }: {
   layout: ReturnType<typeof useElkLayout>;
   nodes: TMGraphNode[];
@@ -155,6 +168,7 @@ function useAutoLayout({
   rawEdges: TMGraphEdge[];
   rf: ReturnType<typeof useReactFlow>;
   portalId: string;
+  machineLoadVersion: number;
 }) {
   const scheduleLayoutRestart = useDebouncedLayoutRestart(layout);
   const nodesReady = useNodesInitialized();
@@ -207,6 +221,13 @@ function useAutoLayout({
     scheduleLayoutRestart();
     fitAfterLayoutRef.current = true;
   }, [topoKey, nodesReady, nodes.length, scheduleLayoutRestart]);
+
+  // Re-center on every successful "Load Machine".
+  useEffect(() => {
+    if (!nodesReady || nodes.length === 0) return;
+    scheduleLayoutRestart();
+    fitAfterLayoutRef.current = true;
+  }, [machineLoadVersion, nodesReady, nodes.length, scheduleLayoutRestart]);
 
   const runFitView = useCallback(() => {
     requestAnimationFrame(() => {
@@ -273,6 +294,8 @@ function TMGraph() {
   const lastState = useGlobalZustand((s) => s.lastState);
   const lastTransition = useGlobalZustand((s) => s.lastTransition);
   const lastTransitionTrigger = useGlobalZustand((s) => s.lastTransitionTrigger);
+  const machineLoadVersion = useGlobalZustand((s) => s.machineLoadVersion);
+  const runSpeedMs = useGlobalZustand((s) => s.runSpeedMs);
 
   const tmGraphELKSettings = useTMGraphELKSettings();
   const setTMGraphELKSettings = useGraphZustand((s) => s.setTMGraphELKSettings);
@@ -301,6 +324,7 @@ function TMGraph() {
     lastTransition,
     transitions,
     lastTransitionTrigger,
+    runSpeedMs,
     setHighlightedEdgeId,
   });
 
@@ -320,6 +344,7 @@ function TMGraph() {
     rawEdges,
     rf,
     portalId: 'tmGraph',
+    machineLoadVersion,
   });
 
   const [settingsOpen, setSettingsOpen] = useState(false);

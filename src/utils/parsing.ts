@@ -16,6 +16,12 @@ import {
 
 import Ajv from 'ajv';
 import { computeConfigGraph } from '@tmfunctions/ConfigGraph';
+import { computeConfigGraphInWorker } from './graphWorkerClient';
+import { useGraphZustand } from '@zustands/GraphZustand';
+import {
+  DEFAULT_CONFIG_GRAPH_TARGET_NODES,
+  MIN_CONFIG_GRAPH_TARGET_NODES,
+} from './constants';
 
 export type LineParseError = {
   message: string;
@@ -25,10 +31,17 @@ export type LineParseError = {
 };
 
 let schema: any = null;
+let latestConfigGraphJobId = 0;
+const INITIAL_CONFIG_GRAPH_NODES = 500;
+const FULL_CONFIG_GRAPH_NODES = DEFAULT_CONFIG_GRAPH_TARGET_NODES;
 
 // Loading the schema from the public folder. Call in main.tsx
 export function setTuringMachineSchema(schema2: any) {
   schema = schema2;
+}
+
+export function isTuringMachineSchemaLoaded(): boolean {
+  return Boolean(schema);
 }
 
 export function parseYaml(editorstring: string): LineParseError[] {
@@ -311,13 +324,46 @@ export function parseYaml(editorstring: string): LineParseError[] {
     tapes: newinput,
     heads: Array(numberOfTapes).fill(0), // all tape heads start at position 0
   };
-  // Compute the configuration graph (limited to 20 steps to avoid infinite loops)
-  const configGraph = computeConfigGraph(startConfig, 2000, transitions, numberOfTapes, blank);
+  const configuredTargetNodes = Math.max(
+    MIN_CONFIG_GRAPH_TARGET_NODES,
+    useGraphZustand.getState().configGraphTargetNodes ?? FULL_CONFIG_GRAPH_NODES
+  );
+  const initialTargetNodes = Math.min(INITIAL_CONFIG_GRAPH_NODES, configuredTargetNodes);
+
+  // Compute an initial configuration graph quickly on the main thread
+  const initialConfigGraph = computeConfigGraph(
+    startConfig,
+    initialTargetNodes,
+    transitions,
+    numberOfTapes,
+    blank
+  );
 
   // Update the global state with the parsed machine definition and computed configurations
-  useGlobalZustand.getState().setAll(states, startState, transitions, blank, numberOfTapes, configGraph);
+  useGlobalZustand
+    .getState()
+    .setAll(states, startState, transitions, blank, numberOfTapes, initialConfigGraph);
   useGlobalZustand.getState().setInput(newinput);
   useGlobalZustand.getState().setTapes(JSON.parse(JSON.stringify(newinput))); // store a deep copy of initial tape contents
+
+  // Kick off a background job to expand the configuration graph without blocking the UI
+  const jobId = ++latestConfigGraphJobId;
+  computeConfigGraphInWorker({
+    startConfig,
+    transitions,
+    numberOfTapes,
+    blank,
+    targetNodes: configuredTargetNodes,
+  })
+    .then((graph) => {
+      if (jobId !== latestConfigGraphJobId) return; // newer parse supersedes this result
+      const global = useGlobalZustand.getState();
+      // Avoid applying stale data if the machine definition changed meanwhile
+      if (global.startState !== startState) return;
+      global.setConfigGraph(graph);
+      global.incrementConfigGraphVersion();
+    })
+    .catch((err) => console.error('Config graph worker failed', err));
 
   return errors;
 }
