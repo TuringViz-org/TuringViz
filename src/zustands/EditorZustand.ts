@@ -69,7 +69,8 @@ function persistRecentMachinesToStorage(machines: RecentMachine[]) {
 interface EditorZustand {
   // For the MonacoEditor
   code: string;
-  setCode: (code: string, force?: boolean) => void;
+  setCode: (code: string, force?: boolean, autoLoad?: boolean) => void;
+  autoLoadVersion: number;
   recentMachines: RecentMachine[];
   rememberRecentMachine: (code: string) => void;
   // Used to force reloading the editor, e.g. after selecting the same example again
@@ -80,13 +81,18 @@ interface EditorZustand {
 
 export const useEditorZustand = create<EditorZustand>((set, get) => ({
   code: ExampleTMs[0].code,
+  autoLoadVersion: 0,
   recentMachines: loadRecentMachinesFromStorage(),
   nonce: 0,
-  setCode: (code, force = false) => {
+  setCode: (code, force = false, autoLoad = false) => {
     const same = get().code === code;
+    const nextAutoLoadVersion = autoLoad
+      ? get().autoLoadVersion + 1
+      : get().autoLoadVersion;
     set({
       code,
       nonce: force || same ? get().nonce + 1 : get().nonce,
+      autoLoadVersion: nextAutoLoadVersion,
     });
   },
   rememberRecentMachine: (code) => {

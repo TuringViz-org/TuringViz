@@ -25,6 +25,7 @@ import { DEFAULT_TREE_DEPTH, MIN_CONFIG_GRAPH_TARGET_NODES } from '@utils/consta
 import { recomputeConfigGraphWithTargetNodes } from '@tmfunctions/ConfigGraph';
 import { useFullscreenState } from '@components/MainPage/hooks/useFullscreenState';
 import { useGistBootstrap } from '@components/MainPage/hooks/useGistBootstrap';
+import { useSharedMachineBootstrap } from '@components/MainPage/hooks/useSharedMachineBootstrap';
 import {
   LazyTMGraphWrapper,
   LazyConfigGraphWrapper,
@@ -78,6 +79,7 @@ export default function App() {
   );
   const { setCode } = useEditorZustand();
 
+  useSharedMachineBootstrap(setCode);
   useGistBootstrap(setCode);
 
   // Dialog state

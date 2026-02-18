@@ -2,8 +2,13 @@ import { useEffect, useRef } from 'react';
 import { toast } from 'sonner';
 
 import { extractGistId, fetchGistContent } from '@utils/gist';
+import { hasSharedMachineInHash } from '@utils/shareTmLink';
 
-type SetCodeFn = (code: string, shouldApplyImmediately?: boolean) => void;
+type SetCodeFn = (
+  code: string,
+  shouldApplyImmediately?: boolean,
+  autoLoad?: boolean
+) => void;
 
 /**
  * Loads `?gist=` content once on app startup and injects it into the editor store.
@@ -14,6 +19,9 @@ export function useGistBootstrap(setCode: SetCodeFn) {
   useEffect(() => {
     if (gistInitRef.current) return;
     gistInitRef.current = true;
+
+    // If a share fragment is present, it has precedence over gist loading.
+    if (hasSharedMachineInHash(window.location.hash)) return;
 
     const params = new URLSearchParams(window.location.search);
     const gistParam = params.get('gist');
@@ -34,7 +42,7 @@ export function useGistBootstrap(setCode: SetCodeFn) {
           fileName,
           signal: controller.signal,
         });
-        setCode(content, true);
+        setCode(content, true, true);
       } catch (error) {
         if (controller.signal.aborted) return;
         if (error instanceof DOMException && error.name === 'AbortError') return;

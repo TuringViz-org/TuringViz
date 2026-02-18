@@ -29,7 +29,7 @@ export default function ExampleMenu() {
     close(); // close immediately for snappier UI
 
     const run = () => {
-      setCode(ExampleTMs[index].code, true);
+      setCode(ExampleTMs[index].code, true, true);
       setComputationTreeDepth(DEFAULT_TREE_DEPTH);
     };
 

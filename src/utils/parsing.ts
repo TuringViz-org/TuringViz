@@ -40,6 +40,10 @@ export function setTuringMachineSchema(schema2: any) {
   schema = schema2;
 }
 
+export function isTuringMachineSchemaLoaded(): boolean {
+  return Boolean(schema);
+}
+
 export function parseYaml(editorstring: string): LineParseError[] {
   if (!schema) {
     console.error('Schema is not set. Please call setTuringMachineSchema() before parsing.');

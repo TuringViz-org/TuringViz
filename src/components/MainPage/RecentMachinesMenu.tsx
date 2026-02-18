@@ -32,7 +32,7 @@ export default function RecentMachinesMenu() {
     close();
 
     const run = () => {
-      setCode(code, true);
+      setCode(code, true, false);
     };
 
     if (typeof requestAnimationFrame === 'function') {
