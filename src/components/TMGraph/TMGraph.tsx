@@ -109,14 +109,21 @@ function useHighlightedTransition({
   lastTransition,
   transitions,
   lastTransitionTrigger,
+  runSpeedMs,
   setHighlightedEdgeId,
 }: {
   lastState: BuildTMGraphArgs[4];
   lastTransition: number;
   transitions: BuildTMGraphArgs[1];
   lastTransitionTrigger: unknown;
+  runSpeedMs: number;
   setHighlightedEdgeId: (edgeId: string | null) => void;
 }) {
+  const runSpeedMsRef = useRef(runSpeedMs);
+  useEffect(() => {
+    runSpeedMsRef.current = runSpeedMs;
+  }, [runSpeedMs]);
+
   useEffect(() => {
     if (!lastState || lastTransition === -1) return;
 
@@ -130,7 +137,12 @@ function useHighlightedTransition({
     const edgeId = `${from}→${to}`;
     setHighlightedEdgeId(edgeId);
 
-    const timeout = setTimeout(() => setHighlightedEdgeId(null), 400);
+    // Keep edge highlight shorter for fast run speeds so repeated hits can still pulse.
+    const highlightMs = Math.max(
+      60,
+      Math.min(400, Math.round(runSpeedMsRef.current * 0.55))
+    );
+    const timeout = setTimeout(() => setHighlightedEdgeId(null), highlightMs);
     return () => clearTimeout(timeout);
   }, [
     lastTransition,
@@ -283,6 +295,7 @@ function TMGraph() {
   const lastTransition = useGlobalZustand((s) => s.lastTransition);
   const lastTransitionTrigger = useGlobalZustand((s) => s.lastTransitionTrigger);
   const machineLoadVersion = useGlobalZustand((s) => s.machineLoadVersion);
+  const runSpeedMs = useGlobalZustand((s) => s.runSpeedMs);
 
   const tmGraphELKSettings = useTMGraphELKSettings();
   const setTMGraphELKSettings = useGraphZustand((s) => s.setTMGraphELKSettings);
@@ -311,6 +324,7 @@ function TMGraph() {
     lastTransition,
     transitions,
     lastTransitionTrigger,
+    runSpeedMs,
     setHighlightedEdgeId,
   });
 

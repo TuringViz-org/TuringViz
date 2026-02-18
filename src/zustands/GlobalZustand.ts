@@ -84,6 +84,9 @@ interface GlobalZustand {
   runningLiveID: number;
   incrementRunningLiveID: () => void;
 
+  runSpeedMs: number;
+  setRunSpeedMs: (runSpeedMs: number) => void;
+
   //Input
   input: TapeContent; //The input to the TM
   setInput: (input: TapeContent) => void;
@@ -181,6 +184,9 @@ export const useGlobalZustand = create<GlobalZustand>((set) => ({
   incrementRunningLiveID: () =>
     set((state) => ({ runningLiveID: state.runningLiveID + 1 })),
 
+  runSpeedMs: 700,
+  setRunSpeedMs: (runSpeedMs) => set({ runSpeedMs }),
+
   input: [[[], []]],
   setInput: (input) => set({ input }),
 
@@ -239,6 +245,7 @@ export const useGlobalZustand = create<GlobalZustand>((set) => ({
       pendingRunChoice: null,
       runChoiceHighlightedTMEdges: [],
       machineLoadVersion: 0,
+      runSpeedMs: 700,
     }),
 
   lastConfig: null,

@@ -39,6 +39,7 @@ const LoopEdgeComponent = ({
   const runChoiceHighlightedTMEdges = useGlobalZustand(
     (s) => s.runChoiceHighlightedTMEdges
   );
+  const runSpeedMs = useGlobalZustand((s) => s.runSpeedMs);
 
   const node = useInternalNode(source);
   if (!node) return null;
@@ -76,6 +77,7 @@ const LoopEdgeComponent = ({
   const strokeColorBase = isHighlighted ? hlColor : baseStroke;
   const strokeColorHover = darken(String(strokeColorBase), 0.3);
   const isActive = hovering || isSelected;
+  const transitionMs = Math.max(50, Math.min(140, Math.round(runSpeedMs * 0.2)));
 
   const mergedStyle: React.CSSProperties = useMemo(
     () => ({
@@ -84,7 +86,7 @@ const LoopEdgeComponent = ({
       strokeWidth: isActive ? baseWidth + 1 : isHighlighted ? 3.5 : baseWidth,
       opacity: isActive ? 1 : isHighlighted ? 0.95 : 0.85,
       transition:
-        'stroke 120ms ease, stroke-width 120ms ease, opacity 120ms ease, filter 120ms ease',
+        `stroke ${transitionMs}ms ease, stroke-width ${transitionMs}ms ease, opacity ${transitionMs}ms ease, filter ${transitionMs}ms ease`,
       filter: isActive
         ? `drop-shadow(0 0 8px ${alpha(strokeColorHover, 0.45)})`
         : isHighlighted
@@ -99,6 +101,7 @@ const LoopEdgeComponent = ({
       strokeColorBase,
       strokeColorHover,
       hlColor,
+      transitionMs,
     ]
   );
 

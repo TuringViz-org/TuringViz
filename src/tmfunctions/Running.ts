@@ -184,11 +184,12 @@ export function startRunningLive(runningID: number = -1) {
     currentRunningID += 1;
   }
   if (makeStep()) {
+    const delayMs = useGlobalZustand.getState().runSpeedMs;
     setTimeout(() => {
       if (!useGlobalZustand.getState().runningLive) return;
       if (currentRunningID !== useGlobalZustand.getState().runningLiveID) return;
       startRunningLive(currentRunningID);
-    }, 700);
+    }, delayMs);
   } else {
     useGlobalZustand.getState().setRunningLive(false);
   }
