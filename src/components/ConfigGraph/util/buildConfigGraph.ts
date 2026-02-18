@@ -10,6 +10,10 @@ import {
   CONFIG_CARD_WIDTH,
 } from './constants';
 import { ConfigNodeMode } from '@utils/constants';
+import {
+  GRAPH_EDGE_BASE_WIDTH,
+  GRAPH_EDGE_MARKER_SIZE,
+} from '@components/shared/edgeVisualConstants';
 
 /**
  * Builds a React Flow graph representing the Config Graph from the zustand store
@@ -68,8 +72,12 @@ export function buildConfigGraph(
         type: isLoop ? EdgeType.LOOP : EdgeType.FLOATING,
         label: transition ? `${fromCfg.state} #${tIdx + 1}` : '',
         data: { transition },
-        markerEnd: { type: MarkerType.ArrowClosed, width: 16, height: 16 },
-        style: { strokeWidth: 1.5 },
+        markerEnd: {
+          type: MarkerType.ArrowClosed,
+          width: GRAPH_EDGE_MARKER_SIZE,
+          height: GRAPH_EDGE_MARKER_SIZE,
+        },
+        style: { strokeWidth: GRAPH_EDGE_BASE_WIDTH },
       });
     }
   });

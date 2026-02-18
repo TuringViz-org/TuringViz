@@ -86,6 +86,13 @@ import {
 } from '@components/shared/pointerTracker';
 import { getStartConfiguration } from '@tmfunctions/Configurations';
 import { computeComputationTreeInWorker } from '@utils/graphWorkerClient';
+import {
+  GRAPH_EDGE_ACTIVE_WIDTH,
+  GRAPH_EDGE_ARROW_SCALE,
+  GRAPH_EDGE_BASE_WIDTH,
+  GRAPH_EDGE_COMPRESSED_WIDTH,
+  GRAPH_EDGE_HOVER_WIDTH,
+} from '@components/shared/edgeVisualConstants';
 
 type Anchor = { top: number; left: number };
 
@@ -239,11 +246,11 @@ function getCyStyles(theme: ReturnType<typeof useTheme>): Stylesheet[] {
     {
       selector: 'edge',
       style: {
-        width: 2.2,
+        width: GRAPH_EDGE_BASE_WIDTH,
         'line-color': theme.palette.grey[500],
         'target-arrow-color': theme.palette.grey[500],
         'target-arrow-shape': 'triangle',
-        'arrow-scale': 1.1,
+        'arrow-scale': GRAPH_EDGE_ARROW_SCALE,
         'curve-style': 'straight',
         'line-opacity': 0.9,
         label: 'data(label)',
@@ -258,14 +265,14 @@ function getCyStyles(theme: ReturnType<typeof useTheme>): Stylesheet[] {
       selector: 'edge.compressed',
       style: {
         'line-style': 'dashed',
-        width: 2.8,
+        width: GRAPH_EDGE_COMPRESSED_WIDTH,
         'line-dash-pattern': [6, 4],
       },
     },
     {
       selector: 'edge.hovered',
       style: {
-        width: 3.8,
+        width: GRAPH_EDGE_HOVER_WIDTH,
         'line-color': theme.palette.grey[700],
         'target-arrow-color': theme.palette.grey[700],
       },
@@ -273,7 +280,7 @@ function getCyStyles(theme: ReturnType<typeof useTheme>): Stylesheet[] {
     {
       selector: 'edge.ct-selected',
       style: {
-        width: 4.4,
+        width: GRAPH_EDGE_ACTIVE_WIDTH,
         'line-color': theme.palette.primary.dark,
         'target-arrow-color': theme.palette.primary.dark,
       },

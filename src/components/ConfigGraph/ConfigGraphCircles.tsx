@@ -98,6 +98,12 @@ import {
   PORTAL_BRIDGE_SWITCH_EVENT,
   type PortalBridgeSwitchDetail,
 } from '@components/MainPage/PortalBridge';
+import {
+  GRAPH_EDGE_ACTIVE_WIDTH,
+  GRAPH_EDGE_ARROW_SCALE,
+  GRAPH_EDGE_BASE_WIDTH,
+  GRAPH_EDGE_HOVER_WIDTH,
+} from '@components/shared/edgeVisualConstants';
 
 type Anchor = { top: number; left: number };
 
@@ -210,11 +216,11 @@ const getCyStyles = (theme: ReturnType<typeof useTheme>): Stylesheet[] => [
   {
     selector: 'edge',
     style: {
-      width: 2.2,
+      width: GRAPH_EDGE_BASE_WIDTH,
       'line-color': theme.palette.grey[500],
       'target-arrow-color': theme.palette.grey[500],
       'target-arrow-shape': 'triangle',
-      'arrow-scale': 1.1,
+      'arrow-scale': GRAPH_EDGE_ARROW_SCALE,
       'curve-style': 'bezier',
       'line-opacity': 0.9,
       label: 'data(label)',
@@ -228,7 +234,7 @@ const getCyStyles = (theme: ReturnType<typeof useTheme>): Stylesheet[] => [
   {
     selector: 'edge.hovered',
     style: {
-      width: 3.8,
+      width: GRAPH_EDGE_HOVER_WIDTH,
       'line-color': theme.palette.grey[700],
       'target-arrow-color': theme.palette.grey[700],
     },
@@ -236,7 +242,7 @@ const getCyStyles = (theme: ReturnType<typeof useTheme>): Stylesheet[] => [
   {
     selector: 'edge.ct-selected',
     style: {
-      width: 4.4,
+      width: GRAPH_EDGE_ACTIVE_WIDTH,
       'line-color': theme.palette.primary.dark,
       'target-arrow-color': theme.palette.primary.dark,
     },
@@ -244,7 +250,7 @@ const getCyStyles = (theme: ReturnType<typeof useTheme>): Stylesheet[] => [
   {
     selector: 'edge.ct-highlighted',
     style: {
-      width: 4.4,
+      width: GRAPH_EDGE_ACTIVE_WIDTH,
       'line-color': theme.palette.primary.main,
       'target-arrow-color': theme.palette.primary.main,
     },

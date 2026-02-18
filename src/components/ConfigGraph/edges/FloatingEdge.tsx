@@ -16,6 +16,11 @@ import { useHoverPopper } from '../hooks/useHoverPopper';
 import { HOVER_POPPER_DELAY_MS } from '@utils/constants';
 import { EdgeTooltip } from './EdgeTooltip';
 import { useGraphUI } from '@components/shared/GraphUIContext';
+import {
+  GRAPH_EDGE_ACTIVE_WIDTH,
+  GRAPH_EDGE_BASE_WIDTH,
+  GRAPH_EDGE_HOVER_WIDTH,
+} from '@components/shared/edgeVisualConstants';
 
 export interface FloatingEdgeData extends Record<string, unknown> {
   bended?: boolean;
@@ -113,7 +118,7 @@ const FloatingEdgeComponent = ({
   /* --- Highlight/Styles --- */
   const isHighlighted = highlightedEdgeId === id;
   const baseStroke = (style as any)?.stroke ?? '#999';
-  const baseWidth = Number((style as any)?.strokeWidth ?? 2.2);
+  const baseWidth = Number((style as any)?.strokeWidth ?? GRAPH_EDGE_BASE_WIDTH);
   const hlColor = theme.palette.primary.dark;
 
   /* --- Hover/Tooltip --- */
@@ -139,7 +144,11 @@ const FloatingEdgeComponent = ({
       ...style,
       stroke: hovering || isSelected ? strokeColorHover : strokeColorBase,
       strokeWidth:
-        hovering || isSelected ? baseWidth + 1 : isHighlighted ? 4.4 : baseWidth,
+        hovering || isSelected
+          ? GRAPH_EDGE_HOVER_WIDTH
+          : isHighlighted
+            ? GRAPH_EDGE_ACTIVE_WIDTH
+            : baseWidth,
       opacity: hovering || isSelected ? 1 : isHighlighted ? 0.95 : 0.85,
       transition:
         'stroke 120ms ease, stroke-width 120ms ease, opacity 120ms ease, filter 120ms ease',
