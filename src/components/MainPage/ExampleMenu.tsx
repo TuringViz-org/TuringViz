@@ -1,7 +1,7 @@
 // src/components/MainPage/ExampleMenu.tsx
 import { useState } from 'react';
 import {
-  IconButton,
+  Button,
   Menu,
   MenuItem,
   ListItemIcon,
@@ -43,14 +43,29 @@ export default function ExampleMenu() {
   return (
     <>
       <Tooltip title="Load Example">
-        <IconButton
+        <Button
           color="inherit"
-          size="small"
+          size="medium"
+          startIcon={<MenuBookIcon fontSize="small" />}
           onClick={(e) => setAnchorEl(e.currentTarget)}
-          sx={{ ml: 1, padding: 2 }}
+          sx={{
+            ml: 1,
+            px: 1.75,
+            py: 0.75,
+            minWidth: 0,
+            textTransform: 'none',
+            fontWeight: 700,
+            fontSize: '1rem',
+            '& .MuiButton-startIcon': {
+              mr: 1,
+            },
+            '& .MuiButton-startIcon .MuiSvgIcon-root': {
+              fontSize: 22,
+            },
+          }}
         >
-          <MenuBookIcon />
-        </IconButton>
+          Load Examples
+        </Button>
       </Tooltip>
 
       <Menu
