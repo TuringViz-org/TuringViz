@@ -55,7 +55,7 @@ const LoopEdgeComponent = ({
   /* --- Highlight/Styles --- */
   const isHighlighted = highlightedEdgeId === id;
   const baseStroke = (style as any)?.stroke ?? '#999';
-  const baseWidth = Number((style as any)?.strokeWidth ?? 1.5);
+  const baseWidth = Number((style as any)?.strokeWidth ?? 2.2);
   const hlColor = theme.palette.primary.dark;
 
   /* --- Hover/Tooltip --- */
@@ -81,7 +81,7 @@ const LoopEdgeComponent = ({
       ...style,
       stroke: hovering || isSelected ? strokeColorHover : strokeColorBase,
       strokeWidth:
-        hovering || isSelected ? baseWidth + 1 : isHighlighted ? 3.5 : baseWidth,
+        hovering || isSelected ? baseWidth + 1 : isHighlighted ? 4.4 : baseWidth,
       opacity: hovering || isSelected ? 1 : isHighlighted ? 0.95 : 0.85,
       transition:
         'stroke 120ms ease, stroke-width 120ms ease, opacity 120ms ease, filter 120ms ease',

@@ -6,12 +6,8 @@ import {
   useEdgesState,
   useReactFlow,
   useNodesInitialized,
-  Controls,
-  Panel,
   MarkerType,
   Background,
-  applyNodeChanges,
-  applyEdgeChanges,
   type Node as RFNode,
   type Edge as RFEdge,
 } from '@xyflow/react';
@@ -24,12 +20,14 @@ import {
   ToggleButton,
   Tooltip,
   Fab,
+  IconButton,
 } from '@mui/material';
 import {
   Adjust,
   ViewAgenda,
   Cached,
   Tune,
+  CenterFocusStrong,
 } from '@mui/icons-material';
 import { alpha, useTheme } from '@mui/material/styles';
 import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
@@ -388,8 +386,7 @@ function ConfigGraphCards() {
   }, [stateColorMatching]);
 
   const showLegend =
-    (configGraph?.Graph.size ?? 0) >= COLOR_STATE_SWITCH &&
-    configGraphNodeMode === ConfigNodeMode.CIRCLES;
+    legendItems.length > 0 && (configGraph?.Graph.size ?? 0) > 0;
 
   return (
     <ReactFlow
@@ -397,8 +394,8 @@ function ConfigGraphCards() {
       style={{ width: '100%', height: '100%', minHeight: 360 }}
       nodes={nodes}
       edges={edges}
-      onNodesChange={(changes) => setNodes((nds) => applyNodeChanges(changes, nds))}
-      onEdgesChange={(changes) => setEdges((eds) => applyEdgeChanges(changes, eds))}
+      onNodesChange={onNodesChangeRF}
+      onEdgesChange={onEdgesChangeRF}
       nodeTypes={nodeTypes}
       edgeTypes={edgeTypes}
       onPaneClick={handlePaneClick}
@@ -407,7 +404,12 @@ function ConfigGraphCards() {
       defaultEdgeOptions={defaultEdgeOptions}
       proOptions={{ hideAttribution: true }}
       minZoom={0.05}
+      maxZoom={2.5}
       defaultViewport={{ x: 0, y: 0, zoom: 0.1 }}
+      zoomOnScroll
+      zoomOnPinch
+      zoomOnDoubleClick
+      nodesDraggable={false}
       onlyRenderVisibleElements
     >
       {/* Layout settings panel trigger button */}
@@ -452,7 +454,15 @@ function ConfigGraphCards() {
         running={layout.running}
       />
       {/* Top-left controls panel (recalculate layout and node mode switch) */}
-      <Panel position="top-left">
+      <Box
+        sx={{
+          position: 'absolute',
+          top: 8,
+          left: 8,
+          zIndex: (t) => t.zIndex.appBar + 1,
+          pointerEvents: 'auto',
+        }}
+      >
         <Stack direction="row" spacing={1} alignItems="center">
           {/* Button for recalculating layout */}
           <Button
@@ -555,7 +565,7 @@ function ConfigGraphCards() {
             )}
           </ToggleButtonGroup>
         </Stack>
-      </Panel>
+      </Box>
 
       {/* Legend panel */}
       <LegendPanel
@@ -563,9 +573,17 @@ function ConfigGraphCards() {
         visible={showLegend}
         hoveredKey={hoveredState}
         contentClassName="ct-scrollable"
+        addon={
+          <Tooltip title="Fit view">
+            <span>
+              <IconButton size="small" onClick={runFitView}>
+                <CenterFocusStrong fontSize="small" />
+              </IconButton>
+            </span>
+          </Tooltip>
+        }
       />
 
-      <Controls />
       <Background gap={10} size={1} />
     </ReactFlow>
   );

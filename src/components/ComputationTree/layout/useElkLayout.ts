@@ -4,9 +4,7 @@ import Elk, { ElkExtendedEdge, ElkNode } from 'elkjs/lib/elk.bundled.js';
 import type { Edge as RFEdge, Node as RFNode } from '@xyflow/react';
 
 import {
-  CONFIG_CARD_HEIGHT_ESTIMATE,
   CONFIG_NODE_DIAMETER,
-  NodeType,
 } from '../util/constants';
 
 const createElkWithWorker = () => {
@@ -125,13 +123,8 @@ export function useElkLayout({
     // Prepare ELK graph (position-only layout)
     const elkNodes: ElkNode[] = rfNodes.map((n) => ({
       id: n.id,
-      width: n.measured?.width ?? n.width ?? CONFIG_NODE_DIAMETER,
-      height:
-        n.measured?.height ??
-        n.height ??
-        (n.type === NodeType.CONFIG_CARD
-          ? CONFIG_CARD_HEIGHT_ESTIMATE
-          : CONFIG_NODE_DIAMETER),
+      width: n.measured?.width ?? CONFIG_NODE_DIAMETER,
+      height: n.measured?.height ?? CONFIG_NODE_DIAMETER,
     }));
 
     // Only include edges that are not self-references

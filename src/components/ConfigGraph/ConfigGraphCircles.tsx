@@ -210,7 +210,7 @@ const getCyStyles = (theme: ReturnType<typeof useTheme>): Stylesheet[] => [
   {
     selector: 'edge',
     style: {
-      width: 1.5,
+      width: 2.2,
       'line-color': theme.palette.grey[500],
       'target-arrow-color': theme.palette.grey[500],
       'target-arrow-shape': 'triangle',
@@ -228,7 +228,7 @@ const getCyStyles = (theme: ReturnType<typeof useTheme>): Stylesheet[] => [
   {
     selector: 'edge.hovered',
     style: {
-      width: 3,
+      width: 3.8,
       'line-color': theme.palette.grey[700],
       'target-arrow-color': theme.palette.grey[700],
     },
@@ -236,7 +236,7 @@ const getCyStyles = (theme: ReturnType<typeof useTheme>): Stylesheet[] => [
   {
     selector: 'edge.ct-selected',
     style: {
-      width: 3.5,
+      width: 4.4,
       'line-color': theme.palette.primary.dark,
       'target-arrow-color': theme.palette.primary.dark,
     },
@@ -244,7 +244,7 @@ const getCyStyles = (theme: ReturnType<typeof useTheme>): Stylesheet[] => [
   {
     selector: 'edge.ct-highlighted',
     style: {
-      width: 3.5,
+      width: 4.4,
       'line-color': theme.palette.primary.main,
       'target-arrow-color': theme.palette.primary.main,
     },

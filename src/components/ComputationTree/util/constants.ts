@@ -7,7 +7,7 @@ export const CONFIG_CARD_HEIGHT_ESTIMATE = 240;
 export const CONTROL_HEIGHT = 32;
 
 // Maximum number of nodes to allow card mode
-export const CARDS_LIMIT = 200;
+export const CARDS_LIMIT = 10000;
 
 export enum NodeType {
   CONFIG = 'config',

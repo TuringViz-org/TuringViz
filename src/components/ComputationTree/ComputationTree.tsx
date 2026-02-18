@@ -239,7 +239,7 @@ function getCyStyles(theme: ReturnType<typeof useTheme>): Stylesheet[] {
     {
       selector: 'edge',
       style: {
-        width: 1.5,
+        width: 2.2,
         'line-color': theme.palette.grey[500],
         'target-arrow-color': theme.palette.grey[500],
         'target-arrow-shape': 'triangle',
@@ -258,14 +258,14 @@ function getCyStyles(theme: ReturnType<typeof useTheme>): Stylesheet[] {
       selector: 'edge.compressed',
       style: {
         'line-style': 'dashed',
-        width: 2,
+        width: 2.8,
         'line-dash-pattern': [6, 4],
       },
     },
     {
       selector: 'edge.hovered',
       style: {
-        width: 3,
+        width: 3.8,
         'line-color': theme.palette.grey[700],
         'target-arrow-color': theme.palette.grey[700],
       },
@@ -273,7 +273,7 @@ function getCyStyles(theme: ReturnType<typeof useTheme>): Stylesheet[] {
     {
       selector: 'edge.ct-selected',
       style: {
-        width: 3.5,
+        width: 4.4,
         'line-color': theme.palette.primary.dark,
         'target-arrow-color': theme.palette.primary.dark,
       },
@@ -463,7 +463,7 @@ function ComputationTreeCircles({ depth, compressing = false }: Props) {
   const layout = useElkLayout({
     nodes,
     edges,
-    algorithm: 'layered',
+    algorithm: computationTreeELKSettings.algorithm,
     nodeSep: computationTreeELKSettings.nodeSep,
     rankSep: computationTreeELKSettings.rankSep,
     edgeSep: computationTreeELKSettings.edgeSep,
@@ -1452,6 +1452,7 @@ function ComputationTreeCircles({ depth, compressing = false }: Props) {
 }
 
 function ComputationTreeCards({ depth, compressing = false }: Props) {
+  const theme = useTheme();
   // Global Zustand state
   const transitions = useGlobalZustand((s) => s.transitions);
   const stateColorMatching = useGlobalZustand((s) => s.stateColorMatching);
@@ -1465,6 +1466,15 @@ function ComputationTreeCards({ depth, compressing = false }: Props) {
   const computationTreeELKSettings = useComputationTreeELKSettings();
   const setComputationTreeELKSettings = useGraphZustand(
     (s) => s.setComputationTreeELKSettings
+  );
+  const resolveColorForState = useCallback(
+    (stateName?: string) => {
+      const res = resolveStateColor(stateName, stateColorMatching);
+      if (res === 'accept') return normalizeColor(theme.palette.success.light);
+      if (res === 'reject') return normalizeColor(theme.palette.error.light);
+      return normalizeColor(res);
+    },
+    [stateColorMatching, theme.palette.error.light, theme.palette.success.light]
   );
 
   const { selected, setSelected, hoveredState } = useGraphUI();
@@ -1487,7 +1497,7 @@ function ComputationTreeCards({ depth, compressing = false }: Props) {
   const layout = useElkLayout({
     nodes,
     edges,
-    algorithm: 'layered',
+    algorithm: computationTreeELKSettings.algorithm,
     nodeSep: computationTreeELKSettings.nodeSep,
     rankSep: computationTreeELKSettings.rankSep,
     edgeSep: computationTreeELKSettings.edgeSep,
@@ -1586,6 +1596,7 @@ function ComputationTreeCards({ depth, compressing = false }: Props) {
     base.topoKey,
     hideLabels,
     stateColorMatching,
+    resolveColorForState,
     setNodes,
     setEdges,
   ]);
