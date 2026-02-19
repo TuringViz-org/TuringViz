@@ -174,12 +174,19 @@ function useAutoLayout({
   const nodesReady = useNodesInitialized();
   const didInitialLayoutRef = useRef(false);
   const lastTopoKeyRef = useRef<string | null>(null);
+  // Treat the currently mounted machine as already handled so we don't
+  // run a delayed "load" recenter during the first simulation step.
+  const lastHandledMachineLoadRef = useRef<number>(machineLoadVersion);
   const fitAfterLayoutRef = useRef(false);
   const layoutRunningRef = useRef(layout.running);
   const nodesReadyRef = useRef(nodesReady);
   const nodesCountRef = useRef(0);
   const manualFitPendingRef = useRef(false);
   const prevRunningRef = useRef(layout.running);
+  const hasPositionedNodes = useMemo(
+    () => nodes.some((node) => node.position.x !== 0 || node.position.y !== 0),
+    [nodes]
+  );
 
   useEffect(() => {
     layoutRunningRef.current = layout.running;
@@ -196,12 +203,15 @@ function useAutoLayout({
   useEffect(() => {
     if (!didInitialLayoutRef.current && nodesReady && nodes.length > 0) {
       didInitialLayoutRef.current = true;
+      // If positions already exist (from a previous auto-layout or manual dragging),
+      // never run a delayed "initial" relayout.
+      if (hasPositionedNodes) return;
       queueTask(() => {
         scheduleLayoutRestart();
         fitAfterLayoutRef.current = true;
       });
     }
-  }, [nodesReady, nodes.length, scheduleLayoutRestart]);
+  }, [nodesReady, nodes.length, hasPositionedNodes, scheduleLayoutRestart]);
 
   const topoKey = useMemo(() => {
     const nIds = rawNodes.map((n) => n.id).sort();
@@ -225,6 +235,8 @@ function useAutoLayout({
   // Re-center on every successful "Load Machine".
   useEffect(() => {
     if (!nodesReady || nodes.length === 0) return;
+    if (lastHandledMachineLoadRef.current === machineLoadVersion) return;
+    lastHandledMachineLoadRef.current = machineLoadVersion;
     scheduleLayoutRestart();
     fitAfterLayoutRef.current = true;
   }, [machineLoadVersion, nodesReady, nodes.length, scheduleLayoutRestart]);

@@ -1,13 +1,7 @@
 // src/components/TMGraph/layout/useElkLayout.ts
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import Elk, { ElkNode, ElkExtendedEdge } from 'elkjs/lib/elk.bundled.js';
-import {
-  Node as RFNode,
-  useNodesInitialized,
-  useReactFlow,
-  useStore,
-  ReactFlowState,
-} from '@xyflow/react';
+import { Node as RFNode, useReactFlow } from '@xyflow/react';
 
 import { STATE_NODE_DIAMETER } from '../util/constants';
 
@@ -27,8 +21,6 @@ export type LayoutAPI = {
   running: boolean; // Is ELK currently computing?
 };
 
-const elementCountSelector = (s: ReactFlowState) => s.nodes.length + s.edges.length;
-
 export function useElkLayout({
   algorithm = 'layered',
   nodeSep = 60,
@@ -37,33 +29,13 @@ export function useElkLayout({
   padding = 20,
   direction = 'RIGHT',
 }: Options = {}): LayoutAPI {
-  const nodesInitialized = useNodesInitialized();
-  const elementCount = useStore(elementCountSelector);
   const { getNodes, getEdges, setNodes } = useReactFlow();
 
   const elkRef = useRef<InstanceType<typeof Elk> | null>(null);
   const [running, setRunning] = useState(false);
-  const lastTopoKeyRef = useRef<string>('');
 
   // Create ELK instance once
   if (!elkRef.current) elkRef.current = new Elk();
-
-  // Topology key: only node IDs + (unique) source→target pairs
-  // This keeps layout re-runs limited to actual structure changes.
-  const topoKey = useMemo(() => {
-    const ns = getNodes();
-    const es = getEdges();
-
-    const nIds = ns
-      .map((n) => n.id)
-      .sort()
-      .join('|');
-    const eIds = es
-      .map((e) => `${e.source}→${e.target}`)
-      .sort()
-      .join('|');
-    return `${nIds}__${eIds}`;
-  }, [elementCount]);
 
   const runLayout = async () => {
     const elk = elkRef.current!;
@@ -140,17 +112,8 @@ export function useElkLayout({
 
   // Fit view after layout if requested
   const restart = () => {
-    lastTopoKeyRef.current = '';
     runLayout();
   };
-
-  // Automatically recalculate when the topology changes
-  useEffect(() => {
-    if (!nodesInitialized) return;
-    if (lastTopoKeyRef.current === topoKey) return;
-    lastTopoKeyRef.current = topoKey;
-    runLayout();
-  }, [nodesInitialized, topoKey]);
 
   return { restart, running };
 }

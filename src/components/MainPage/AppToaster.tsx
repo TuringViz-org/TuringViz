@@ -8,7 +8,7 @@ export function AppToaster() {
       position="top-right"
       richColors
       closeButton
-      duration={2500}
+      duration={5000}
       gap={1}
       style={{ zIndex: 1400 }}
       toastOptions={{
