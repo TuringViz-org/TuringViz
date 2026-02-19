@@ -9,14 +9,12 @@ import {
   Container,
   Divider,
   Grid,
-  Link as MuiLink,
   Paper,
   TextField,
   Stack,
   Tab,
   Tabs,
   Typography,
-  useTheme,
 } from '@mui/material';
 import {
   AccountTreeOutlined,
@@ -24,10 +22,8 @@ import {
   ExpandMore,
   GitHub,
   MenuBookOutlined,
-  OpenInNew,
   SchemaOutlined,
 } from '@mui/icons-material';
-import { alpha } from '@mui/material';
 
 import { CodeBlock } from './CodeBlock';
 import { YamlLegend } from './YamlLegend';
@@ -569,85 +565,6 @@ table:
   );
 }
 
-function GithubCallToAction() {
-  const theme = useTheme();
-
-  return (
-    <Box
-      sx={{
-        mt: 3,
-        display: 'flex',
-        justifyContent: 'center',
-      }}
-    >
-      <Paper
-        elevation={0}
-        sx={{
-          px: 1.25,
-          py: 0.75,
-          borderRadius: 999,
-          display: 'inline-flex',
-          alignItems: 'center',
-          gap: 1,
-          border: `1px solid ${alpha(theme.palette.primary.main, 0.25)}`,
-          bgcolor:
-            theme.palette.mode === 'light'
-              ? alpha(theme.palette.primary.main, 0.06)
-              : alpha(theme.palette.primary.light, 0.12),
-          boxShadow:
-            theme.palette.mode === 'light'
-              ? `0 2px 12px ${alpha(theme.palette.primary.main, 0.12)}`
-              : `0 2px 12px ${alpha('#000', 0.35)}`,
-        }}
-      >
-        <GitHub sx={{ fontSize: 18, opacity: 0.9 }} />
-        <Typography variant="body2" sx={{ fontWeight: 600 }}>
-          Open-source on GitHub
-        </Typography>
-        <MuiLink
-          href="https://github.com/GregorPorsch/TuringGraph"
-          target="_blank"
-          rel="noreferrer"
-          underline="none"
-          sx={{
-            ml: 0.5,
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 0.5,
-            px: 1.25,
-            py: 0.5,
-            borderRadius: 999,
-            fontSize: 13,
-            fontWeight: 600,
-            bgcolor:
-              theme.palette.mode === 'light'
-                ? theme.palette.primary.main
-                : theme.palette.primary.light,
-            color:
-              theme.palette.mode === 'light'
-                ? theme.palette.primary.contrastText
-                : theme.palette.grey[900],
-            transition: 'transform 120ms ease, box-shadow 120ms ease',
-            boxShadow:
-              theme.palette.mode === 'light'
-                ? `0 3px 10px ${alpha(theme.palette.primary.main, 0.25)}`
-                : `0 3px 10px ${alpha('#000', 0.45)}`,
-            '&:hover': {
-              transform: 'translateY(-1px)',
-              boxShadow:
-                theme.palette.mode === 'light'
-                  ? `0 6px 16px ${alpha(theme.palette.primary.main, 0.35)}`
-                  : `0 6px 16px ${alpha('#000', 0.6)}`,
-            },
-          }}
-        >
-          Start & Explore <OpenInNew sx={{ fontSize: 16 }} />
-        </MuiLink>
-      </Paper>
-    </Box>
-  );
-}
-
 function GistGuide() {
   const [gistInput, setGistInput] = useState('');
   const gistId = extractGistId(gistInput);
@@ -716,7 +633,6 @@ export default function SiteFooter({ activeTab }: { activeTab: AppTab }) {
             <GistGuide />
           </>
         ) : null}
-        <GithubCallToAction />
       </Container>
     </Box>
   );
