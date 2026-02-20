@@ -51,15 +51,9 @@ const defaultEdgeOptions = {
   },
 };
 
-const queueTask =
-  typeof queueMicrotask === 'function'
-    ? queueMicrotask
-    : (cb: () => void) => Promise.resolve().then(cb);
-
 type BuildTMGraphArgs = Parameters<typeof buildTMGraph>;
 type TMGraphBuildResult = ReturnType<typeof buildTMGraph>;
 type TMGraphNode = TMGraphBuildResult['nodes'][number];
-type TMGraphEdge = TMGraphBuildResult['edges'][number];
 
 function useTMGraphData({
   states,
@@ -97,8 +91,6 @@ function useTMGraphData({
   return {
     nodes,
     edges,
-    rawNodes,
-    rawEdges,
     onNodesChange,
     onEdgesChange,
   };
@@ -156,23 +148,20 @@ function useHighlightedTransition({
 function useAutoLayout({
   layout,
   nodes,
-  rawNodes,
-  rawEdges,
+  edges,
   rf,
   portalId,
   machineLoadVersion,
 }: {
   layout: ReturnType<typeof useElkLayout>;
   nodes: TMGraphNode[];
-  rawNodes: TMGraphNode[];
-  rawEdges: TMGraphEdge[];
+  edges: TMGraphBuildResult['edges'];
   rf: ReturnType<typeof useReactFlow>;
   portalId: string;
   machineLoadVersion: number;
 }) {
   const scheduleLayoutRestart = useDebouncedLayoutRestart(layout);
   const nodesReady = useNodesInitialized();
-  const didInitialLayoutRef = useRef(false);
   const lastTopoKeyRef = useRef<string | null>(null);
   // Treat the currently mounted machine as already handled so we don't
   // run a delayed "load" recenter during the first simulation step.
@@ -183,10 +172,9 @@ function useAutoLayout({
   const nodesCountRef = useRef(0);
   const manualFitPendingRef = useRef(false);
   const prevRunningRef = useRef(layout.running);
-  const hasPositionedNodes = useMemo(
-    () => nodes.some((node) => node.position.x !== 0 || node.position.y !== 0),
-    [nodes]
-  );
+  const machineLoadFrameRef = useRef<number | null>(null);
+  const awaitingRevealRef = useRef(false);
+  const [viewportReady, setViewportReady] = useState(false);
 
   useEffect(() => {
     layoutRunningRef.current = layout.running;
@@ -201,50 +189,58 @@ function useAutoLayout({
   }, [nodes.length]);
 
   useEffect(() => {
-    if (!didInitialLayoutRef.current && nodesReady && nodes.length > 0) {
-      didInitialLayoutRef.current = true;
-      // If positions already exist (from a previous auto-layout or manual dragging),
-      // never run a delayed "initial" relayout.
-      if (hasPositionedNodes) return;
-      queueTask(() => {
-        scheduleLayoutRestart();
-        fitAfterLayoutRef.current = true;
-      });
-    }
-  }, [nodesReady, nodes.length, hasPositionedNodes, scheduleLayoutRestart]);
+    return () => {
+      if (machineLoadFrameRef.current !== null) {
+        cancelAnimationFrame(machineLoadFrameRef.current);
+      }
+    };
+  }, []);
+
+  const requestLayoutAndFit = useCallback(() => {
+    scheduleLayoutRestart();
+    fitAfterLayoutRef.current = true;
+  }, [scheduleLayoutRestart]);
+
+  const requestLayoutFitAndReveal = useCallback(() => {
+    awaitingRevealRef.current = true;
+    setViewportReady(false);
+    requestLayoutAndFit();
+  }, [requestLayoutAndFit]);
 
   const topoKey = useMemo(() => {
-    const nIds = rawNodes.map((n) => n.id).sort();
-    const eKeys = rawEdges.map((e) => `${e.source}→${e.target}`).sort();
+    const nIds = nodes.map((n) => n.id).sort();
+    const eKeys = Array.from(new Set(edges.map((e) => `${e.source}→${e.target}`))).sort();
     return `${nIds.join('|')}__${eKeys.join('|')}`;
-  }, [rawNodes, rawEdges]);
+  }, [nodes, edges]);
 
   useEffect(() => {
     if (!nodesReady || nodes.length === 0) return;
-    if (lastTopoKeyRef.current === null) {
-      lastTopoKeyRef.current = topoKey;
-      return;
-    }
     if (lastTopoKeyRef.current === topoKey) return;
     lastTopoKeyRef.current = topoKey;
 
-    scheduleLayoutRestart();
-    fitAfterLayoutRef.current = true;
-  }, [topoKey, nodesReady, nodes.length, scheduleLayoutRestart]);
+    requestLayoutFitAndReveal();
+  }, [topoKey, nodesReady, nodes.length, requestLayoutFitAndReveal]);
 
   // Re-center on every successful "Load Machine".
   useEffect(() => {
     if (!nodesReady || nodes.length === 0) return;
     if (lastHandledMachineLoadRef.current === machineLoadVersion) return;
     lastHandledMachineLoadRef.current = machineLoadVersion;
-    scheduleLayoutRestart();
-    fitAfterLayoutRef.current = true;
-  }, [machineLoadVersion, nodesReady, nodes.length, scheduleLayoutRestart]);
+    if (machineLoadFrameRef.current !== null) {
+      cancelAnimationFrame(machineLoadFrameRef.current);
+    }
+    machineLoadFrameRef.current = requestAnimationFrame(() => {
+      machineLoadFrameRef.current = null;
+      if (!nodesReadyRef.current || nodesCountRef.current === 0) return;
+      requestLayoutFitAndReveal();
+    });
+  }, [machineLoadVersion, nodesReady, nodes.length, requestLayoutFitAndReveal]);
 
-  const runFitView = useCallback(() => {
+  const runFitView = useCallback((onDone?: () => void) => {
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
         rf.fitView({ padding: 0.2, duration: 300 });
+        onDone?.();
       });
     });
   }, [rf]);
@@ -254,7 +250,12 @@ function useAutoLayout({
     if (justFinished) {
       if (fitAfterLayoutRef.current && nodes.length > 0) {
         fitAfterLayoutRef.current = false;
-        runFitView();
+        runFitView(() => {
+          if (awaitingRevealRef.current) {
+            awaitingRevealRef.current = false;
+            setViewportReady(true);
+          }
+        });
       }
 
       if (manualFitPendingRef.current && nodesCountRef.current > 0) {
@@ -267,9 +268,8 @@ function useAutoLayout({
   }, [layout.running, nodes.length, runFitView]);
 
   const recalcLayout = useCallback(() => {
-    scheduleLayoutRestart();
-    fitAfterLayoutRef.current = true;
-  }, [scheduleLayoutRestart]);
+    requestLayoutAndFit();
+  }, [requestLayoutAndFit]);
 
   const scheduleFitAfterSwitch = useCallback(() => {
     if (!nodesReadyRef.current || nodesCountRef.current === 0) return;
@@ -294,7 +294,14 @@ function useAutoLayout({
     };
   }, [portalId, scheduleFitAfterSwitch]);
 
-  return { recalcLayout };
+  useEffect(() => {
+    if (nodes.length === 0) {
+      awaitingRevealRef.current = false;
+      setViewportReady(true);
+    }
+  }, [nodes.length]);
+
+  return { recalcLayout, viewportReady };
 }
 
 // --- Component ---
@@ -319,8 +326,6 @@ function TMGraph() {
   const {
     nodes,
     edges,
-    rawNodes,
-    rawEdges,
     onNodesChange,
     onEdgesChange,
   } = useTMGraphData({
@@ -349,11 +354,10 @@ function TMGraph() {
     direction: tmGraphELKSettings.direction,
   });
 
-  const { recalcLayout } = useAutoLayout({
+  const { recalcLayout, viewportReady } = useAutoLayout({
     layout,
     nodes,
-    rawNodes,
-    rawEdges,
+    edges,
     rf,
     portalId: 'tmGraph',
     machineLoadVersion,
@@ -373,7 +377,12 @@ function TMGraph() {
   return (
     <ReactFlow
       id="TMGraph"
-      style={{ width: '100%', height: '100%' }}
+      style={{
+        width: '100%',
+        height: '100%',
+        opacity: viewportReady ? 1 : 0,
+        transition: 'opacity 120ms ease',
+      }}
       nodes={nodes}
       edges={edges}
       onNodesChange={onNodesChange}

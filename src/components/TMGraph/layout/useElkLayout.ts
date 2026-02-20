@@ -9,17 +9,20 @@ export type ElkAlgo = 'layered' | 'force' | 'mrtree' | 'stress' | 'radial';
 
 export type Options = {
   algorithm?: ElkAlgo;
-  nodeSep?: number; // spacing between nodes in the same layer
-  rankSep?: number; // spacing between layers
-  edgeSep?: number; // spacing between edges
-  padding?: number; // graph padding
+  nodeSep?: number;
+  rankSep?: number;
+  edgeSep?: number;
+  padding?: number;
   direction?: 'RIGHT' | 'LEFT' | 'UP' | 'DOWN';
 };
 
 export type LayoutAPI = {
-  restart: () => void; // Recalculate layout
-  running: boolean; // Is ELK currently computing?
+  restart: () => void;
+  running: boolean;
 };
+
+const readDimension = (raw: unknown) =>
+  typeof raw === 'number' && Number.isFinite(raw) && raw > 1 ? raw : undefined;
 
 export function useElkLayout({
   algorithm = 'layered',
@@ -30,89 +33,105 @@ export function useElkLayout({
   direction = 'RIGHT',
 }: Options = {}): LayoutAPI {
   const { getNodes, getEdges, setNodes } = useReactFlow();
-
   const elkRef = useRef<InstanceType<typeof Elk> | null>(null);
+  const isRunningRef = useRef(false);
+  const rerunRequestedRef = useRef(false);
   const [running, setRunning] = useState(false);
 
-  // Create ELK instance once
   if (!elkRef.current) elkRef.current = new Elk();
 
   const runLayout = async () => {
+    if (isRunningRef.current) {
+      rerunRequestedRef.current = true;
+      return;
+    }
+
+    isRunningRef.current = true;
     const elk = elkRef.current!;
-    const rfNodes = getNodes();
-    const rfEdges = getEdges();
-
-    if (!rfNodes.length) return;
-
     setRunning(true);
-
-    // Prepare ELK graph (position-only layout)
-    const elkNodes: ElkNode[] = rfNodes.map((n) => ({
-      id: n.id,
-      width: n.width ?? STATE_NODE_DIAMETER,
-      height: n.height ?? STATE_NODE_DIAMETER,
-    }));
-
-    // Only include edges that are not self-references
-    const elkEdges: ElkExtendedEdge[] = rfEdges
-      .filter((e) => e.source !== e.target)
-      .map((e) => ({
-        id: `${e.source}→${e.target}`,
-        sources: [String(e.source)],
-        targets: [String(e.target)],
-      }));
-
-    const elkGraph: ElkNode = {
-      id: 'root',
-      layoutOptions: {
-        // Algorithm
-        'elk.algorithm':
-          algorithm === 'layered'
-            ? 'layered'
-            : algorithm === 'radial'
-              ? 'radial'
-              : algorithm === 'mrtree'
-                ? 'mrtree'
-                : algorithm === 'stress'
-                  ? 'stress'
-                  : 'force',
-        // Distances
-        'elk.spacing.nodeNode': String(nodeSep),
-        'elk.layered.spacing.nodeNodeBetweenLayers': String(rankSep),
-        'elk.spacing.edgeEdge': String(edgeSep),
-        // Padding
-        'elk.padding': String(padding),
-        // Other options
-        'elk.layered.nodePlacement.bk.fixedAlignment': 'BALANCED',
-        'elk.direction': direction,
-      },
-      children: elkNodes,
-      edges: elkEdges,
-    };
-
     try {
-      const res = await elk.layout(elkGraph);
+      while (true) {
+        rerunRequestedRef.current = false;
 
-      // Result: Update RF nodes (only map positions)
-      const posById = new Map<string, { x: number; y: number }>();
-      for (const c of res.children ?? []) {
-        posById.set(c.id!, { x: c.x ?? 0, y: c.y ?? 0 });
+        const rfNodes = getNodes();
+        const rfEdges = getEdges();
+
+        if (!rfNodes.length) break;
+
+        const elkNodes: ElkNode[] = rfNodes.map((n) => {
+          const measured = (n as any).measured;
+          return {
+            id: n.id,
+            width:
+              readDimension(measured?.width) ??
+              readDimension(n.width) ??
+              STATE_NODE_DIAMETER,
+            height:
+              readDimension(measured?.height) ??
+              readDimension(n.height) ??
+              STATE_NODE_DIAMETER,
+          };
+        });
+
+        const elkEdges: ElkExtendedEdge[] = rfEdges
+          .filter((e) => e.source !== e.target)
+          .map((e) => ({
+            id: `${e.source}→${e.target}`,
+            sources: [String(e.source)],
+            targets: [String(e.target)],
+          }));
+
+        const elkGraph: ElkNode = {
+          id: 'root',
+          layoutOptions: {
+            'elk.algorithm':
+              algorithm === 'layered'
+                ? 'layered'
+                : algorithm === 'radial'
+                  ? 'radial'
+                  : algorithm === 'mrtree'
+                    ? 'mrtree'
+                    : algorithm === 'stress'
+                      ? 'stress'
+                      : 'force',
+            'elk.spacing.nodeNode': String(nodeSep),
+            'elk.layered.spacing.nodeNodeBetweenLayers': String(rankSep),
+            'elk.spacing.edgeEdge': String(edgeSep),
+            'elk.padding': String(padding),
+            'elk.layered.nodePlacement.bk.fixedAlignment': 'BALANCED',
+            'elk.direction': direction,
+          },
+          children: elkNodes,
+          edges: elkEdges,
+        };
+
+        const res = await elk.layout(elkGraph);
+
+        const posById = new Map<string, { x: number; y: number }>();
+        for (const c of res.children ?? []) {
+          if (!c.id) continue;
+          posById.set(c.id, { x: c.x ?? 0, y: c.y ?? 0 });
+        }
+
+        setNodes((prev: RFNode[]) =>
+          prev.map((n) => {
+            const p = posById.get(n.id);
+            if (!p) return n;
+            const same = n.position?.x === p.x && n.position?.y === p.y;
+            return same ? n : { ...n, position: p };
+          })
+        );
+
+        if (!rerunRequestedRef.current) break;
       }
-
-      setNodes((prev: RFNode[]) =>
-        prev.map((n) => {
-          const p = posById.get(n.id);
-          return p ? { ...n, position: p } : n;
-        })
-      );
     } finally {
+      isRunningRef.current = false;
       setRunning(false);
     }
   };
 
-  // Fit view after layout if requested
   const restart = () => {
-    runLayout();
+    void runLayout();
   };
 
   return { restart, running };
