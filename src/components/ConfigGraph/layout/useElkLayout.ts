@@ -10,19 +10,11 @@ import {
 } from '@xyflow/react';
 
 import { CONFIG_NODE_DIAMETER } from '../util/constants';
-
-const createElkWithWorker = () => {
-  if (typeof Worker === 'undefined') return new Elk();
-
-  return new Elk({
-    workerFactory: () =>
-      new Worker(new URL('elkjs/lib/elk-worker.js', import.meta.url), {
-        name: 'elk-layout-worker',
-      }),
-  });
-};
-
-export type ElkAlgo = 'layered' | 'force' | 'mrtree' | 'stress' | 'radial';
+import {
+  createElkWithWorker,
+  resolveElkAlgorithm,
+  type ElkAlgo,
+} from '@components/shared/layout/elkUtils';
 
 export type Options = {
   algorithm?: ElkAlgo;
@@ -60,7 +52,7 @@ export function useElkLayout({
   const workerGraphKeyRef = useRef<string>('');
 
   // Create ELK instance once (kept across renders)
-  if (!elkRef.current) elkRef.current = createElkWithWorker();
+  if (!elkRef.current) elkRef.current = createElkWithWorker('config-graph-elk-layout-worker');
 
   useEffect(
     () => () => {
@@ -97,7 +89,7 @@ export function useElkLayout({
   const runLayout = async () => {
     if (workerGraphKeyRef.current !== topoKey) {
       elkRef.current?.terminateWorker();
-      elkRef.current = createElkWithWorker();
+      elkRef.current = createElkWithWorker('config-graph-elk-layout-worker');
       workerGraphKeyRef.current = topoKey;
     }
 
@@ -129,15 +121,7 @@ export function useElkLayout({
       id: 'root',
       layoutOptions: {
         'elk.algorithm':
-          algorithm === 'layered'
-            ? 'layered'
-            : algorithm === 'radial'
-              ? 'radial'
-              : algorithm === 'mrtree'
-                ? 'mrtree'
-                : algorithm === 'stress'
-                  ? 'stress'
-                  : 'force',
+          resolveElkAlgorithm(algorithm),
         'elk.spacing.nodeNode': String(nodeSep),
         'elk.layered.spacing.nodeNodeBetweenLayers': String(rankSep),
         'elk.spacing.edgeEdge': String(edgeSep),

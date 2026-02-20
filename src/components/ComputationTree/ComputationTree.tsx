@@ -1129,7 +1129,6 @@ function ComputationTreeCircles({ depth, compressing = false }: Props) {
           id: e.id,
           source: e.source,
           target: e.target,
-          label: e.label ?? '',
           transition: data.transition,
           compressed: data.compressed === true,
           compressedLength: data.compressedLength,
