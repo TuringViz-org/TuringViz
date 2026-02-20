@@ -18,20 +18,15 @@ import { EdgeType, NodeType, STATE_NODE_DIAMETER } from './constants';
  */
 export function buildTMGraph(
   states: Set<string>,
-  transitions: Map<string, Transition[]>,
-  startState: string,
-  currentState: string,
-  lastState: string
-): { nodes: Node[]; edges: Edge[] } {
+  transitions: Map<string, Transition[]>
+): { nodes: Node[]; edges: Edge[]; topoKey: string } {
   // --- Nodes ---
-  const nodes: Node[] = Array.from(states).map((s) => ({
+  const stateIds = Array.from(states);
+  const nodes: Node[] = stateIds.map((s) => ({
     id: s,
     type: NodeType.STATE,
     data: {
       label: s,
-      isStart: s === startState,
-      isCurrent: s === currentState,
-      isLast: s === lastState,
     },
     // Position is set later by layout
     position: { x: 0, y: 0 },
@@ -113,7 +108,11 @@ export function buildTMGraph(
     });
   });
 
-  return { nodes, edges };
+  const nodeKey = stateIds.slice().sort().join('|');
+  const edgeKey = Array.from(edgesByPair.keys()).sort().join('|');
+  const topoKey = `${nodeKey}__${edgeKey}`;
+
+  return { nodes, edges, topoKey };
 }
 
 /* --- Label-Formatter --- */

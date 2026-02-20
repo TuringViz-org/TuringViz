@@ -169,15 +169,13 @@ function ConfigGraphCards() {
 
   // Adjust edgeNodeSep when nodeMode changes (Cards need more space)
   useEffect(() => {
-    setConfigGraphELKSettings({
-      ...configGraphELKSettings,
-      edgeNodeSep: configGraphNodeMode === ConfigNodeMode.CARDS ? 300 : 100,
-    });
-  }, [configGraphNodeMode]);
+    const edgeNodeSepTarget = configGraphNodeMode === ConfigNodeMode.CARDS ? 300 : 100;
+    if (configGraphELKSettings.edgeNodeSep === edgeNodeSepTarget) return;
+    setConfigGraphELKSettings({ edgeNodeSep: edgeNodeSepTarget });
+  }, [configGraphNodeMode, configGraphELKSettings.edgeNodeSep, setConfigGraphELKSettings]);
 
   // Performance measurement
   const nodesCountRef = useRef(0);
-  const edgesCountRef = useRef(0);
 
   const nodesReady = useNodesInitialized();
   const didInitialLayoutRef = useRef(false); // Track initial ELK run
@@ -194,9 +192,6 @@ function ConfigGraphCards() {
   useEffect(() => {
     nodesCountRef.current = nodes.length;
   }, [nodes.length]);
-  useEffect(() => {
-    edgesCountRef.current = edges.length;
-  }, [edges.length]);
   useEffect(() => {
     layoutRunningRef.current = layout.running;
   }, [layout.running]);
@@ -382,7 +377,7 @@ function ConfigGraphCards() {
       ...DEFAULT_ELK_OPTS,
       edgeNodeSep: configGraphNodeMode === ConfigNodeMode.CARDS ? 300 : 100,
     });
-  }, [configGraphNodeMode]);
+  }, [configGraphNodeMode, setConfigGraphELKSettings]);
 
   // Disable cards mode if too many nodes
   const nodeCount = configGraph?.Graph.size ?? 0;
@@ -478,9 +473,7 @@ function ConfigGraphCards() {
         value={configGraphELKSettings}
         onChange={(next) => setConfigGraphELKSettings(next)}
         onReset={resetToDefaults}
-        onRecalc={() => {
-          recalcLayout();
-        }}
+        onRecalc={recalcLayout}
         running={layout.running}
       />
       {/* Top-left controls panel (recalculate layout and node mode switch) */}

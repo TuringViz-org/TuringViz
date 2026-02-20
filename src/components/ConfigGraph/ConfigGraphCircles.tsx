@@ -429,18 +429,16 @@ export function ConfigGraphCircles() {
   }, [clearHoverTimer]);
 
   // Base graph structure
-  const [model, setModel] = useState<ConfigGraphModel | null>(null);
-  const transitionsByState = useMemo(() => transitions, [transitions]);
+  const model = configGraph as ConfigGraphModel | null;
   const base = useMemo(() => {
     if (!configGraph) return { nodes: [], edges: [], topoKey: '' };
-    setModel(configGraph);
     return buildConfigGraph(
       configGraph,
-      transitionsByState,
+      transitions,
       undefined,
       ConfigNodeMode.CIRCLES
     );
-  }, [configGraph, transitionsByState]);
+  }, [configGraph, transitions]);
 
   const [nodes, setNodes] = useState<RFNode[]>(base.nodes);
   const [edges, setEdges] = useState<RFEdge[]>(base.edges);
@@ -473,7 +471,9 @@ export function ConfigGraphCircles() {
       setNodes((prev) =>
         prev.map((n) => {
           const p = positions.get(n.id);
-          return p ? { ...n, position: p } : n;
+          if (!p) return n;
+          const same = n.position?.x === p.x && n.position?.y === p.y;
+          return same ? n : { ...n, position: p };
         })
       );
     },
@@ -481,11 +481,10 @@ export function ConfigGraphCircles() {
   const scheduleLayoutRestart = useDebouncedLayoutRestart(layout);
 
   useEffect(() => {
-    setConfigGraphELKSettings({
-      ...configGraphELKSettings,
-      edgeNodeSep: configGraphNodeMode === ConfigNodeMode.CARDS ? 300 : 100,
-    });
-  }, [configGraphNodeMode]);
+    const edgeNodeSepTarget = configGraphNodeMode === ConfigNodeMode.CARDS ? 300 : 100;
+    if (configGraphELKSettings.edgeNodeSep === edgeNodeSepTarget) return;
+    setConfigGraphELKSettings({ edgeNodeSep: edgeNodeSepTarget });
+  }, [configGraphNodeMode, configGraphELKSettings.edgeNodeSep, setConfigGraphELKSettings]);
 
   const didInitialLayoutRef = useRef(false);
   const lastTopoKeyRef = useRef<string | null>(null);

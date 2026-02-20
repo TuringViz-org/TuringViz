@@ -4,8 +4,7 @@ import Elk, { ElkNode, ElkExtendedEdge } from 'elkjs/lib/elk.bundled.js';
 import { Node as RFNode, useReactFlow } from '@xyflow/react';
 
 import { STATE_NODE_DIAMETER } from '../util/constants';
-
-export type ElkAlgo = 'layered' | 'force' | 'mrtree' | 'stress' | 'radial';
+import { resolveElkAlgorithm, type ElkAlgo } from '@components/shared/layout/elkUtils';
 
 export type Options = {
   algorithm?: ElkAlgo;
@@ -85,15 +84,7 @@ export function useElkLayout({
           id: 'root',
           layoutOptions: {
             'elk.algorithm':
-              algorithm === 'layered'
-                ? 'layered'
-                : algorithm === 'radial'
-                  ? 'radial'
-                  : algorithm === 'mrtree'
-                    ? 'mrtree'
-                    : algorithm === 'stress'
-                      ? 'stress'
-                      : 'force',
+              resolveElkAlgorithm(algorithm),
             'elk.spacing.nodeNode': String(nodeSep),
             'elk.layered.spacing.nodeNodeBetweenLayers': String(rankSep),
             'elk.spacing.edgeEdge': String(edgeSep),

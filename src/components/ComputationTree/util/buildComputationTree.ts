@@ -54,7 +54,6 @@ export function buildComputationTreeGraph(
   // Edges
   const rfEdges: RFEdge[] = model.edges.map((e) => {
     const fromNode = byId.get(e.from);
-    const toNode = byId.get(e.to);
     const sourceState = fromNode?.config?.state ?? null;
     const tList = sourceState ? (transitionsByState.get(sourceState) ?? []) : [];
     const t =
@@ -66,11 +65,6 @@ export function buildComputationTreeGraph(
 
     const isCompressed = e.compressed === true;
     const compLen = Math.max(1, e.compressedLength ?? (isCompressed ? 2 : 1));
-
-    // TODO: Remove obsolete label
-    const label = isCompressed
-      ? `Compressed path\nLength: ${compLen} transitions\n${sourceState ?? ''} → ${toNode?.config?.state ?? ''}`
-      : '';
 
     return {
       id: `${e.from}→${e.to}#${e.transitionIndex ?? ''}`,
@@ -91,7 +85,6 @@ export function buildComputationTreeGraph(
       style: isCompressed
         ? { strokeWidth: GRAPH_EDGE_COMPRESSED_WIDTH, strokeDasharray: '6 4' }
         : { strokeWidth: GRAPH_EDGE_BASE_WIDTH },
-      label: isCompressed ? label : undefined,
     };
   });
 
