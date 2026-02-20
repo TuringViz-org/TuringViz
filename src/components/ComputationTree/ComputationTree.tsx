@@ -484,7 +484,9 @@ function ComputationTreeCircles({ depth, compressing = false }: Props) {
       setNodes((prev) =>
         prev.map((n) => {
           const p = positions.get(n.id);
-          return p ? { ...n, position: p } : n;
+          if (!p) return n;
+          const same = n.position?.x === p.x && n.position?.y === p.y;
+          return same ? n : { ...n, position: p };
         })
       );
     },
@@ -493,11 +495,15 @@ function ComputationTreeCircles({ depth, compressing = false }: Props) {
 
   // Adjust edgeNodeSep when node mode changes
   useEffect(() => {
-    setComputationTreeELKSettings({
-      ...computationTreeELKSettings,
-      edgeNodeSep: computationTreeNodeMode === ConfigNodeMode.CARDS ? 300 : 100,
-    });
-  }, [computationTreeNodeMode]);
+    const edgeNodeSepTarget =
+      computationTreeNodeMode === ConfigNodeMode.CARDS ? 300 : 100;
+    if (computationTreeELKSettings.edgeNodeSep === edgeNodeSepTarget) return;
+    setComputationTreeELKSettings({ edgeNodeSep: edgeNodeSepTarget });
+  }, [
+    computationTreeNodeMode,
+    computationTreeELKSettings.edgeNodeSep,
+    setComputationTreeELKSettings,
+  ]);
 
   // Performance + layout tracking
   const didInitialLayoutRef = useRef(false);
@@ -1238,7 +1244,7 @@ function ComputationTreeCircles({ depth, compressing = false }: Props) {
       ...DEFAULT_ELK_OPTS,
       edgeNodeSep: computationTreeNodeMode === ConfigNodeMode.CARDS ? 300 : 100,
     });
-  }, [computationTreeNodeMode]);
+  }, [computationTreeNodeMode, setComputationTreeELKSettings]);
 
   return (
     <Box
@@ -1543,7 +1549,9 @@ function ComputationTreeCards({ depth, compressing = false }: Props) {
       setNodes((prev) =>
         prev.map((n) => {
           const p = positions.get(n.id);
-          return p ? { ...n, position: p } : n;
+          if (!p) return n;
+          const same = n.position?.x === p.x && n.position?.y === p.y;
+          return same ? n : { ...n, position: p };
         })
       );
     },
@@ -1552,15 +1560,18 @@ function ComputationTreeCards({ depth, compressing = false }: Props) {
 
   // Adjust edgeNodeSep when node mode changes
   useEffect(() => {
-    setComputationTreeELKSettings({
-      ...computationTreeELKSettings,
-      edgeNodeSep: computationTreeNodeMode === ConfigNodeMode.CARDS ? 300 : 100,
-    });
-  }, [computationTreeNodeMode]);
+    const edgeNodeSepTarget =
+      computationTreeNodeMode === ConfigNodeMode.CARDS ? 300 : 100;
+    if (computationTreeELKSettings.edgeNodeSep === edgeNodeSepTarget) return;
+    setComputationTreeELKSettings({ edgeNodeSep: edgeNodeSepTarget });
+  }, [
+    computationTreeNodeMode,
+    computationTreeELKSettings.edgeNodeSep,
+    setComputationTreeELKSettings,
+  ]);
 
   // Performance + layout tracking
   const nodesCountRef = useRef(0);
-  const edgesCountRef = useRef(0);
   const didInitialLayoutRef = useRef(false);
   const lastTopoKeyRef = useRef<string | null>(null);
   const fitAfterLayoutRef = useRef(false);
@@ -1575,9 +1586,6 @@ function ComputationTreeCards({ depth, compressing = false }: Props) {
   useEffect(() => {
     nodesCountRef.current = nodes.length;
   }, [nodes.length]);
-  useEffect(() => {
-    edgesCountRef.current = edges.length;
-  }, [edges.length]);
   useEffect(() => {
     layoutRunningRef.current = layout.running;
   }, [layout.running]);
@@ -1792,7 +1800,7 @@ function ComputationTreeCards({ depth, compressing = false }: Props) {
       ...DEFAULT_ELK_OPTS,
       edgeNodeSep: computationTreeNodeMode === ConfigNodeMode.CARDS ? 300 : 100,
     });
-  }, [computationTreeNodeMode]);
+  }, [computationTreeNodeMode, setComputationTreeELKSettings]);
 
   return (
     <ReactFlow

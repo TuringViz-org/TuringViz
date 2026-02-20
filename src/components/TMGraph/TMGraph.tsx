@@ -29,6 +29,7 @@ import { buildTMGraph } from './util/buildTMGraph';
 import { NodeType, EdgeType, CONTROL_HEIGHT } from './util/constants';
 import { DEFAULT_ELK_OPTS } from '@utils/constants';
 import { GraphUIProvider, useGraphUI } from '@components/shared/GraphUIContext';
+import type { Transition } from '@mytypes/TMTypes';
 import {
   PORTAL_BRIDGE_SWITCH_EVENT,
   type PortalBridgeSwitchDetail,
@@ -52,6 +53,7 @@ const defaultEdgeOptions = {
 };
 
 type BuildTMGraphArgs = Parameters<typeof buildTMGraph>;
+type TransitionMap = Map<string, Transition[]>;
 type TMGraphBuildResult = ReturnType<typeof buildTMGraph>;
 type TMGraphNode = TMGraphBuildResult['nodes'][number];
 
@@ -64,13 +66,13 @@ function useTMGraphData({
 }: {
   states: BuildTMGraphArgs[0];
   transitions: BuildTMGraphArgs[1];
-  startState: BuildTMGraphArgs[2];
-  currentState: BuildTMGraphArgs[3];
-  lastState: BuildTMGraphArgs[4];
+  startState: string;
+  currentState: string;
+  lastState: string;
 }) {
-  const { nodes: rawNodes, edges: rawEdges } = useMemo(
-    () => buildTMGraph(states, transitions, startState, currentState, lastState),
-    [states, transitions, startState, currentState, lastState]
+  const { nodes: rawNodes, edges: rawEdges, topoKey } = useMemo(
+    () => buildTMGraph(states, transitions),
+    [states, transitions]
   );
 
   const [nodes, setNodes, onNodesChange] = useNodesState(rawNodes);
@@ -91,6 +93,7 @@ function useTMGraphData({
   return {
     nodes,
     edges,
+    topoKey,
     onNodesChange,
     onEdgesChange,
   };
@@ -104,9 +107,9 @@ function useHighlightedTransition({
   runSpeedMs,
   setHighlightedEdgeId,
 }: {
-  lastState: BuildTMGraphArgs[4];
+  lastState: string;
   lastTransition: number;
-  transitions: BuildTMGraphArgs[1];
+  transitions: TransitionMap;
   lastTransitionTrigger: unknown;
   runSpeedMs: number;
   setHighlightedEdgeId: (edgeId: string | null) => void;
@@ -147,15 +150,15 @@ function useHighlightedTransition({
 
 function useAutoLayout({
   layout,
+  topoKey,
   nodes,
-  edges,
   rf,
   portalId,
   machineLoadVersion,
 }: {
   layout: ReturnType<typeof useElkLayout>;
+  topoKey: string;
   nodes: TMGraphNode[];
-  edges: TMGraphBuildResult['edges'];
   rf: ReturnType<typeof useReactFlow>;
   portalId: string;
   machineLoadVersion: number;
@@ -206,12 +209,6 @@ function useAutoLayout({
     setViewportReady(false);
     requestLayoutAndFit();
   }, [requestLayoutAndFit]);
-
-  const topoKey = useMemo(() => {
-    const nIds = nodes.map((n) => n.id).sort();
-    const eKeys = Array.from(new Set(edges.map((e) => `${e.source}→${e.target}`))).sort();
-    return `${nIds.join('|')}__${eKeys.join('|')}`;
-  }, [nodes, edges]);
 
   useEffect(() => {
     if (!nodesReady || nodes.length === 0) return;
@@ -326,6 +323,7 @@ function TMGraph() {
   const {
     nodes,
     edges,
+    topoKey,
     onNodesChange,
     onEdgesChange,
   } = useTMGraphData({
@@ -356,8 +354,8 @@ function TMGraph() {
 
   const { recalcLayout, viewportReady } = useAutoLayout({
     layout,
+    topoKey,
     nodes,
-    edges,
     rf,
     portalId: 'tmGraph',
     machineLoadVersion,
