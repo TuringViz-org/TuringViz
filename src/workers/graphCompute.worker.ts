@@ -5,6 +5,7 @@ import { computeConfigGraph, type ConfigGraph } from '@tmfunctions/ConfigGraph';
 
 type ComputeTreePayload = {
   depth: number;
+  targetNodes?: number;
   compressing?: boolean;
   transitions: Map<string, Transition[]>;
   numberOfTapes: number;
@@ -32,15 +33,24 @@ self.onmessage = (event: MessageEvent<IncomingMessage>) => {
   const { id, type, payload } = event.data;
 
   if (type === 'computationTree') {
-    const { startConfig, transitions, numberOfTapes, blank, depth, compressing } =
-      payload;
+    const {
+      startConfig,
+      transitions,
+      numberOfTapes,
+      blank,
+      depth,
+      targetNodes,
+      compressing,
+    } = payload;
     const tree = getComputationTreeFromInputs(
       startConfig,
       transitions,
       numberOfTapes,
       blank,
       depth,
-      !!compressing
+      !!compressing,
+      undefined,
+      targetNodes
     );
     postMessage({ id, type, tree } satisfies OutgoingMessage);
     return;

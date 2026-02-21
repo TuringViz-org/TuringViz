@@ -16,6 +16,13 @@ export enum End {
 
 const TOTAL_MAX_NODES = 8000; // Absolute cap on total nodes to prevent performance issues.
 
+function normalizeTargetNodes(targetNodes?: number): number {
+  if (typeof targetNodes !== 'number' || !Number.isFinite(targetNodes)) {
+    return TOTAL_MAX_NODES;
+  }
+  return Math.min(TOTAL_MAX_NODES, Math.max(1, Math.floor(targetNodes)));
+}
+
 type ConfigTreeNode = {
   config: Configuration;
   children: [ConfigTreeNode, number][]; // Child config and transition index (within the from-state's transition array).
@@ -30,9 +37,12 @@ function computeConfigTreeNodes(
   alltransitions: Map<string, Transition[]>,
   numberOfTapes: number,
   blank: string,
-  notifyTruncate?: (msg: string) => void
+  notifyTruncate?: (msg: string) => void,
+  targetNodes?: number
 ): ConfigTreeNode {
+  const maxNodes = normalizeTargetNodes(targetNodes);
   let alreadyAddedNodes = 0;
+  let truncated = false;
 
   // Depth 0 -> only root, no children; set end based on existence of next configs. This is an edge case.
   if (depth === 0) {
@@ -76,40 +86,53 @@ function computeConfigTreeNodes(
 
     const tlist: Transition[] | undefined = alltransitions.get(node.config.state);
 
-    if (alreadyAddedNodes < TOTAL_MAX_NODES) {
-      const nexts = nextConfigurations(node.config, tlist, numberOfTapes, blank);
-      node.computed = true; // Mark node as expanded at this level.
-      // Update end-status for the expanded node.
-      if (nexts.length === 0) {
-        node.end = End.Halt;
-        continue; // Terminal node, no children to create.
-      } else {
-        node.end = End.None; // Will have visible children.
-      }
-      for (const [nextConfig, transitionIndex] of nexts) {
-        const childNode: ConfigTreeNode = {
-          config: nextConfig,
-          children: [],
-          computed: false, // Child starts unexpanded.
-          id: null,
-          end: End.NotYetComputed, // Not expanded yet.
-        };
-        node.children.push([childNode, transitionIndex]);
-
-        // Enqueue child for further expansion if depth allows.
-        queue.push({ node: childNode, depthLeft: depthLeft - 1 });
-        alreadyAddedNodes += 1;
-      }
-    } else {
-      notifyTruncate?.('Computation tree truncated to prevent performance issues.');
+    if (alreadyAddedNodes >= maxNodes) {
+      truncated = true;
       break;
     }
+
+    const nexts = nextConfigurations(node.config, tlist, numberOfTapes, blank);
+    node.computed = true; // Mark node as expanded at this level.
+
+    // Update end-status for the expanded node.
+    if (nexts.length === 0) {
+      node.end = End.Halt;
+      continue; // Terminal node, no children to create.
+    }
+
+    node.end = End.None; // Will have visible children.
+    for (const [nextConfig, transitionIndex] of nexts) {
+      if (alreadyAddedNodes >= maxNodes) {
+        truncated = true;
+        node.end = End.NotYetComputed;
+        break;
+      }
+
+      const childNode: ConfigTreeNode = {
+        config: nextConfig,
+        children: [],
+        computed: false, // Child starts unexpanded.
+        id: null,
+        end: End.NotYetComputed, // Not expanded yet.
+      };
+      node.children.push([childNode, transitionIndex]);
+
+      // Enqueue child for further expansion if depth allows.
+      queue.push({ node: childNode, depthLeft: depthLeft - 1 });
+      alreadyAddedNodes += 1;
+    }
+
+    if (truncated) break;
+  }
+
+  if (truncated) {
+    notifyTruncate?.('Computation tree truncated to prevent performance issues.');
   }
 
   return root;
 }
 
-function computeConfigTreeNodesFromState(depth: number): ConfigTreeNode {
+function computeConfigTreeNodesFromState(depth: number, targetNodes?: number): ConfigTreeNode {
   const globalZustand = useGlobalZustand.getState();
   return computeConfigTreeNodes(
     depth,
@@ -117,7 +140,8 @@ function computeConfigTreeNodesFromState(depth: number): ConfigTreeNode {
     globalZustand.transitions,
     globalZustand.numberOfTapes,
     globalZustand.blank,
-    (msg) => toast.warning(msg)
+    (msg) => toast.warning(msg),
+    targetNodes
   );
 }
 
@@ -143,7 +167,8 @@ export type ComputationTree = {
 
 export function getComputationTree(
   depth: number,
-  compressing: boolean = false
+  compressing: boolean = false,
+  targetNodes?: number
 ): ComputationTree {
   if (compressing) {
     const globalZustand = useGlobalZustand.getState();
@@ -153,11 +178,12 @@ export function getComputationTree(
       globalZustand.numberOfTapes,
       globalZustand.blank,
       depth,
-      (msg) => toast.warning(msg)
+      (msg) => toast.warning(msg),
+      targetNodes
     );
   }
 
-  const tree = computeConfigTreeNodesFromState(depth);
+  const tree = computeConfigTreeNodesFromState(depth, targetNodes);
   return getComputationTreeFromNodes(tree, depth, compressing);
 }
 
@@ -168,7 +194,8 @@ export function getComputationTreeFromInputs(
   blank: string,
   depth: number,
   compressing: boolean = false,
-  notifyTruncate?: (msg: string) => void
+  notifyTruncate?: (msg: string) => void,
+  targetNodes?: number
 ): ComputationTree {
   if (compressing) {
     return computeCompressedTreeFromInputs(
@@ -177,7 +204,8 @@ export function getComputationTreeFromInputs(
       numberOfTapes,
       blank,
       depth,
-      notifyTruncate
+      notifyTruncate,
+      targetNodes
     );
   }
 
@@ -187,7 +215,8 @@ export function getComputationTreeFromInputs(
     transitions,
     numberOfTapes,
     blank,
-    notifyTruncate
+    notifyTruncate,
+    targetNodes
   );
   return getComputationTreeFromNodes(tree, depth, compressing);
 }
@@ -207,8 +236,10 @@ function computeCompressedTreeFromInputs(
   numberOfTapes: number,
   blank: string,
   depth: number,
-  notifyTruncate?: (msg: string) => void
+  notifyTruncate?: (msg: string) => void,
+  targetNodes?: number
 ): ComputationTree {
+  const maxNodes = normalizeTargetNodes(targetNodes);
   if (depth <= 0) {
     const nexts = nextConfigurations(
       startConfig,
@@ -279,15 +310,19 @@ function computeCompressedTreeFromInputs(
   ];
 
   let head = 0;
+  const finalizeRemainingQueuedItems = () => {
+    for (; head < queue.length; head++) {
+      finalizeItem(queue[head]!, End.NotYetComputed);
+    }
+  };
+
   while (head < queue.length) {
     const item = queue[head++]!;
 
-    if (totalNodes >= TOTAL_MAX_NODES) {
+    if (totalNodes >= maxNodes) {
       truncated = true;
       finalizeItem(item, End.NotYetComputed);
-      for (; head < queue.length; head++) {
-        finalizeItem(queue[head]!, End.NotYetComputed);
-      }
+      finalizeRemainingQueuedItems();
       break;
     }
 
@@ -311,6 +346,12 @@ function computeCompressedTreeFromInputs(
     const nextDepth = item.depthLeft - 1;
 
     if (nexts.length === 1) {
+      if (totalNodes >= maxNodes) {
+        truncated = true;
+        finalizeItem(item, End.NotYetComputed);
+        finalizeRemainingQueuedItems();
+        break;
+      }
       const [childConfig, transitionIndex] = nexts[0];
       totalNodes += 1;
       if (item.nodeId != null) {
@@ -344,6 +385,12 @@ function computeCompressedTreeFromInputs(
     }
 
     for (const [childConfig, transitionIndex] of nexts) {
+      if (totalNodes >= maxNodes) {
+        truncated = true;
+        updateEnd(currentNodeId, End.NotYetComputed);
+        finalizeRemainingQueuedItems();
+        break;
+      }
       totalNodes += 1;
       const childId = addNode(childConfig, End.NotYetComputed);
       edges.push({
@@ -362,6 +409,8 @@ function computeCompressedTreeFromInputs(
         firstTransitionIndex: -1,
       });
     }
+
+    if (truncated) break;
   }
 
   if (truncated) {

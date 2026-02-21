@@ -317,7 +317,7 @@ function TheoryGrid({ activeTab }: { activeTab: AppTab }) {
             <Stack spacing={0.5}>
               <Bullet>Every root-to-leaf path corresponds to one possible run.</Bullet>
               <Bullet>
-                In the app, compute the tree up to a chosen depth and inspect
+                In the app, compute the tree up to a chosen target number of nodes and inspect
                 branches interactively.
               </Bullet>
             </Stack>
