@@ -10,6 +10,7 @@ const CONFIG_WORKER_TIMEOUT_MS = 4500;
 
 type TreePayload = {
   depth: number;
+  targetNodes?: number;
   compressing?: boolean;
   transitions: Map<string, Transition[]>;
   numberOfTapes: number;
@@ -135,7 +136,9 @@ export function computeComputationTreeInWorker(
         payload.numberOfTapes,
         payload.blank,
         payload.depth,
-        !!payload.compressing
+        !!payload.compressing,
+        undefined,
+        payload.targetNodes
       )
     );
   }
@@ -150,14 +153,17 @@ export function computeComputationTreeInWorker(
       // Timed out: compute a smaller tree synchronously
       treePending.delete(id);
       terminateTreeWorker(false);
-      const reducedDepth = Math.max(2, Math.floor(payload.depth * 0.6));
+      const initialTarget = payload.targetNodes ?? payload.depth;
+      const reducedTarget = Math.max(2, Math.floor(initialTarget * 0.6));
       const tree = getComputationTreeFromInputs(
         payload.startConfig,
         payload.transitions,
         payload.numberOfTapes,
         payload.blank,
-        reducedDepth,
-        !!payload.compressing
+        reducedTarget,
+        !!payload.compressing,
+        undefined,
+        reducedTarget
       );
       resolve(tree);
     }, TREE_WORKER_TIMEOUT_MS);

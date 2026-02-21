@@ -21,7 +21,11 @@ import {
   useGraphZustand,
 } from '@zustands/GraphZustand';
 import { useEditorZustand } from '@zustands/EditorZustand';
-import { DEFAULT_TREE_DEPTH, MIN_CONFIG_GRAPH_TARGET_NODES } from '@utils/constants';
+import {
+  DEFAULT_TREE_DEPTH,
+  MIN_COMPUTATION_TREE_TARGET_NODES,
+  MIN_CONFIG_GRAPH_TARGET_NODES,
+} from '@utils/constants';
 import { recomputeConfigGraphWithTargetNodes } from '@tmfunctions/ConfigGraph';
 import { useFullscreenState } from '@components/MainPage/hooks/useFullscreenState';
 import { useGistBootstrap } from '@components/MainPage/hooks/useGistBootstrap';
@@ -41,6 +45,10 @@ const graphLoader = (
 
 function sanitizeTargetNodes(value: number): number {
   return Math.max(MIN_CONFIG_GRAPH_TARGET_NODES, Math.floor(value));
+}
+
+function sanitizeTreeTargetNodes(value: number): number {
+  return Math.max(MIN_COMPUTATION_TREE_TARGET_NODES, Math.floor(value));
 }
 
 function useDeferredPanelMount(activeTab: AppTab) {
@@ -71,7 +79,7 @@ function useDeferredPanelMount(activeTab: AppTab) {
 }
 
 export default function App() {
-  const computationTreeDepth = useComputationTreeDepth();
+  const computationTreeTargetNodes = useComputationTreeDepth();
   const configGraphTargetNodes = useConfigGraphTargetNodes();
   const setComputationTreeDepth = useGraphZustand((s) => s.setComputationTreeDepth);
   const setConfigGraphTargetNodes = useGraphZustand(
@@ -84,7 +92,8 @@ export default function App() {
 
   // Dialog state
   const [computeOpen, setComputeOpen] = useState(false);
-  const [pendingDepth, setPendingDepth] = useState<number>(DEFAULT_TREE_DEPTH);
+  const [pendingTreeTargetNodes, setPendingTreeTargetNodes] =
+    useState<number>(DEFAULT_TREE_DEPTH);
   const [pendingCompressed, setPendingCompressed] = useState<boolean>(false);
   const [compressed, setCompressed] = useState<boolean>(false);
 
@@ -110,13 +119,13 @@ export default function App() {
     useDeferredPanelMount(activeTab);
 
   const openCompute = useCallback(() => {
-    setPendingDepth(computationTreeDepth);
+    setPendingTreeTargetNodes(computationTreeTargetNodes);
     setPendingCompressed(compressed);
     setComputeOpen(true);
-  }, [computationTreeDepth, compressed]);
+  }, [computationTreeTargetNodes, compressed]);
 
   const handleComputeConfirm = useCallback(() => {
-    setComputationTreeDepth(pendingDepth);
+    setComputationTreeDepth(sanitizeTreeTargetNodes(pendingTreeTargetNodes));
     setCompressed(pendingCompressed);
     setComputeOpen(false);
 
@@ -126,7 +135,7 @@ export default function App() {
       requestAnimationFrame(() => treeFullscreen.setRender(true));
     }
   }, [
-    pendingDepth,
+    pendingTreeTargetNodes,
     pendingCompressed,
     setComputationTreeDepth,
     treeFullscreen.open,
@@ -222,7 +231,7 @@ export default function App() {
         content: treeEnabled ? (
           <Suspense fallback={graphLoader}>
             <LazyComputationTreeWrapper
-              depth={computationTreeDepth}
+              targetNodes={computationTreeTargetNodes}
               compressing={compressed}
             />
           </Suspense>
@@ -245,7 +254,7 @@ export default function App() {
       treeFullscreen.render,
       treeFullscreen.setRender,
       treeEnabled,
-      computationTreeDepth,
+      computationTreeTargetNodes,
       compressed,
       openCompute,
       openComputeConfigGraph,
@@ -274,9 +283,9 @@ export default function App() {
 
       <ComputeTreeDialog
         open={computeOpen}
-        depth={pendingDepth}
+        targetNodes={pendingTreeTargetNodes}
         compressed={pendingCompressed}
-        onDepthChange={setPendingDepth}
+        onTargetNodesChange={setPendingTreeTargetNodes}
         onCompressedChange={setPendingCompressed}
         onClose={() => setComputeOpen(false)}
         onConfirm={handleComputeConfirm}

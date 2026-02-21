@@ -13,12 +13,16 @@ import {
   Checkbox,
   Chip,
 } from '@mui/material';
+import {
+  MAX_COMPUTATION_TREE_TARGET_NODES,
+  MIN_COMPUTATION_TREE_TARGET_NODES,
+} from '@utils/constants';
 
 type ComputeTreeDialogProps = {
   open: boolean;
-  depth: number;
+  targetNodes: number;
   compressed: boolean;
-  onDepthChange: (value: number) => void;
+  onTargetNodesChange: (value: number) => void;
   onCompressedChange: (value: boolean) => void;
   onClose: () => void;
   onConfirm: () => void;
@@ -26,9 +30,9 @@ type ComputeTreeDialogProps = {
 
 export function ComputeTreeDialog({
   open,
-  depth,
+  targetNodes,
   compressed,
-  onDepthChange,
+  onTargetNodesChange,
   onCompressedChange,
   onClose,
   onConfirm,
@@ -45,17 +49,17 @@ export function ComputeTreeDialog({
 
       <DialogContent sx={{ pt: 1 }}>
         <Typography variant="body2" sx={{ mb: 2.5 }}>
-          Please select the maximum depth for the computation tree.
+          Please select the approximate target number of nodes.
         </Typography>
 
         <Slider
-          value={depth}
-          min={1}
-          max={200}
-          step={1}
-          onChange={(_, value) => onDepthChange(value as number)}
+          value={targetNodes}
+          min={MIN_COMPUTATION_TREE_TARGET_NODES}
+          max={MAX_COMPUTATION_TREE_TARGET_NODES}
+          step={10}
+          onChange={(_, value) => onTargetNodesChange(value as number)}
           valueLabelDisplay="on"
-          aria-label="Computation tree depth"
+          aria-label="Computation tree target nodes"
           sx={{ mt: 2, mb: 0 }}
         />
 

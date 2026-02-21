@@ -357,7 +357,7 @@ function NodeDetailPopper({
 }
 
 function useComputationTreeData(
-  depth: number,
+  targetNodes: number,
   compressing: boolean,
   nodeMode: ConfigNodeMode
 ): {
@@ -384,7 +384,8 @@ function useComputationTreeData(
     requestRef.current = reqId;
 
     computeComputationTreeInWorker({
-      depth,
+      depth: targetNodes,
+      targetNodes,
       compressing,
       transitions,
       numberOfTapes,
@@ -402,13 +403,14 @@ function useComputationTreeData(
           transitions,
           numberOfTapes,
           blank,
-          depth,
+          targetNodes,
           compressing,
-          (msg) => toast.warning(msg)
+          (msg) => toast.warning(msg),
+          targetNodes
         );
         setModel(tree);
       });
-  }, [depth, compressing, transitions, blank, numberOfTapes, startState, input]);
+  }, [targetNodes, compressing, transitions, blank, numberOfTapes, startState, input]);
 
   useEffect(() => {
     if (!model) return;
@@ -418,9 +420,9 @@ function useComputationTreeData(
   return { model, base };
 }
 
-type Props = { depth: number; compressing?: boolean };
+type Props = { targetNodes: number; compressing?: boolean };
 
-function ComputationTreeCircles({ depth, compressing = false }: Props) {
+function ComputationTreeCircles({ targetNodes, compressing = false }: Props) {
   const theme = useTheme();
   const cyRef = useRef<CyCore | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -445,7 +447,7 @@ function ComputationTreeCircles({ depth, compressing = false }: Props) {
 
   // Base graph structure (nodes/edges) extraction
   const { model, base } = useComputationTreeData(
-    depth,
+    targetNodes,
     !!compressing,
     computationTreeNodeMode
   );
@@ -1490,7 +1492,7 @@ function ComputationTreeCircles({ depth, compressing = false }: Props) {
   );
 }
 
-function ComputationTreeCards({ depth, compressing = false }: Props) {
+function ComputationTreeCards({ targetNodes, compressing = false }: Props) {
   const theme = useTheme();
   // Global Zustand state
   const transitions = useGlobalZustand((s) => s.transitions);
@@ -1520,7 +1522,7 @@ function ComputationTreeCards({ depth, compressing = false }: Props) {
 
   // Base graph structure
   const { model, base } = useComputationTreeData(
-    depth,
+    targetNodes,
     !!compressing,
     computationTreeNodeMode
   );
@@ -2013,17 +2015,17 @@ export function ComputationTree(props: Props) {
 }
 
 export function ComputationTreeWrapper({
-  depth = 10,
+  targetNodes = 10,
   compressing = false,
 }: {
-  depth?: number;
+  targetNodes?: number;
   compressing?: boolean;
 }) {
   const machineLoadVersion = useGlobalZustand((s) => s.machineLoadVersion);
   return (
     <ReactFlowProvider>
       <GraphUIProvider key={machineLoadVersion}>
-        <ComputationTree depth={depth} compressing={compressing} />
+        <ComputationTree targetNodes={targetNodes} compressing={compressing} />
       </GraphUIProvider>
     </ReactFlowProvider>
   );
