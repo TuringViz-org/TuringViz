@@ -183,8 +183,9 @@ function getCyStyles(theme: ReturnType<typeof useTheme>): Stylesheet[] {
     {
       selector: 'core',
       style: {
-        'active-bg-opacity': 0,
-        'active-bg-size': 0,
+        'active-bg-color': theme.palette.grey[500],
+        'active-bg-opacity': 0.2,
+        'active-bg-size': 28,
         'selection-box-opacity': 0,
         'selection-box-border-width': 0,
       },
