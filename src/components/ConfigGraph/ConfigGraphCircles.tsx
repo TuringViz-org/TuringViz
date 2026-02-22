@@ -4,13 +4,10 @@ import cytoscape, {
   type Core as CyCore,
   type EventObjectEdge,
   type EventObjectNode,
-  type Stylesheet,
 } from 'cytoscape';
 import {
   Box,
   Button,
-  ToggleButtonGroup,
-  ToggleButton,
   Tooltip,
   Fab,
   Paper,
@@ -19,10 +16,9 @@ import {
   Stack,
   IconButton,
 } from '@mui/material';
-import { alpha, useTheme } from '@mui/material/styles';
-import { Cached, Adjust, ViewAgenda, Tune, CenterFocusStrong } from '@mui/icons-material';
+import { alpha, useTheme, type Theme } from '@mui/material/styles';
+import { Cached, Tune, CenterFocusStrong } from '@mui/icons-material';
 import type { VirtualElement } from '@popperjs/core';
-import { toast } from 'sonner';
 import type { Edge as RFEdge, Node as RFNode } from '@xyflow/react';
 
 import { LegendPanel } from '@components/shared/LegendPanel';
@@ -30,11 +26,9 @@ import ConfigCard from '@components/ConfigGraph/ConfigVisualization/ConfigCard';
 import { EdgeTooltip } from '@components/ConfigGraph/edges/EdgeTooltip';
 
 import {
-  CONFIG_CARD_HEIGHT_ESTIMATE,
   CONFIG_CARD_WIDTH,
   CONFIG_NODE_DIAMETER,
   CONTROL_HEIGHT,
-  CARDS_LIMIT,
   COLOR_STATE_SWITCH,
 } from './util/constants';
 import type { ConfigGraph as ConfigGraphModel } from '@tmfunctions/ConfigGraph';
@@ -71,7 +65,6 @@ const resolveStateColor = (
 };
 import { buildConfigGraph } from './util/buildConfigGraph';
 import {
-  CARDS_CONFIRM_THRESHOLD,
   ConfigNodeMode,
   DEFAULT_ELK_OPTS,
   HOVER_POPPER_DELAY_MS,
@@ -81,14 +74,9 @@ import { TreeLayoutSettingsPanel as LayoutSettingsPanel } from '@components/Comp
 import { useDebouncedLayoutRestart } from '@hooks/useDebouncedLayoutRestart';
 import { useGraphUI } from '@components/shared/GraphUIContext';
 import { useGlobalZustand } from '@zustands/GlobalZustand';
-import {
-  useConfigGraphNodeMode,
-  useConfigGraphELKSettings,
-  useGraphZustand,
-} from '@zustands/GraphZustand';
+import { useConfigGraphELKSettings, useGraphZustand } from '@zustands/GraphZustand';
 import { reconcileEdges, reconcileNodes } from '@utils/reactflow';
 import { setConfiguration } from '@tmfunctions/Running';
-import type { Configuration } from '@mytypes/TMTypes';
 import {
   getPointerSnapshot,
   subscribePointerTracker,
@@ -143,123 +131,126 @@ const makeVirtualAnchor = (anchor: Anchor | null): VirtualElement => {
   };
 };
 
-const getCyStyles = (theme: ReturnType<typeof useTheme>): Stylesheet[] => [
-  {
-    selector: 'core',
-    style: {
-      'active-bg-opacity': 0,
-      'active-bg-size': 0,
-      'selection-box-opacity': 0,
-      'selection-box-border-width': 0,
+const getCyStyles = (theme: Theme) =>
+  [
+    {
+      selector: 'core',
+      style: {
+        'active-bg-opacity': 0,
+        'active-bg-size': 0,
+        'selection-box-opacity': 0,
+        'selection-box-border-width': 0,
+      },
     },
-  },
-  {
-    selector: 'node',
-    style: {
-      width: 'data(width)',
-      height: 'data(height)',
-      label: 'data(displayLabel)',
-      'text-valign': 'center',
-      'text-halign': 'center',
-      'font-size': 14,
-      'font-weight': 600,
-      color: theme.palette.text.primary,
-      'text-outline-width': 2,
-      'text-outline-color': 'data(textOutline)',
-      'background-color': 'data(bgColor)',
-      'border-width': 'data(borderWidth)',
-      'border-color': 'data(borderColor)',
-      'border-style': 'solid',
-      shape: 'ellipse',
-      'z-index': 5,
-      'overlay-opacity': 0,
+    {
+      selector: 'node',
+      style: {
+        width: 'data(width)',
+        height: 'data(height)',
+        label: 'data(displayLabel)',
+        'text-valign': 'center',
+        'text-halign': 'center',
+        'font-size': 14,
+        'font-weight': 600,
+        color: theme.palette.text.primary,
+        'text-outline-width': 2,
+        'text-outline-color': 'data(textOutline)',
+        'background-color': 'data(bgColor)',
+        'border-width': 'data(borderWidth)',
+        'border-color': 'data(borderColor)',
+        'border-style': 'solid',
+        shape: 'ellipse',
+        'z-index': 5,
+        'overlay-opacity': 0,
+      },
     },
-  },
-  {
-    selector: 'node.start',
-    style: {
-      'border-color': theme.palette.primary.main,
-      'border-width': 8,
+    {
+      selector: 'node.start',
+      style: {
+        'border-color': theme.palette.primary.main,
+        'border-width': 8,
+      },
     },
-  },
-  {
-    selector: 'node.current',
-    style: {
-      'border-color':
-        theme.palette.error?.main ??
-        theme.palette.primary.dark ??
-        theme.palette.accent?.main ??
-        '#d32f2f',
-      'border-width': 10,
+    {
+      selector: 'node.current',
+      style: {
+        'border-color':
+          theme.palette.error?.main ??
+          theme.palette.primary.dark ??
+          theme.palette.accent?.main ??
+          '#d32f2f',
+        'border-width': 10,
+      },
     },
-  },
-  {
-    selector: 'node.selectable',
-    style: {
-      'border-color':
-        theme.palette.node?.selectableConfig ?? theme.palette.accent?.main ?? theme.palette.secondary.main,
-      'border-width': 10,
+    {
+      selector: 'node.selectable',
+      style: {
+        'border-color':
+          theme.palette.node?.selectableConfig ??
+          theme.palette.accent?.main ??
+          theme.palette.secondary.main,
+        'border-width': 10,
+      },
     },
-  },
-  {
-    selector: 'node.ct-selected',
-    style: {
-      'border-color': theme.palette.primary.dark,
-      'border-width': 11,
-      'box-shadow': `0 0 0 6px ${alpha(theme.palette.primary.main, 0.25)}`,
+    {
+      selector: 'node.ct-selected',
+      style: {
+        'border-color': theme.palette.primary.dark,
+        'border-width': 11,
+        'box-shadow': `0 0 0 6px ${alpha(theme.palette.primary.main, 0.25)}`,
+      },
     },
-  },
-  {
-    selector: 'node.hidden-label',
-    style: { label: '' },
-  },
-  {
-    selector: 'edge',
-    style: {
-      width: GRAPH_EDGE_BASE_WIDTH,
-      'line-color': theme.palette.grey[500],
-      'target-arrow-color': theme.palette.grey[500],
-      'target-arrow-shape': 'triangle',
-      'arrow-scale': GRAPH_EDGE_ARROW_SCALE,
-      'curve-style': 'bezier',
-      'line-opacity': 0.9,
-      label: 'data(label)',
-      'font-size': 12,
-      'text-rotation': 'autorotate',
-      'text-margin-y': -6,
-      'text-outline-width': 2,
-      'text-outline-color': theme.palette.background.paper,
+    {
+      selector: 'node.hidden-label',
+      style: { label: '' },
     },
-  },
-  {
-    selector: 'edge.hovered',
-    style: {
-      width: GRAPH_EDGE_HOVER_WIDTH,
-      'line-color': theme.palette.grey[700],
-      'target-arrow-color': theme.palette.grey[700],
+    {
+      selector: 'edge',
+      style: {
+        width: GRAPH_EDGE_BASE_WIDTH,
+        'line-color': theme.palette.grey[500],
+        'target-arrow-color': theme.palette.grey[500],
+        'target-arrow-shape': 'triangle',
+        'arrow-scale': GRAPH_EDGE_ARROW_SCALE,
+        'curve-style': 'bezier',
+        'line-opacity': 0.9,
+        label: 'data(label)',
+        'font-size': 12,
+        'text-rotation': 'autorotate',
+        'text-margin-y': -6,
+        'text-outline-width': 2,
+        'text-outline-color': theme.palette.background.paper,
+      },
     },
-  },
-  {
-    selector: 'edge.ct-selected',
-    style: {
-      width: GRAPH_EDGE_ACTIVE_WIDTH,
-      'line-color': theme.palette.primary.dark,
-      'target-arrow-color': theme.palette.primary.dark,
+    {
+      selector: 'edge.hovered',
+      style: {
+        width: GRAPH_EDGE_HOVER_WIDTH,
+        'line-color': theme.palette.grey[700],
+        'target-arrow-color': theme.palette.grey[700],
+      },
     },
-  },
-  {
-    selector: 'edge.ct-highlighted',
-    style: {
-      width: GRAPH_EDGE_ACTIVE_WIDTH,
-      'line-color': theme.palette.primary.main,
-      'target-arrow-color': theme.palette.primary.main,
+    {
+      selector: 'edge.ct-selected',
+      style: {
+        width: GRAPH_EDGE_ACTIVE_WIDTH,
+        'line-color': theme.palette.primary.dark,
+        'target-arrow-color': theme.palette.primary.dark,
+      },
     },
-  },
-  {
-    selector: 'edge.hidden-label',
-    style: { label: '' },
-  },
-];
+    {
+      selector: 'edge.ct-highlighted',
+      style: {
+        width: GRAPH_EDGE_ACTIVE_WIDTH,
+        'line-color': theme.palette.primary.main,
+        'target-arrow-color': theme.palette.primary.main,
+      },
+    },
+    {
+      selector: 'edge.hidden-label',
+      style: { label: '' },
+    },
+  ] as any;
 
 function NodeDetailPopper({
   node,
@@ -287,11 +278,7 @@ function NodeDetailPopper({
       ]}
       sx={{ zIndex: (t) => t.zIndex.tooltip }}
     >
-      <ClickAwayListener
-        onClickAway={onClose}
-        mouseEvent={false}
-        touchEvent={false}
-      >
+      <ClickAwayListener onClickAway={onClose} mouseEvent={false} touchEvent={false}>
         <Paper
           elevation={6}
           onMouseDown={(e) => e.stopPropagation()}
@@ -338,20 +325,13 @@ export function ConfigGraphCircles() {
   const machineLoadVersion = useGlobalZustand((s) => s.machineLoadVersion);
 
   // Graph Zustand state and setters
-  const configGraphNodeMode = useConfigGraphNodeMode();
-  const setConfigGraphNodeMode = useGraphZustand((s) => s.setConfigGraphNodeMode);
   const configGraphELKSettings = useConfigGraphELKSettings();
   const setConfigGraphELKSettings = useGraphZustand(
     (s) => s.setConfigGraphELKSettings
   );
 
-  const {
-    selected,
-    setSelected,
-    hoveredState,
-    setHoveredState,
-    highlightedEdgeId,
-  } = useGraphUI();
+  const { selected, setSelected, hoveredState, setHoveredState, highlightedEdgeId } =
+    useGraphUI();
   const resolveColorForState = useCallback(
     (stateName?: string) => {
       const res = resolveStateColor(stateName, stateColorMatching);
@@ -363,7 +343,11 @@ export function ConfigGraphCircles() {
   );
 
   const hoverTimerRef = useRef<number | null>(null);
-  const nodePopperRef = useRef<NodePopperState>({ id: null, anchor: null, reason: null });
+  const nodePopperRef = useRef<NodePopperState>({
+    id: null,
+    anchor: null,
+    reason: null,
+  });
   const edgeTooltipRef = useRef<EdgeTooltipState>({
     id: null,
     anchor: null,
@@ -480,12 +464,6 @@ export function ConfigGraphCircles() {
   });
   const scheduleLayoutRestart = useDebouncedLayoutRestart(layout);
 
-  useEffect(() => {
-    const edgeNodeSepTarget = configGraphNodeMode === ConfigNodeMode.CARDS ? 300 : 100;
-    if (configGraphELKSettings.edgeNodeSep === edgeNodeSepTarget) return;
-    setConfigGraphELKSettings({ edgeNodeSep: edgeNodeSepTarget });
-  }, [configGraphNodeMode, configGraphELKSettings.edgeNodeSep, setConfigGraphELKSettings]);
-
   const didInitialLayoutRef = useRef(false);
   const lastTopoKeyRef = useRef<string | null>(null);
   const fitAfterLayoutRef = useRef(false);
@@ -497,18 +475,7 @@ export function ConfigGraphCircles() {
     if (nodes.length === 0) setViewportReady(false);
   }, [nodes.length]);
 
-  // Disable cards if too many nodes
   const nodeCount = model?.Graph?.size ?? 0;
-  const cardsDisabled = nodeCount > CARDS_LIMIT;
-
-  useEffect(() => {
-    if (configGraphNodeMode === ConfigNodeMode.CARDS && cardsDisabled) {
-      setConfigGraphNodeMode(ConfigNodeMode.CIRCLES);
-      toast.warning(
-        `Cards are disabled when there are more than ${CARDS_LIMIT} nodes (current: ${nodeCount}).`
-      );
-    }
-  }, [cardsDisabled, configGraphNodeMode, nodeCount, setConfigGraphNodeMode]);
 
   // Hide labels when many nodes
   const hideLabels = nodeCount >= COLOR_STATE_SWITCH;
@@ -568,33 +535,24 @@ export function ConfigGraphCircles() {
     fitAfterLayoutRef.current = true;
   }, [topoKey, nodes.length, scheduleLayoutRestart]);
 
-  useEffect(() => {
-    if (nodes.length === 0) return;
-    scheduleLayoutRestart();
-    fitAfterLayoutRef.current = true;
-  }, [configGraphNodeMode, scheduleLayoutRestart, nodes.length]);
-
   // Fit view
-  const runFitView = useCallback(
-    (focusId?: string, onDone?: () => void) => {
-      const cy = cyRef.current;
-      if (!cy) return;
-      requestAnimationFrame(() => {
-        cy.resize();
-        if (focusId) {
-          const ele = cy.getElementById(focusId);
-          if (ele && ele.length > 0) {
-            cy.fit(ele, 60);
-            onDone?.();
-            return;
-          }
+  const runFitView = useCallback((focusId?: string, onDone?: () => void) => {
+    const cy = cyRef.current;
+    if (!cy) return;
+    requestAnimationFrame(() => {
+      cy.resize();
+      if (focusId) {
+        const ele = cy.getElementById(focusId);
+        if (ele && ele.length > 0) {
+          cy.fit(ele, 60);
+          onDone?.();
+          return;
         }
-        cy.fit(cy.elements(), 30);
-        onDone?.();
-      });
-    },
-    []
-  );
+      }
+      cy.fit(cy.elements(), 30);
+      onDone?.();
+    });
+  }, []);
 
   const isContainerVisible = useCallback(() => {
     const el = containerRef.current;
@@ -716,9 +674,12 @@ export function ConfigGraphCircles() {
     setEdgeTooltip({ id: null, anchor: null, reason: null });
   }, [selected, settingsOpen, setSelected, clearHoverTimer]);
 
-  const openNodePopper = useCallback((id: string, anchor: Anchor, reason: 'hover' | 'select') => {
-    setNodePopper({ id, anchor, reason });
-  }, []);
+  const openNodePopper = useCallback(
+    (id: string, anchor: Anchor, reason: 'hover' | 'select') => {
+      setNodePopper({ id, anchor, reason });
+    },
+    []
+  );
 
   const openEdgeTooltip = useCallback(
     (id: string, anchor: Anchor, reason: 'hover' | 'select') => {
@@ -842,7 +803,9 @@ export function ConfigGraphCircles() {
       if (evt.target !== cy) return;
       const hasSelection = !!selectedRef.current.type;
       const hasPopups =
-        !!nodePopperRef.current.id || !!edgeTooltipRef.current.id || settingsOpenRef.current;
+        !!nodePopperRef.current.id ||
+        !!edgeTooltipRef.current.id ||
+        settingsOpenRef.current;
       if (!hasSelection && !hasPopups) return;
 
       setSelected({ type: null, id: null });
@@ -940,13 +903,13 @@ export function ConfigGraphCircles() {
 
       nodesForSync.forEach((n) => {
         const data = (n.data ?? {}) as any;
-        const displayLabel = data.showLabel === false ? '' : data.label ?? n.id;
+        const displayLabel = data.showLabel === false ? '' : (data.label ?? n.id);
         const stateColor =
           data.stateColor ?? resolveColorForState((n.data as any)?.config?.state);
         const bgColor =
           displayLabel === '' && stateColor
             ? stateColor
-            : stateColor ?? theme.palette.background.paper;
+            : (stateColor ?? theme.palette.background.paper);
         const classes = ['node'];
         if (data.isStart) classes.push('start');
         if (data.isCurrent) classes.push('current');
@@ -962,12 +925,12 @@ export function ConfigGraphCircles() {
           borderColor: data.isStart
             ? theme.palette.primary.main
             : data.isCurrent
-              ? theme.palette.node?.currentConfig ?? theme.palette.primary.dark
+              ? (theme.palette.node?.currentConfig ?? theme.palette.primary.dark)
               : data.isSelectable
-                ? theme.palette.node?.selectableConfig ??
+                ? (theme.palette.node?.selectableConfig ??
                   theme.palette.accent?.main ??
-                  theme.palette.secondary.main
-                : theme.palette.border?.main ?? theme.palette.divider,
+                  theme.palette.secondary.main)
+                : (theme.palette.border?.main ?? theme.palette.divider),
           borderWidth: data.isStart ? 8 : 6,
           textOutline: theme.palette.background.paper,
           width: n.width ?? CONFIG_NODE_DIAMETER,
@@ -1053,11 +1016,7 @@ export function ConfigGraphCircles() {
       const visibleNow = isContainerVisible();
       setContainerVisible(visibleNow);
       cy.resize();
-      if (
-        pendingMachineLoadFitRef.current &&
-        nodes.length > 0 &&
-        visibleNow
-      ) {
+      if (pendingMachineLoadFitRef.current && nodes.length > 0 && visibleNow) {
         pendingMachineLoadFitRef.current = false;
         runFitView(undefined, () => {
           if (awaitingInitialRevealRef.current) {
@@ -1113,9 +1072,8 @@ export function ConfigGraphCircles() {
   const resetLayoutSettings = useCallback(() => {
     setConfigGraphELKSettings({
       ...DEFAULT_ELK_OPTS,
-      edgeNodeSep: configGraphNodeMode === ConfigNodeMode.CARDS ? 300 : 100,
     });
-  }, [configGraphNodeMode]);
+  }, [setConfigGraphELKSettings]);
 
   return (
     <Box
@@ -1209,85 +1167,6 @@ export function ConfigGraphCircles() {
           >
             Recalculate layout
           </Button>
-
-          <ToggleButtonGroup
-            size="small"
-            exclusive
-            value={configGraphNodeMode}
-            onChange={(_, v) => {
-              if (!v) return;
-              if (v === ConfigNodeMode.CARDS && cardsDisabled) {
-                toast.info(
-                  `Cards are disabled when there are more than ${CARDS_LIMIT} nodes (current: ${nodeCount}).`
-                );
-                return;
-              }
-              if (
-                v === ConfigNodeMode.CARDS &&
-                nodeCount > CARDS_CONFIRM_THRESHOLD &&
-                !window.confirm(
-                  'Switching to card view can be very slow with many nodes. Continue?'
-                )
-              ) {
-                return;
-              }
-              setConfigGraphNodeMode(v);
-            }}
-            aria-label="node rendering mode"
-            sx={{
-              height: CONTROL_HEIGHT,
-              borderRadius: 1.5,
-              overflow: 'hidden',
-              border: (theme) => `1px solid ${theme.palette.divider}`,
-              '& .MuiToggleButton-root': {
-                height: CONTROL_HEIGHT,
-                border: 'none',
-                borderRadius: 0,
-                textTransform: 'none',
-                fontWeight: 500,
-                px: 1.25,
-                py: 0,
-                boxShadow: (theme) => `inset 1px 0 0 ${theme.palette.divider}`,
-                '&:first-of-type': { boxShadow: 'none' },
-              },
-              '& .Mui-selected': (theme) => ({
-                backgroundColor: theme.palette.primary.main,
-                color: theme.palette.primary.contrastText,
-                '&:hover': { backgroundColor: theme.palette.primary.dark },
-              }),
-            }}
-          >
-            <ToggleButton value={ConfigNodeMode.CIRCLES} aria-label="circle nodes">
-              <Stack direction="row" spacing={0.75} alignItems="center">
-                <Adjust fontSize="small" />
-                <span>Circles</span>
-              </Stack>
-            </ToggleButton>
-
-            {cardsDisabled ? (
-              <Tooltip
-                title={`Cards are disabled for graphs with more than ${CARDS_LIMIT} nodes.`}
-                placement="top"
-                disableInteractive
-              >
-                <span>
-                  <ToggleButton value={ConfigNodeMode.CARDS} aria-label="card nodes" disabled>
-                    <Stack direction="row" spacing={0.75} alignItems="center">
-                      <ViewAgenda fontSize="small" />
-                      <span>Cards</span>
-                    </Stack>
-                  </ToggleButton>
-                </span>
-              </Tooltip>
-            ) : (
-              <ToggleButton value={ConfigNodeMode.CARDS} aria-label="card nodes">
-                <Stack direction="row" spacing={0.75} alignItems="center">
-                  <ViewAgenda fontSize="small" />
-                  <span>Cards</span>
-                </Stack>
-              </ToggleButton>
-            )}
-          </ToggleButtonGroup>
         </Stack>
       </Box>
 
@@ -1310,7 +1189,7 @@ export function ConfigGraphCircles() {
 
       {/* Node detail popper */}
       <NodeDetailPopper
-        node={nodePopper.id ? nodeMapRef.current.get(nodePopper.id) ?? null : null}
+        node={nodePopper.id ? (nodeMapRef.current.get(nodePopper.id) ?? null) : null}
         anchor={nodePopper.anchor}
         open={containerVisible && !!nodePopper.id && !!nodePopper.anchor}
         onClose={() => {
@@ -1324,18 +1203,26 @@ export function ConfigGraphCircles() {
         open={containerVisible && !!edgeTooltip.id && !!edgeTooltip.anchor}
         anchorEl={makeVirtualAnchor(edgeTooltip.anchor)}
         transition={
-          edgeTooltip.id ? (edgeMapRef.current.get(edgeTooltip.id)?.data as any)?.transition : undefined
+          edgeTooltip.id
+            ? (edgeMapRef.current.get(edgeTooltip.id)?.data as any)?.transition
+            : undefined
         }
         sourceLabel={
           edgeTooltip.id
-            ? (nodeMapRef.current.get(edgeMapRef.current.get(edgeTooltip.id)?.source ?? '')?.data as any)
-                ?.label
+            ? (
+                nodeMapRef.current.get(
+                  edgeMapRef.current.get(edgeTooltip.id)?.source ?? ''
+                )?.data as any
+              )?.label
             : undefined
         }
         targetLabel={
           edgeTooltip.id
-            ? (nodeMapRef.current.get(edgeMapRef.current.get(edgeTooltip.id)?.target ?? '')?.data as any)
-                ?.label
+            ? (
+                nodeMapRef.current.get(
+                  edgeMapRef.current.get(edgeTooltip.id)?.target ?? ''
+                )?.data as any
+              )?.label
             : undefined
         }
         onClose={() => {

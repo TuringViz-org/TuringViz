@@ -200,12 +200,9 @@ function TheoryGrid({ activeTab }: { activeTab: AppTab }) {
   const showConfigGraph = activeTab === 'configurationGraph';
   const showTree = activeTab === 'configurationTree';
 
-  const cardCount = [
-    showTm,
-    showConfiguration,
-    showConfigGraph,
-    showTree,
-  ].filter(Boolean).length;
+  const cardCount = [showTm, showConfiguration, showConfigGraph, showTree].filter(
+    Boolean
+  ).length;
   const mdSpan = cardCount > 1 ? 6 : 12;
 
   return (
@@ -238,9 +235,9 @@ function TheoryGrid({ activeTab }: { activeTab: AppTab }) {
               </Bullet>
             </Stack>
             <Typography variant="body2">
-              Each step chooses a transition matching the <em>k</em> symbols under the
-              heads, optionally writes new symbols, moves heads (
-              <em>L</em>/<em>S</em>/<em>R</em>), and changes state.
+              Each step chooses a transition matching the <em>k</em> symbols under
+              the heads, optionally writes new symbols, moves heads (<em>L</em>/
+              <em>S</em>/<em>R</em>), and changes state.
             </Typography>
           </TheoryCard>
         </Grid>
@@ -275,10 +272,10 @@ function TheoryGrid({ activeTab }: { activeTab: AppTab }) {
               </Bullet>
             </Stack>
             <Typography variant="body2">
-              Here, <em>B</em> denotes the set of finite tape assignments (“windows”):
-              each <em>T ∈ B</em> is a mapping <em>T:[c…d] → Γ</em> for some integers{' '}
-              <em>c ≤ d</em>, i.e., a contiguous finite segment of tape cells labeled
-              with symbols from <em>Γ</em>.
+              Here, <em>B</em> denotes the set of finite tape assignments
+              (“windows”): each <em>T ∈ B</em> is a mapping <em>T:[c…d] → Γ</em> for
+              some integers <em>c ≤ d</em>, i.e., a contiguous finite segment of tape
+              cells labeled with symbols from <em>Γ</em>.
             </Typography>
           </TheoryCard>
         </Grid>
@@ -298,8 +295,8 @@ function TheoryGrid({ activeTab }: { activeTab: AppTab }) {
                 Start node is <em>C₀(x)</em>. Leaves are halting configurations.
               </Bullet>
               <Bullet>
-                In the app, you can switch the node visualization (compact circles ↔
-                detailed cards) and highlight the current configuration.
+                In the app, you can inspect the compact circle visualization and
+                highlight the current configuration.
               </Bullet>
             </Stack>
           </TheoryCard>
@@ -311,14 +308,16 @@ function TheoryGrid({ activeTab }: { activeTab: AppTab }) {
           <TheoryCard icon={<AccountTreeOutlined />} title="Computation Tree">
             <Typography variant="body2" sx={{ mb: 1.25 }}>
               The tree “unrolls” the run history from <em>C₀(x)</em>: each node’s
-              children are its immediate successors. The same configuration may appear
-              multiple times if reached via different paths.
+              children are its immediate successors. The same configuration may
+              appear multiple times if reached via different paths.
             </Typography>
             <Stack spacing={0.5}>
-              <Bullet>Every root-to-leaf path corresponds to one possible run.</Bullet>
               <Bullet>
-                In the app, compute the tree up to a chosen target number of nodes and inspect
-                branches interactively.
+                Every root-to-leaf path corresponds to one possible run.
+              </Bullet>
+              <Bullet>
+                In the app, compute the tree up to a chosen target number of nodes
+                and inspect branches interactively.
               </Bullet>
             </Stack>
           </TheoryCard>

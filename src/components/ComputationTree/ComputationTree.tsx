@@ -4,23 +4,10 @@ import cytoscape, {
   type Core as CyCore,
   type EventObjectEdge,
   type EventObjectNode,
-  type Stylesheet,
 } from 'cytoscape';
-import {
-  ReactFlow,
-  ReactFlowProvider,
-  useEdgesState,
-  useNodesInitialized,
-  useNodesState,
-  useReactFlow,
-  MarkerType,
-  Background,
-} from '@xyflow/react';
 import {
   Stack,
   Button,
-  ToggleButtonGroup,
-  ToggleButton,
   Tooltip,
   Box,
   Fab,
@@ -29,8 +16,8 @@ import {
   ClickAwayListener,
   IconButton,
 } from '@mui/material';
-import { Cached, Adjust, ViewAgenda, Tune, CenterFocusStrong } from '@mui/icons-material';
-import { alpha, useTheme } from '@mui/material/styles';
+import { Cached, Tune, CenterFocusStrong } from '@mui/icons-material';
+import { alpha, useTheme, type Theme } from '@mui/material/styles';
 import type { VirtualElement } from '@popperjs/core';
 import { toast } from 'sonner';
 import type { Node as RFNode, Edge as RFEdge } from '@xyflow/react';
@@ -38,18 +25,11 @@ import type { Node as RFNode, Edge as RFEdge } from '@xyflow/react';
 import { LegendPanel } from '@components/shared/LegendPanel';
 import ConfigCard from '@components/ConfigGraph/ConfigVisualization/ConfigCard';
 import { EdgeTooltip } from '@components/ConfigGraph/edges/EdgeTooltip';
-import { ConfigNode } from '@components/ConfigGraph/nodes/ConfigNode';
-import { ConfigCardNode } from '@components/ConfigGraph/nodes/ConfigCardNode';
-import { FloatingEdge } from '@components/ConfigGraph/edges/FloatingEdge';
 
 import {
-  CONFIG_CARD_HEIGHT_ESTIMATE,
   CONFIG_CARD_WIDTH,
   CONFIG_NODE_DIAMETER,
   CONTROL_HEIGHT,
-  CARDS_LIMIT,
-  NodeType,
-  EdgeType,
 } from './util/constants';
 import { COLOR_STATE_SWITCH } from '../ConfigGraph/util/constants';
 import {
@@ -58,13 +38,11 @@ import {
 } from '@tmfunctions/ComputationTree';
 import { useGlobalZustand } from '@zustands/GlobalZustand';
 import {
-  useComputationTreeNodeMode,
   useComputationTreeELKSettings,
   useGraphZustand,
 } from '@zustands/GraphZustand';
 import { buildComputationTreeGraph } from './util/buildComputationTree';
 import {
-  CARDS_CONFIRM_THRESHOLD,
   ConfigNodeMode,
   DEFAULT_ELK_OPTS,
   HOVER_POPPER_DELAY_MS,
@@ -113,20 +91,6 @@ type ViewportSnapshot = {
   pan: { x: number; y: number };
 };
 
-const rfNodeTypes = {
-  [NodeType.CONFIG]: ConfigNode,
-  [NodeType.CONFIG_CARD]: ConfigCardNode,
-};
-const rfEdgeTypes = {
-  [EdgeType.FLOATING]: FloatingEdge,
-};
-const rfDefaultEdgeOptions = {
-  type: EdgeType.FLOATING,
-  markerEnd: {
-    type: MarkerType.ArrowClosed,
-  },
-};
-
 function makeVirtualAnchor(anchor: Anchor | null): VirtualElement {
   const top = anchor?.top ?? 0;
   const left = anchor?.left ?? 0;
@@ -151,7 +115,6 @@ const rejectingStates = ['reject', 'rejected', 'error'];
 
 const normalizeColor = (color?: string) => {
   if (!color) return undefined;
-  // Convert 8-digit hex (#RRGGBBAA) to rgba() because Cytoscape can be picky.
   const m = /^#([0-9a-fA-F]{8})$/.exec(color);
   if (m) {
     const hex = m[1];
@@ -173,12 +136,12 @@ const resolveStateColor = (
   const direct = mapping.get(key) ?? mapping.get(String(key));
   if (direct) return normalizeColor(direct);
   const lower = key.toLowerCase();
-  if (acceptingStates.includes(lower)) return 'accept'; // sentinel
-  if (rejectingStates.includes(lower)) return 'reject'; // sentinel
+  if (acceptingStates.includes(lower)) return 'accept';
+  if (rejectingStates.includes(lower)) return 'reject';
   return undefined;
 };
 
-function getCyStyles(theme: ReturnType<typeof useTheme>): Stylesheet[] {
+function getCyStyles(theme: Theme) {
   return [
     {
       selector: 'core',
@@ -209,12 +172,6 @@ function getCyStyles(theme: ReturnType<typeof useTheme>): Stylesheet[] {
         shape: 'ellipse',
         'z-index': 5,
         'overlay-opacity': 0,
-      },
-    },
-    {
-      selector: 'node.card',
-      style: {
-        shape: 'round-rectangle',
       },
     },
     {
@@ -289,7 +246,7 @@ function getCyStyles(theme: ReturnType<typeof useTheme>): Stylesheet[] {
       selector: 'edge.hidden-label',
       style: { label: '' },
     },
-  ];
+  ] as any;
 }
 
 function NodeDetailPopper({
@@ -318,11 +275,7 @@ function NodeDetailPopper({
       ]}
       sx={{ zIndex: (t) => t.zIndex.tooltip }}
     >
-      <ClickAwayListener
-        onClickAway={onClose}
-        mouseEvent={false}
-        touchEvent={false}
-      >
+      <ClickAwayListener onClickAway={onClose} mouseEvent={false} touchEvent={false}>
         <Paper
           elevation={6}
           onMouseDown={(e) => e.stopPropagation()}
@@ -358,8 +311,7 @@ function NodeDetailPopper({
 
 function useComputationTreeData(
   targetNodes: number,
-  compressing: boolean,
-  nodeMode: ConfigNodeMode
+  compressing: boolean
 ): {
   model: ComputationTreeModel | null;
   base: ReturnType<typeof buildComputationTreeGraph>;
@@ -410,47 +362,49 @@ function useComputationTreeData(
         );
         setModel(tree);
       });
-  }, [targetNodes, compressing, transitions, blank, numberOfTapes, startState, input]);
+  }, [
+    targetNodes,
+    compressing,
+    transitions,
+    blank,
+    numberOfTapes,
+    startState,
+    input,
+  ]);
 
   useEffect(() => {
     if (!model) return;
-    setBase(buildComputationTreeGraph(model, transitions, nodeMode));
-  }, [model, transitions, nodeMode]);
+    setBase(buildComputationTreeGraph(model, transitions, ConfigNodeMode.CIRCLES));
+  }, [model, transitions]);
 
   return { model, base };
 }
 
 type Props = { targetNodes: number; compressing?: boolean };
 
-function ComputationTreeCircles({ targetNodes, compressing = false }: Props) {
+function ComputationTreeView({ targetNodes, compressing = false }: Props) {
   const theme = useTheme();
   const cyRef = useRef<CyCore | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const viewportRef = useRef<ViewportSnapshot | null>(null);
 
-  // Global Zustand state
-  const transitions = useGlobalZustand((s) => s.transitions);
   const stateColorMatching = useGlobalZustand((s) => s.stateColorMatching);
   const machineLoadVersion = useGlobalZustand((s) => s.machineLoadVersion);
-
-  // Graph Zustand state and setters
-  const computationTreeNodeMode = useComputationTreeNodeMode();
-  const setComputationTreeNodeMode = useGraphZustand(
-    (s) => s.setComputationTreeNodeMode
-  );
   const computationTreeELKSettings = useComputationTreeELKSettings();
   const setComputationTreeELKSettings = useGraphZustand(
     (s) => s.setComputationTreeELKSettings
   );
+  const setComputationTreeNodeMode = useGraphZustand(
+    (s) => s.setComputationTreeNodeMode
+  );
+
+  useEffect(() => {
+    setComputationTreeNodeMode(ConfigNodeMode.CIRCLES);
+  }, [setComputationTreeNodeMode]);
 
   const { selected, setSelected, hoveredState, setHoveredState } = useGraphUI();
 
-  // Base graph structure (nodes/edges) extraction
-  const { model, base } = useComputationTreeData(
-    targetNodes,
-    !!compressing,
-    computationTreeNodeMode
-  );
+  const { model, base } = useComputationTreeData(targetNodes, !!compressing);
 
   const [nodes, setNodes] = useState<RFNode[]>(base.nodes);
   const [edges, setEdges] = useState<RFEdge[]>(base.edges);
@@ -458,7 +412,6 @@ function ComputationTreeCircles({ targetNodes, compressing = false }: Props) {
   const [containerVisible, setContainerVisible] = useState(true);
   const [viewportReady, setViewportReady] = useState(false);
 
-  // Keep node/edge lookup maps for quick access in event handlers
   const nodeMapRef = useRef<Map<string, RFNode>>(new Map());
   const edgeMapRef = useRef<Map<string, RFEdge>>(new Map());
 
@@ -469,7 +422,6 @@ function ComputationTreeCircles({ targetNodes, compressing = false }: Props) {
     edgeMapRef.current = new Map(edges.map((e) => [e.id, e]));
   }, [edges]);
 
-  // ELK Layout Hook (sole positioning engine)
   const layout = useElkLayout({
     nodes,
     edges,
@@ -495,19 +447,6 @@ function ComputationTreeCircles({ targetNodes, compressing = false }: Props) {
   });
   const scheduleLayoutRestart = useDebouncedLayoutRestart(layout);
 
-  // Adjust edgeNodeSep when node mode changes
-  useEffect(() => {
-    const edgeNodeSepTarget =
-      computationTreeNodeMode === ConfigNodeMode.CARDS ? 300 : 100;
-    if (computationTreeELKSettings.edgeNodeSep === edgeNodeSepTarget) return;
-    setComputationTreeELKSettings({ edgeNodeSep: edgeNodeSepTarget });
-  }, [
-    computationTreeNodeMode,
-    computationTreeELKSettings.edgeNodeSep,
-    setComputationTreeELKSettings,
-  ]);
-
-  // Performance + layout tracking
   const didInitialLayoutRef = useRef(false);
   const lastTopoKeyRef = useRef<string | null>(null);
   const fitAfterLayoutRef = useRef(false);
@@ -515,32 +454,24 @@ function ComputationTreeCircles({ targetNodes, compressing = false }: Props) {
   const pendingMachineLoadFitRef = useRef(false);
   const awaitingInitialRevealRef = useRef(false);
   const lastHandledMachineLoadRef = useRef<number>(-1);
+
   useEffect(() => {
     if (nodes.length === 0) setViewportReady(false);
   }, [nodes.length]);
 
-  // Disable cards mode if too many nodes
   const nodeCount = model?.nodes?.length ?? 0;
-  const cardsDisabled = nodeCount > CARDS_LIMIT;
-
-  useEffect(() => {
-    if (computationTreeNodeMode === ConfigNodeMode.CARDS && cardsDisabled) {
-      setComputationTreeNodeMode(ConfigNodeMode.CIRCLES);
-      toast.warning(
-        `Cards are disabled when there are more than ${CARDS_LIMIT} nodes (current: ${nodeCount}).`
-      );
-    }
-  }, [
-    cardsDisabled,
-    computationTreeNodeMode,
-    nodeCount,
-    setComputationTreeNodeMode,
-  ]);
-
-  // If too many nodes, hide labels and only show colors
   const hideLabels = nodeCount >= COLOR_STATE_SWITCH;
 
-  // Sync builder output into state; keep previous size/data; ELK will set positions afterwards
+  const resolveColorForState = useCallback(
+    (stateName?: string) => {
+      const res = resolveStateColor(stateName, stateColorMatching);
+      if (res === 'accept') return normalizeColor(theme.palette.success.light);
+      if (res === 'reject') return normalizeColor(theme.palette.error.light);
+      return normalizeColor(res);
+    },
+    [stateColorMatching, theme.palette.error.light, theme.palette.success.light]
+  );
+
   useEffect(() => {
     if (!model) return;
 
@@ -565,12 +496,9 @@ function ComputationTreeCircles({ targetNodes, compressing = false }: Props) {
     base.edges,
     base.topoKey,
     hideLabels,
-    stateColorMatching,
-    setNodes,
-    setEdges,
+    resolveColorForState,
   ]);
 
-  // Start ELK once when nodes are ready
   useEffect(() => {
     if (!didInitialLayoutRef.current && nodes.length > 0) {
       didInitialLayoutRef.current = true;
@@ -581,7 +509,6 @@ function ComputationTreeCircles({ targetNodes, compressing = false }: Props) {
     }
   }, [nodes.length, scheduleLayoutRestart]);
 
-  // Start ELK on structural changes
   useEffect(() => {
     if (nodes.length === 0) return;
     if (lastTopoKeyRef.current === null) {
@@ -595,14 +522,6 @@ function ComputationTreeCircles({ targetNodes, compressing = false }: Props) {
     fitAfterLayoutRef.current = true;
   }, [structureKey, nodes.length, scheduleLayoutRestart]);
 
-  // Start ELK when nodeMode changes
-  useEffect(() => {
-    if (nodes.length === 0) return;
-    scheduleLayoutRestart();
-    fitAfterLayoutRef.current = true;
-  }, [computationTreeNodeMode, scheduleLayoutRestart, nodes.length]);
-
-  // Fit helper for Cytoscape
   const runFitView = useCallback((onDone?: () => void) => {
     const cy = cyRef.current;
     if (!cy) return;
@@ -623,7 +542,6 @@ function ComputationTreeCircles({ targetNodes, compressing = false }: Props) {
     setContainerVisible(isContainerVisible());
   }, [isContainerVisible]);
 
-  // Re-center on every successful "Load Machine".
   useEffect(() => {
     if (lastHandledMachineLoadRef.current === machineLoadVersion) return;
     pendingMachineLoadFitRef.current = !isContainerVisible();
@@ -633,7 +551,7 @@ function ComputationTreeCircles({ targetNodes, compressing = false }: Props) {
     lastHandledMachineLoadRef.current = machineLoadVersion;
     scheduleLayoutRestart();
     fitAfterLayoutRef.current = true;
-  }, [machineLoadVersion, nodes.length, isContainerVisible]);
+  }, [machineLoadVersion, nodes.length, isContainerVisible, scheduleLayoutRestart]);
 
   const restoreViewport = useCallback(() => {
     const cy = cyRef.current;
@@ -644,26 +562,23 @@ function ComputationTreeCircles({ targetNodes, compressing = false }: Props) {
 
   useEffect(() => {
     const justFinished = prevRunningRef.current && !layout.running;
-    if (justFinished) {
-      if (fitAfterLayoutRef.current && nodes.length > 0) {
-        fitAfterLayoutRef.current = false;
-        runFitView(() => {
-          const visibleNow = isContainerVisible();
-          if (visibleNow) {
-            pendingMachineLoadFitRef.current = false;
-          }
-          if (visibleNow && awaitingInitialRevealRef.current) {
-            awaitingInitialRevealRef.current = false;
-            setViewportReady(true);
-          }
-        });
-      }
+    if (justFinished && fitAfterLayoutRef.current && nodes.length > 0) {
+      fitAfterLayoutRef.current = false;
+      runFitView(() => {
+        const visibleNow = isContainerVisible();
+        if (visibleNow) {
+          pendingMachineLoadFitRef.current = false;
+        }
+        if (visibleNow && awaitingInitialRevealRef.current) {
+          awaitingInitialRevealRef.current = false;
+          setViewportReady(true);
+        }
+      });
     }
 
     prevRunningRef.current = layout.running;
   }, [layout.running, nodes.length, runFitView, isContainerVisible]);
 
-  // Event helpers ------------------------------------------------------------
   const hoverTimerRef = useRef<number | null>(null);
   const nodePopperRef = useRef<NodePopperState>({
     id: null,
@@ -675,21 +590,11 @@ function ComputationTreeCircles({ targetNodes, compressing = false }: Props) {
     anchor: null,
     reason: null,
   });
-
   const pointerStateRef = useRef<PointerSnapshot>(getPointerSnapshot());
   const selectedRef = useRef(selected);
   const settingsOpenRef = useRef(false);
   const lastNonEmptyNodesRef = useRef<RFNode[]>([]);
   const lastNonEmptyEdgesRef = useRef<RFEdge[]>([]);
-  const resolveColorForState = useCallback(
-    (stateName?: string) => {
-      const res = resolveStateColor(stateName, stateColorMatching);
-      if (res === 'accept') return normalizeColor(theme.palette.success.light);
-      if (res === 'reject') return normalizeColor(theme.palette.error.light);
-      return normalizeColor(res);
-    },
-    [stateColorMatching, theme.palette.error.light, theme.palette.success.light]
-  );
 
   const [nodePopper, setNodePopper] = useState<NodePopperState>({
     id: null,
@@ -722,6 +627,7 @@ function ComputationTreeCircles({ targetNodes, compressing = false }: Props) {
   useEffect(() => {
     settingsOpenRef.current = settingsOpen;
   }, [settingsOpen]);
+
   useEffect(() => {
     pointerStateRef.current = getPointerSnapshot();
     const unsubscribe = subscribePointerTracker(() => {
@@ -729,7 +635,6 @@ function ComputationTreeCircles({ targetNodes, compressing = false }: Props) {
       const prev = pointerStateRef.current;
       pointerStateRef.current = next;
 
-      // If dragging starts, close any hover-based popups immediately
       if (!prev.isDragging && next.isDragging) {
         clearHoverTimer();
         if (nodePopperRef.current.reason === 'hover') {
@@ -815,51 +720,6 @@ function ComputationTreeCircles({ targetNodes, compressing = false }: Props) {
     []
   );
 
-  const handlePaneClick = useCallback(() => {
-    const hasSelection = !!selected.type;
-    const hasPopups =
-      !!nodePopperRef.current.id || !!edgeTooltipRef.current.id || settingsOpen;
-    if (!hasSelection && !hasPopups) return;
-
-    setSelected({ type: null, id: null });
-    clearHoverTimer();
-    setSettingsOpen(false);
-    setNodePopper({ id: null, anchor: null, reason: null });
-    setEdgeTooltip({ id: null, anchor: null, reason: null });
-  }, [selected, settingsOpen, setSelected, clearHoverTimer]);
-
-  const handleNodeTap = useCallback(
-    (evt: EventObjectNode) => {
-      evt.stopPropagation();
-      clearHoverTimer();
-      const id = evt.target.id();
-      const anchor = getAnchorFromEvent(evt);
-      setSelected({
-        type: 'node',
-        id,
-        anchor,
-      });
-      openNodePopper(id, anchor, 'select');
-    },
-    [setSelected, clearHoverTimer, getAnchorFromEvent, openNodePopper]
-  );
-
-  const handleEdgeTap = useCallback(
-    (evt: EventObjectEdge) => {
-      evt.stopPropagation();
-      clearHoverTimer();
-      const id = evt.target.id();
-      const anchor = getAnchorFromEvent(evt);
-      setSelected({
-        type: 'edge',
-        id,
-        anchor,
-      });
-      openEdgeTooltip(id, anchor, 'select');
-    },
-    [setSelected, clearHoverTimer, getAnchorFromEvent, openEdgeTooltip]
-  );
-
   const handleNodeHoverStart = useCallback(
     (evt: EventObjectNode) => {
       if (pointerStateRef.current.isDragging) return;
@@ -920,12 +780,10 @@ function ComputationTreeCircles({ targetNodes, compressing = false }: Props) {
     if (data.config) setConfiguration(data.config);
   }, []);
 
-  // React to external selection changes (e.g., deselection)
   useEffect(() => {
     if (selected.type === 'node' && selected.id) {
       const anchor = selected.anchor ?? getAnchorFromElement(selected.id);
       if (anchor) openNodePopper(selected.id, anchor, 'select');
-      // Close any edge tooltip and any other node popper
       setEdgeTooltip({ id: null, anchor: null, reason: null });
       setNodePopper((prev) =>
         prev.id === selected.id && prev.reason === 'select'
@@ -947,12 +805,10 @@ function ComputationTreeCircles({ targetNodes, compressing = false }: Props) {
       return;
     }
 
-    // Deselection: close both
     setNodePopper({ id: null, anchor: null, reason: null });
     setEdgeTooltip({ id: null, anchor: null, reason: null });
   }, [selected, getAnchorFromElement, openNodePopper, openEdgeTooltip]);
 
-  // Instantiate Cytoscape once
   const cyStyles = useMemo(() => getCyStyles(theme), [theme]);
   useEffect(() => {
     const container = containerRef.current;
@@ -982,7 +838,9 @@ function ComputationTreeCircles({ targetNodes, compressing = false }: Props) {
       if (evt.target !== cy) return;
       const hasSelection = !!selectedRef.current.type;
       const hasPopups =
-        !!nodePopperRef.current.id || !!edgeTooltipRef.current.id || settingsOpenRef.current;
+        !!nodePopperRef.current.id ||
+        !!edgeTooltipRef.current.id ||
+        settingsOpenRef.current;
       if (!hasSelection && !hasPopups) return;
 
       setSelected({ type: null, id: null });
@@ -996,11 +854,7 @@ function ComputationTreeCircles({ targetNodes, compressing = false }: Props) {
       clearHoverTimer();
       const id = evt.target.id();
       const anchor = getAnchorFromEvent(evt);
-      setSelected({
-        type: 'node',
-        id,
-        anchor,
-      });
+      setSelected({ type: 'node', id, anchor });
       setNodePopper({ id, anchor, reason: 'select' });
     };
     const onEdgeTap = (evt: EventObjectEdge) => {
@@ -1008,11 +862,7 @@ function ComputationTreeCircles({ targetNodes, compressing = false }: Props) {
       clearHoverTimer();
       const id = evt.target.id();
       const anchor = getAnchorFromEvent(evt);
-      setSelected({
-        type: 'edge',
-        id,
-        anchor,
-      });
+      setSelected({ type: 'edge', id, anchor });
       setEdgeTooltip({ id, anchor, reason: 'select' });
     };
     const onViewportChanged = () => {
@@ -1058,7 +908,6 @@ function ComputationTreeCircles({ targetNodes, compressing = false }: Props) {
     setSelected,
   ]);
 
-  // Update styles if theme changes
   useEffect(() => {
     const cy = cyRef.current;
     if (!cy) return;
@@ -1066,7 +915,6 @@ function ComputationTreeCircles({ targetNodes, compressing = false }: Props) {
     cy.style().update();
   }, [cyStyles]);
 
-  // Sync nodes/edges into Cytoscape
   useEffect(() => {
     const cy = cyRef.current;
     if (!cy) return;
@@ -1091,11 +939,9 @@ function ComputationTreeCircles({ targetNodes, compressing = false }: Props) {
         const data = (n.data ?? {}) as any;
         const stateColor =
           data.stateColor ?? resolveColorForState((n.data as any)?.config?.state);
-        const displayLabel = data.showLabel === false ? '' : data.label ?? n.id;
+        const displayLabel = data.showLabel === false ? '' : (data.label ?? n.id);
         const bgColor = stateColor ?? theme.palette.background.paper;
-        const classes = [
-          computationTreeNodeMode === ConfigNodeMode.CARDS ? 'card' : 'circle',
-        ];
+        const classes = ['node'];
         if (data.isStart) classes.push('start');
         if (displayLabel === '') classes.push('hidden-label');
         const position = n.position ?? { x: 0, y: 0 };
@@ -1107,7 +953,7 @@ function ComputationTreeCircles({ targetNodes, compressing = false }: Props) {
           bgColor,
           borderColor: data.isStart
             ? theme.palette.primary.main
-            : theme.palette.border?.main ?? theme.palette.divider,
+            : (theme.palette.border?.main ?? theme.palette.divider),
           borderWidth: data.isStart ? 8 : 6,
           textOutline: theme.palette.background.paper,
           width: n.width ?? CONFIG_NODE_DIAMETER,
@@ -1156,11 +1002,9 @@ function ComputationTreeCircles({ targetNodes, compressing = false }: Props) {
     });
 
     cy.nodes().ungrabify();
-  }, [nodes, edges, computationTreeNodeMode, theme, resolveColorForState]);
+  }, [nodes, edges, theme, resolveColorForState]);
 
   const lastSelectedRef = useRef<string | null>(null);
-
-  // Selection class sync
   useEffect(() => {
     const cy = cyRef.current;
     if (!cy) return;
@@ -1175,7 +1019,6 @@ function ComputationTreeCircles({ targetNodes, compressing = false }: Props) {
     lastSelectedRef.current = next;
   }, [selected]);
 
-  // Resize observer for Cytoscape container
   useEffect(() => {
     const cy = cyRef.current;
     const el = containerRef.current;
@@ -1184,11 +1027,7 @@ function ComputationTreeCircles({ targetNodes, compressing = false }: Props) {
       const visibleNow = isContainerVisible();
       setContainerVisible(visibleNow);
       cy.resize();
-      if (
-        pendingMachineLoadFitRef.current &&
-        nodes.length > 0 &&
-        visibleNow
-      ) {
+      if (pendingMachineLoadFitRef.current && nodes.length > 0 && visibleNow) {
         pendingMachineLoadFitRef.current = false;
         runFitView(() => {
           if (awaitingInitialRevealRef.current) {
@@ -1204,7 +1043,6 @@ function ComputationTreeCircles({ targetNodes, compressing = false }: Props) {
     return () => ro.disconnect();
   }, [restoreViewport, runFitView, nodes.length, isContainerVisible]);
 
-  // Portal switch fit handling
   const scheduleFitAfterSwitch = useCallback(() => {
     const cy = cyRef.current;
     if (!cy) return;
@@ -1227,7 +1065,6 @@ function ComputationTreeCircles({ targetNodes, compressing = false }: Props) {
     };
   }, [scheduleFitAfterSwitch]);
 
-  // Legend (Color -> State) items (sorted for stable rendering)
   const legendItems = useMemo(() => {
     const entries = Array.from(stateColorMatching.entries());
     entries.sort(([a], [b]) => a.localeCompare(b));
@@ -1244,9 +1081,8 @@ function ComputationTreeCircles({ targetNodes, compressing = false }: Props) {
   const resetLayoutSettings = useCallback(() => {
     setComputationTreeELKSettings({
       ...DEFAULT_ELK_OPTS,
-      edgeNodeSep: computationTreeNodeMode === ConfigNodeMode.CARDS ? 300 : 100,
     });
-  }, [computationTreeNodeMode, setComputationTreeELKSettings]);
+  }, [setComputationTreeELKSettings]);
 
   return (
     <Box
@@ -1273,7 +1109,6 @@ function ComputationTreeCircles({ targetNodes, compressing = false }: Props) {
         }}
       />
 
-      {/* Layout settings panel trigger button */}
       <Box
         sx={{
           position: 'absolute',
@@ -1303,7 +1138,6 @@ function ComputationTreeCircles({ targetNodes, compressing = false }: Props) {
         </Tooltip>
       </Box>
 
-      {/* Layout settings panel */}
       <TreeLayoutSettingsPanel
         open={settingsOpen}
         onClose={() => setSettingsOpen(false)}
@@ -1314,7 +1148,6 @@ function ComputationTreeCircles({ targetNodes, compressing = false }: Props) {
         running={layout.running}
       />
 
-      {/* Top-left controls panel (recalculate layout and node mode switch) */}
       <Box
         sx={{
           position: 'absolute',
@@ -1340,93 +1173,9 @@ function ComputationTreeCircles({ targetNodes, compressing = false }: Props) {
           >
             Recalculate layout
           </Button>
-
-          <ToggleButtonGroup
-            size="small"
-            exclusive
-            value={computationTreeNodeMode}
-            onChange={(_, v) => {
-              if (!v) return;
-              if (v === ConfigNodeMode.CARDS && cardsDisabled) {
-                toast.info(
-                  `Cards are disabled when there are more than ${CARDS_LIMIT} nodes (current: ${nodeCount}).`
-                );
-                return;
-              }
-              if (
-                v === ConfigNodeMode.CARDS &&
-                nodeCount > CARDS_CONFIRM_THRESHOLD &&
-                !window.confirm(
-                  'Switching to card view can be very slow with many nodes. Continue?'
-                )
-              ) {
-                return;
-              }
-              setComputationTreeNodeMode(v);
-            }}
-            aria-label="node rendering mode"
-            sx={{
-              height: CONTROL_HEIGHT,
-              borderRadius: 1.5,
-              overflow: 'hidden',
-              border: (theme) => `1px solid ${theme.palette.divider}`,
-              '& .MuiToggleButton-root': {
-                height: CONTROL_HEIGHT,
-                border: 'none',
-                borderRadius: 0,
-                textTransform: 'none',
-                fontWeight: 500,
-                px: 1.25,
-                py: 0,
-                boxShadow: (theme) => `inset 1px 0 0 ${theme.palette.divider}`,
-                '&:first-of-type': { boxShadow: 'none' },
-              },
-              '& .Mui-selected': (theme) => ({
-                backgroundColor: theme.palette.primary.main,
-                color: theme.palette.primary.contrastText,
-                '&:hover': { backgroundColor: theme.palette.primary.dark },
-              }),
-            }}
-          >
-            <ToggleButton value={ConfigNodeMode.CIRCLES} aria-label="circle nodes">
-              <Stack direction="row" spacing={0.75} alignItems="center">
-                <Adjust fontSize="small" />
-                <span>Circles</span>
-              </Stack>
-            </ToggleButton>
-
-            {cardsDisabled ? (
-              <Tooltip
-                title={`Cards are disabled for trees with more than ${CARDS_LIMIT} nodes.`}
-                placement="top"
-                disableInteractive
-              >
-                <span>
-                  <ToggleButton
-                    value={ConfigNodeMode.CARDS}
-                    aria-label="card nodes"
-                    disabled
-                  >
-                    <Stack direction="row" spacing={0.75} alignItems="center">
-                      <ViewAgenda fontSize="small" />
-                      <span>Cards</span>
-                    </Stack>
-                  </ToggleButton>
-                </span>
-              </Tooltip>
-            ) : (
-              <ToggleButton value={ConfigNodeMode.CARDS} aria-label="card nodes">
-                <Stack direction="row" spacing={0.75} alignItems="center">
-                  <ViewAgenda fontSize="small" />
-                  <span>Cards</span>
-                </Stack>
-              </ToggleButton>
-            )}
-          </ToggleButtonGroup>
         </Stack>
       </Box>
 
-      {/* Legend panel */}
       <LegendPanel
         items={legendItems}
         visible={showLegend}
@@ -1435,7 +1184,7 @@ function ComputationTreeCircles({ targetNodes, compressing = false }: Props) {
         addon={
           <Tooltip title="Fit view">
             <span>
-              <IconButton size="small" onClick={runFitView}>
+              <IconButton size="small" onClick={() => runFitView()}>
                 <CenterFocusStrong fontSize="small" />
               </IconButton>
             </span>
@@ -1443,9 +1192,8 @@ function ComputationTreeCircles({ targetNodes, compressing = false }: Props) {
         }
       />
 
-      {/* Node detail popper */}
       <NodeDetailPopper
-        node={nodePopper.id ? nodeMapRef.current.get(nodePopper.id) ?? null : null}
+        node={nodePopper.id ? (nodeMapRef.current.get(nodePopper.id) ?? null) : null}
         anchor={nodePopper.anchor}
         open={containerVisible && !!nodePopper.id && !!nodePopper.anchor}
         onClose={() => {
@@ -1454,16 +1202,18 @@ function ComputationTreeCircles({ targetNodes, compressing = false }: Props) {
         }}
       />
 
-      {/* Edge tooltip */}
       <EdgeTooltip
         open={containerVisible && !!edgeTooltip.id && !!edgeTooltip.anchor}
         anchorEl={makeVirtualAnchor(edgeTooltip.anchor)}
         transition={
-          edgeTooltip.id ? (edgeMapRef.current.get(edgeTooltip.id)?.data as any)?.transition : undefined
+          edgeTooltip.id
+            ? (edgeMapRef.current.get(edgeTooltip.id)?.data as any)?.transition
+            : undefined
         }
         isCompressed={
           edgeTooltip.id
-            ? (edgeMapRef.current.get(edgeTooltip.id)?.data as any)?.compressed === true
+            ? (edgeMapRef.current.get(edgeTooltip.id)?.data as any)?.compressed ===
+              true
             : false
         }
         compressedLength={
@@ -1473,14 +1223,20 @@ function ComputationTreeCircles({ targetNodes, compressing = false }: Props) {
         }
         sourceLabel={
           edgeTooltip.id
-            ? (nodeMapRef.current.get(edgeMapRef.current.get(edgeTooltip.id)?.source ?? '')?.data as any)
-                ?.label
+            ? (
+                nodeMapRef.current.get(
+                  edgeMapRef.current.get(edgeTooltip.id)?.source ?? ''
+                )?.data as any
+              )?.label
             : undefined
         }
         targetLabel={
           edgeTooltip.id
-            ? (nodeMapRef.current.get(edgeMapRef.current.get(edgeTooltip.id)?.target ?? '')?.data as any)
-                ?.label
+            ? (
+                nodeMapRef.current.get(
+                  edgeMapRef.current.get(edgeTooltip.id)?.target ?? ''
+                )?.data as any
+              )?.label
             : undefined
         }
         onClose={() => {
@@ -1492,526 +1248,8 @@ function ComputationTreeCircles({ targetNodes, compressing = false }: Props) {
   );
 }
 
-function ComputationTreeCards({ targetNodes, compressing = false }: Props) {
-  const theme = useTheme();
-  // Global Zustand state
-  const transitions = useGlobalZustand((s) => s.transitions);
-  const stateColorMatching = useGlobalZustand((s) => s.stateColorMatching);
-  const machineLoadVersion = useGlobalZustand((s) => s.machineLoadVersion);
-
-  // Graph Zustand state and setters
-  const computationTreeNodeMode = useComputationTreeNodeMode();
-  const setComputationTreeNodeMode = useGraphZustand(
-    (s) => s.setComputationTreeNodeMode
-  );
-  const computationTreeELKSettings = useComputationTreeELKSettings();
-  const setComputationTreeELKSettings = useGraphZustand(
-    (s) => s.setComputationTreeELKSettings
-  );
-  const resolveColorForState = useCallback(
-    (stateName?: string) => {
-      const res = resolveStateColor(stateName, stateColorMatching);
-      if (res === 'accept') return normalizeColor(theme.palette.success.light);
-      if (res === 'reject') return normalizeColor(theme.palette.error.light);
-      return normalizeColor(res);
-    },
-    [stateColorMatching, theme.palette.error.light, theme.palette.success.light]
-  );
-
-  const { selected, setSelected, hoveredState } = useGraphUI();
-
-  // Base graph structure
-  const { model, base } = useComputationTreeData(
-    targetNodes,
-    !!compressing,
-    computationTreeNodeMode
-  );
-
-  const [nodes, setNodes, onNodesChange] = useNodesState<RFNode>(base.nodes);
-  const [edges, setEdges, onEdgesChange] = useEdgesState<RFEdge>(base.edges);
-  const [structureKey, setStructureKey] = useState('');
-
-  const rf = useReactFlow();
-  const nodesReady = useNodesInitialized();
-
-  // ELK layout
-  const layout = useElkLayout({
-    nodes,
-    edges,
-    algorithm: computationTreeELKSettings.algorithm,
-    nodeSep: computationTreeELKSettings.nodeSep,
-    rankSep: computationTreeELKSettings.rankSep,
-    edgeSep: computationTreeELKSettings.edgeSep,
-    edgeNodeSep: computationTreeELKSettings.edgeNodeSep,
-    padding: computationTreeELKSettings.padding,
-    direction: computationTreeELKSettings.direction,
-    topoKeyOverride: structureKey,
-    autoRun: false,
-    onLayout: (positions) => {
-      setNodes((prev) =>
-        prev.map((n) => {
-          const p = positions.get(n.id);
-          if (!p) return n;
-          const same = n.position?.x === p.x && n.position?.y === p.y;
-          return same ? n : { ...n, position: p };
-        })
-      );
-    },
-  });
-  const scheduleLayoutRestart = useDebouncedLayoutRestart(layout);
-
-  // Adjust edgeNodeSep when node mode changes
-  useEffect(() => {
-    const edgeNodeSepTarget =
-      computationTreeNodeMode === ConfigNodeMode.CARDS ? 300 : 100;
-    if (computationTreeELKSettings.edgeNodeSep === edgeNodeSepTarget) return;
-    setComputationTreeELKSettings({ edgeNodeSep: edgeNodeSepTarget });
-  }, [
-    computationTreeNodeMode,
-    computationTreeELKSettings.edgeNodeSep,
-    setComputationTreeELKSettings,
-  ]);
-
-  // Performance + layout tracking
-  const nodesCountRef = useRef(0);
-  const didInitialLayoutRef = useRef(false);
-  const lastTopoKeyRef = useRef<string | null>(null);
-  const fitAfterLayoutRef = useRef(false);
-  const prevRunningRef = useRef(layout.running);
-  const layoutRunningRef = useRef(layout.running);
-  const nodesReadyRef = useRef(nodesReady);
-  const manualFitPendingRef = useRef(false);
-  const awaitingInitialRevealRef = useRef(false);
-  const lastHandledMachineLoadRef = useRef<number>(-1);
-  const [viewportReady, setViewportReady] = useState(false);
-
-  useEffect(() => {
-    nodesCountRef.current = nodes.length;
-  }, [nodes.length]);
-  useEffect(() => {
-    layoutRunningRef.current = layout.running;
-  }, [layout.running]);
-  useEffect(() => {
-    nodesReadyRef.current = nodesReady;
-  }, [nodesReady]);
-  useEffect(() => {
-    if (nodes.length === 0) setViewportReady(false);
-  }, [nodes.length]);
-
-  // Disable cards mode if too many nodes
-  const nodeCount = model?.nodes?.length ?? 0;
-  const cardsDisabled = nodeCount > CARDS_LIMIT;
-
-  useEffect(() => {
-    if (computationTreeNodeMode === ConfigNodeMode.CARDS && cardsDisabled) {
-      setComputationTreeNodeMode(ConfigNodeMode.CIRCLES);
-      toast.warning(
-        `Cards are disabled when there are more than ${CARDS_LIMIT} nodes (current: ${nodeCount}).`
-      );
-    }
-  }, [
-    cardsDisabled,
-    computationTreeNodeMode,
-    nodeCount,
-    setComputationTreeNodeMode,
-  ]);
-
-  // If too many nodes, hide labels and only show colors
-  const hideLabels = nodeCount >= COLOR_STATE_SWITCH;
-
-  // Sync builder output into state; keep previous size/data; ELK will set positions afterwards
-  useEffect(() => {
-    if (!model) return;
-
-    setNodes((prev) =>
-      reconcileNodes(prev, base.nodes, (node) => {
-        const stateName = (node.data as any)?.config?.state;
-        const mappedColor = resolveColorForState(stateName);
-
-        return {
-          ...(node.data as any),
-          showLabel: !hideLabels,
-          stateColor: mappedColor,
-        };
-      })
-    );
-
-    setEdges((prev) => reconcileEdges(prev, base.edges));
-    setStructureKey((prev) => (prev === base.topoKey ? prev : base.topoKey));
-  }, [
-    model,
-    base.nodes,
-    base.edges,
-    base.topoKey,
-    hideLabels,
-    stateColorMatching,
-    resolveColorForState,
-    setNodes,
-    setEdges,
-  ]);
-
-  // Start ELK once when nodes are ready
-  useEffect(() => {
-    if (!didInitialLayoutRef.current && nodesReady && nodes.length > 0) {
-      didInitialLayoutRef.current = true;
-      awaitingInitialRevealRef.current = true;
-      setViewportReady(false);
-      scheduleLayoutRestart();
-      fitAfterLayoutRef.current = true;
-    }
-  }, [nodesReady, nodes.length, scheduleLayoutRestart]);
-
-  // Start ELK on structural changes
-  useEffect(() => {
-    if (!nodesReady || nodes.length === 0) return;
-    if (lastTopoKeyRef.current === null) {
-      lastTopoKeyRef.current = structureKey;
-      return;
-    }
-    if (lastTopoKeyRef.current === structureKey) return;
-    lastTopoKeyRef.current = structureKey;
-
-    scheduleLayoutRestart();
-    fitAfterLayoutRef.current = true;
-  }, [structureKey, nodesReady, nodes.length, scheduleLayoutRestart]);
-
-  // Start ELK when nodeMode changes
-  useEffect(() => {
-    if (nodes.length === 0) return;
-    scheduleLayoutRestart();
-    fitAfterLayoutRef.current = true;
-  }, [computationTreeNodeMode, scheduleLayoutRestart, nodes.length]);
-
-  // Re-center on every successful "Load Machine".
-  useEffect(() => {
-    if (!nodesReady || nodes.length === 0) return;
-    if (lastHandledMachineLoadRef.current === machineLoadVersion) return;
-    lastHandledMachineLoadRef.current = machineLoadVersion;
-    awaitingInitialRevealRef.current = true;
-    setViewportReady(false);
-    scheduleLayoutRestart();
-    fitAfterLayoutRef.current = true;
-  }, [machineLoadVersion, nodesReady, nodes.length]);
-
-  const runFitView = useCallback((onDone?: () => void) => {
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        rf.fitView({ padding: 0.2, duration: 0 });
-        onDone?.();
-      });
-    });
-  }, [rf]);
-
-  useEffect(() => {
-    const justFinished = prevRunningRef.current && !layout.running;
-    if (justFinished) {
-      if (fitAfterLayoutRef.current && nodes.length > 0) {
-        fitAfterLayoutRef.current = false;
-        runFitView(() => {
-          if (awaitingInitialRevealRef.current) {
-            awaitingInitialRevealRef.current = false;
-            setViewportReady(true);
-          }
-        });
-      }
-      if (manualFitPendingRef.current && nodesCountRef.current > 0) {
-        manualFitPendingRef.current = false;
-        runFitView();
-      }
-    }
-
-    prevRunningRef.current = layout.running;
-  }, [layout.running, nodes.length, runFitView]);
-
-  // Handlers
-  const [settingsOpen, setSettingsOpen] = useState(false);
-
-  const handlePaneClick = useCallback(() => {
-    setSelected({ type: null, id: null });
-    setSettingsOpen(false);
-  }, []);
-
-  const handleNodeClick = useCallback(
-    (evt: React.MouseEvent, node: RFNode) => {
-      evt.stopPropagation();
-      setSelected({
-        type: 'node',
-        id: node.id,
-        anchor: { top: evt.clientY, left: evt.clientX },
-      });
-    },
-    []
-  );
-
-  const handleEdgeClick = useCallback(
-    (evt: React.MouseEvent, edge: RFEdge) => {
-      evt.stopPropagation();
-      setSelected({
-        type: 'edge',
-        id: edge.id,
-        anchor: { top: evt.clientY, left: evt.clientX },
-      });
-    },
-    []
-  );
-
-  // Fit handling on portal switches
-  const scheduleFitAfterSwitch = useCallback(() => {
-    if (!nodesReadyRef.current || nodesCountRef.current === 0) return;
-    if (layoutRunningRef.current) {
-      manualFitPendingRef.current = true;
-      return;
-    }
-    manualFitPendingRef.current = false;
-    runFitView(() => {
-      if (awaitingInitialRevealRef.current) {
-        awaitingInitialRevealRef.current = false;
-        setViewportReady(true);
-      }
-    });
-  }, [runFitView]);
-
-  useEffect(() => {
-    const handler: EventListener = (event) => {
-      const detail = (event as CustomEvent<PortalBridgeSwitchDetail>).detail;
-      if (!detail || detail.id !== 'computationTree') return;
-      scheduleFitAfterSwitch();
-    };
-    window.addEventListener(PORTAL_BRIDGE_SWITCH_EVENT, handler);
-    return () => {
-      window.removeEventListener(PORTAL_BRIDGE_SWITCH_EVENT, handler);
-    };
-  }, [scheduleFitAfterSwitch]);
-
-  // Legend items (sorted for stable rendering)
-  const legendItems = useMemo(() => {
-    const entries = Array.from(stateColorMatching.entries());
-    entries.sort(([a], [b]) => a.localeCompare(b));
-    return entries.map(([state, color]) => ({ key: state, color }));
-  }, [stateColorMatching]);
-
-  const showLegend = legendItems.length > 0 && (model?.nodes?.length ?? 0) > 0;
-
-  const recalcLayout = useCallback(() => {
-    scheduleLayoutRestart();
-    fitAfterLayoutRef.current = true;
-  }, [scheduleLayoutRestart]);
-
-  const resetLayoutSettings = useCallback(() => {
-    setComputationTreeELKSettings({
-      ...DEFAULT_ELK_OPTS,
-      edgeNodeSep: computationTreeNodeMode === ConfigNodeMode.CARDS ? 300 : 100,
-    });
-  }, [computationTreeNodeMode, setComputationTreeELKSettings]);
-
-  return (
-    <ReactFlow
-      id="ComputationTreeCards"
-      style={{
-        width: '100%',
-        height: '100%',
-        minHeight: 360,
-        opacity: viewportReady ? 1 : 0,
-        pointerEvents: viewportReady ? 'auto' : 'none',
-        transition: 'opacity 120ms ease',
-      }}
-      nodes={nodes}
-      edges={edges}
-      onNodesChange={onNodesChange}
-      onEdgesChange={onEdgesChange}
-      onPaneClick={handlePaneClick}
-      onNodeClick={handleNodeClick}
-      onEdgeClick={handleEdgeClick}
-      nodeTypes={rfNodeTypes}
-      edgeTypes={rfEdgeTypes}
-      defaultEdgeOptions={rfDefaultEdgeOptions}
-      proOptions={{ hideAttribution: true }}
-      minZoom={0.05}
-      defaultViewport={{ x: 0, y: 0, zoom: 0.1 }}
-      nodesDraggable={false}
-      onlyRenderVisibleElements
-    >
-      {/* Layout settings panel trigger button */}
-      <Box
-        sx={{
-          position: 'absolute',
-          top: 8,
-          right: 8,
-          zIndex: (t) => t.zIndex.appBar + 1,
-          pointerEvents: 'auto',
-        }}
-      >
-        <Tooltip title="Layout settings">
-          <Fab
-            size="small"
-            variant="extended"
-            color="primary"
-            onClick={() => setSettingsOpen((v) => !v)}
-            sx={{
-              textTransform: 'none',
-              boxShadow: (t) => `0 4px 12px ${alpha(t.palette.common.black, 0.2)}`,
-              '& .MuiSvgIcon-root': { mr: 0.75, fontSize: 18 },
-              px: 1.5,
-              minHeight: 32,
-            }}
-          >
-            <Tune />
-            Layout
-          </Fab>
-        </Tooltip>
-      </Box>
-
-      {/* Layout settings panel */}
-      <TreeLayoutSettingsPanel
-        open={settingsOpen}
-        onClose={() => setSettingsOpen(false)}
-        value={computationTreeELKSettings}
-        onChange={(next) => setComputationTreeELKSettings(next)}
-        onReset={resetLayoutSettings}
-        onRecalc={recalcLayout}
-        running={layout.running}
-      />
-
-      {/* Top-left controls panel (recalculate layout and node mode switch) */}
-      <Box
-        sx={{
-          position: 'absolute',
-          top: 8,
-          left: 8,
-          zIndex: (t) => t.zIndex.appBar + 1,
-          pointerEvents: 'auto',
-        }}
-      >
-        <Stack direction="row" spacing={1} alignItems="center">
-          <Button
-            size="small"
-            variant="contained"
-            onClick={recalcLayout}
-            startIcon={<Cached fontSize="small" />}
-            disabled={layout.running}
-            sx={{
-              height: CONTROL_HEIGHT,
-              borderRadius: 1.5,
-              textTransform: 'none',
-              px: 1.25,
-            }}
-          >
-            Recalculate layout
-          </Button>
-
-          <ToggleButtonGroup
-            size="small"
-            exclusive
-            value={computationTreeNodeMode}
-            onChange={(_, v) => {
-              if (!v) return;
-              if (v === ConfigNodeMode.CARDS && cardsDisabled) {
-                toast.info(
-                  `Cards are disabled when there are more than ${CARDS_LIMIT} nodes (current: ${nodeCount}).`
-                );
-                return;
-              }
-              if (
-                v === ConfigNodeMode.CARDS &&
-                nodeCount > CARDS_CONFIRM_THRESHOLD &&
-                !window.confirm(
-                  'Switching to card view can be very slow with many nodes. Continue?'
-                )
-              ) {
-                return;
-              }
-              setComputationTreeNodeMode(v);
-            }}
-            aria-label="node rendering mode"
-            sx={{
-              height: CONTROL_HEIGHT,
-              borderRadius: 1.5,
-              overflow: 'hidden',
-              border: (theme) => `1px solid ${theme.palette.divider}`,
-              '& .MuiToggleButton-root': {
-                height: CONTROL_HEIGHT,
-                border: 'none',
-                borderRadius: 0,
-                textTransform: 'none',
-                fontWeight: 500,
-                px: 1.25,
-                py: 0,
-                boxShadow: (theme) => `inset 1px 0 0 ${theme.palette.divider}`,
-                '&:first-of-type': { boxShadow: 'none' },
-              },
-              '& .Mui-selected': (theme) => ({
-                backgroundColor: theme.palette.primary.main,
-                color: theme.palette.primary.contrastText,
-                '&:hover': { backgroundColor: theme.palette.primary.dark },
-              }),
-            }}
-          >
-            <ToggleButton value={ConfigNodeMode.CIRCLES} aria-label="circle nodes">
-              <Stack direction="row" spacing={0.75} alignItems="center">
-                <Adjust fontSize="small" />
-                <span>Circles</span>
-              </Stack>
-            </ToggleButton>
-
-            {cardsDisabled ? (
-              <Tooltip
-                title={`Cards are disabled for trees with more than ${CARDS_LIMIT} nodes.`}
-                placement="top"
-                disableInteractive
-              >
-                <span>
-                  <ToggleButton
-                    value={ConfigNodeMode.CARDS}
-                    aria-label="card nodes"
-                    disabled
-                  >
-                    <Stack direction="row" spacing={0.75} alignItems="center">
-                      <ViewAgenda fontSize="small" />
-                      <span>Cards</span>
-                    </Stack>
-                  </ToggleButton>
-                </span>
-              </Tooltip>
-            ) : (
-              <ToggleButton value={ConfigNodeMode.CARDS} aria-label="card nodes">
-                <Stack direction="row" spacing={0.75} alignItems="center">
-                  <ViewAgenda fontSize="small" />
-                  <span>Cards</span>
-                </Stack>
-              </ToggleButton>
-            )}
-          </ToggleButtonGroup>
-        </Stack>
-      </Box>
-
-      {/* Legend panel */}
-      <LegendPanel
-        items={legendItems}
-        visible={showLegend}
-        hoveredKey={hoveredState}
-        contentClassName="ct-scrollable"
-        addon={
-          <Tooltip title="Fit view">
-            <span>
-              <IconButton size="small" onClick={runFitView}>
-                <CenterFocusStrong fontSize="small" />
-              </IconButton>
-            </span>
-          </Tooltip>
-        }
-      />
-
-      <Background gap={10} size={1} />
-    </ReactFlow>
-  );
-}
-
 export function ComputationTree(props: Props) {
-  const computationTreeNodeMode = useComputationTreeNodeMode();
-  if (computationTreeNodeMode === ConfigNodeMode.CARDS) {
-    return <ComputationTreeCards {...props} />;
-  }
-  return <ComputationTreeCircles {...props} />;
+  return <ComputationTreeView {...props} />;
 }
 
 export function ComputationTreeWrapper({
@@ -2023,10 +1261,8 @@ export function ComputationTreeWrapper({
 }) {
   const machineLoadVersion = useGlobalZustand((s) => s.machineLoadVersion);
   return (
-    <ReactFlowProvider>
-      <GraphUIProvider key={machineLoadVersion}>
-        <ComputationTree targetNodes={targetNodes} compressing={compressing} />
-      </GraphUIProvider>
-    </ReactFlowProvider>
+    <GraphUIProvider key={machineLoadVersion}>
+      <ComputationTree targetNodes={targetNodes} compressing={compressing} />
+    </GraphUIProvider>
   );
 }
