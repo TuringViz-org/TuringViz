@@ -788,21 +788,27 @@ function ComputationTreeCircles({ targetNodes, compressing = false }: Props) {
   );
 
   const getAnchorFromElement = useCallback((id: string): Anchor | null => {
-    const cy = cyRef.current;
-    const rect = containerRef.current?.getBoundingClientRect();
-    if (!cy || !rect) return null;
-    const ele = cy.getElementById(id);
-    if (!ele || ele.empty()) return null;
-    const pos = ele.renderedPosition();
-    return { top: rect.top + pos.y, left: rect.left + pos.x };
+    try {
+      const cy = cyRef.current;
+      const rect = containerRef.current?.getBoundingClientRect();
+      if (!cy || !rect) return null;
+      const ele = cy.getElementById(id);
+      if (!ele || ele.empty()) return null;
+
+      const anyEle = ele as any;
+      const pos =
+        typeof anyEle.isEdge === 'function' && anyEle.isEdge()
+          ? anyEle.renderedMidpoint?.() ?? anyEle.renderedPosition?.()
+          : anyEle.renderedPosition?.();
+      if (!pos) return null;
+      if (!Number.isFinite(pos.x) || !Number.isFinite(pos.y)) return null;
+      return { top: rect.top + pos.y, left: rect.left + pos.x };
+    } catch {
+      return null;
+    }
   }, []);
 
-  const prevContainerVisibleRef = useRef(containerVisible);
-  useEffect(() => {
-    const becameVisible = !prevContainerVisibleRef.current && containerVisible;
-    prevContainerVisibleRef.current = containerVisible;
-    if (!becameVisible) return;
-
+  const refreshSelectedAnchors = useCallback(() => {
     setNodePopper((prev) => {
       if (prev.reason !== 'select' || !prev.id) return prev;
       const anchor = getAnchorFromElement(prev.id);
@@ -830,7 +836,15 @@ function ComputationTreeCircles({ targetNodes, compressing = false }: Props) {
       }
       return { ...prev, anchor };
     });
-  }, [containerVisible, getAnchorFromElement]);
+  }, [getAnchorFromElement]);
+
+  const prevContainerVisibleRef = useRef(containerVisible);
+  useEffect(() => {
+    const becameVisible = !prevContainerVisibleRef.current && containerVisible;
+    prevContainerVisibleRef.current = containerVisible;
+    if (!becameVisible) return;
+    refreshSelectedAnchors();
+  }, [containerVisible, refreshSelectedAnchors]);
 
   const openNodePopper = useCallback(
     (id: string, anchor: Anchor, reason: 'hover' | 'select') => {
@@ -1050,6 +1064,7 @@ function ComputationTreeCircles({ targetNodes, compressing = false }: Props) {
         zoom: cy.zoom(),
         pan: { ...cy.pan() },
       };
+      refreshSelectedAnchors();
     };
 
     cy.on('tap', onPaneTap);
@@ -1080,6 +1095,7 @@ function ComputationTreeCircles({ targetNodes, compressing = false }: Props) {
     cyStyles,
     clearHoverTimer,
     getAnchorFromEvent,
+    refreshSelectedAnchors,
     handleNodeHoverStart,
     handleNodeHoverEnd,
     handleEdgeHoverStart,
@@ -1226,14 +1242,16 @@ function ComputationTreeCircles({ targetNodes, compressing = false }: Props) {
             awaitingInitialRevealRef.current = false;
             setViewportReady(true);
           }
+          refreshSelectedAnchors();
         });
         return;
       }
       restoreViewport();
+      refreshSelectedAnchors();
     });
     ro.observe(el);
     return () => ro.disconnect();
-  }, [restoreViewport, runFitView, nodes.length, isContainerVisible]);
+  }, [restoreViewport, runFitView, nodes.length, isContainerVisible, refreshSelectedAnchors]);
 
   // Portal switch fit handling
   const scheduleFitAfterSwitch = useCallback(() => {
@@ -1243,8 +1261,9 @@ function ComputationTreeCircles({ targetNodes, compressing = false }: Props) {
       cy.resize();
       setContainerVisible(isContainerVisible());
       restoreViewport();
+      refreshSelectedAnchors();
     });
-  }, [restoreViewport, isContainerVisible]);
+  }, [restoreViewport, isContainerVisible, refreshSelectedAnchors]);
 
   useEffect(() => {
     const handler: EventListener = (event) => {
@@ -1257,6 +1276,25 @@ function ComputationTreeCircles({ targetNodes, compressing = false }: Props) {
       window.removeEventListener(PORTAL_BRIDGE_SWITCH_EVENT, handler);
     };
   }, [scheduleFitAfterSwitch]);
+
+  useEffect(() => {
+    let rafId: number | null = null;
+    const scheduleRefresh = () => {
+      if (rafId != null) return;
+      rafId = window.requestAnimationFrame(() => {
+        rafId = null;
+        refreshSelectedAnchors();
+      });
+    };
+
+    window.addEventListener('scroll', scheduleRefresh, true);
+    window.addEventListener('resize', scheduleRefresh);
+    return () => {
+      window.removeEventListener('scroll', scheduleRefresh, true);
+      window.removeEventListener('resize', scheduleRefresh);
+      if (rafId != null) window.cancelAnimationFrame(rafId);
+    };
+  }, [refreshSelectedAnchors]);
 
   // Legend (Color -> State) items (sorted for stable rendering)
   const legendItems = useMemo(() => {

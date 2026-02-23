@@ -579,7 +579,11 @@ function TMGraph() {
       if (!cy || !rect) return null;
       const ele = cy.getElementById(id);
       if (!ele || ele.empty()) return null;
-      const pos = ele.renderedPosition?.();
+      const anyEle = ele as any;
+      const pos =
+        typeof anyEle.isEdge === 'function' && anyEle.isEdge()
+          ? anyEle.renderedMidpoint?.() ?? anyEle.renderedPosition?.()
+          : anyEle.renderedPosition?.();
       if (!pos) return null;
       if (!Number.isFinite(pos.x) || !Number.isFinite(pos.y)) return null;
       return { top: rect.top + pos.y, left: rect.left + pos.x };
@@ -594,6 +598,21 @@ function TMGraph() {
       hoverTimerRef.current = null;
     }
   }, []);
+
+  const refreshSelectedEdgeTooltipAnchor = useCallback(() => {
+    const current = edgeTooltipRef.current;
+    if (current.reason !== 'select' || !current.id) return;
+    const anchor = getAnchorFromElement(current.id);
+    if (!anchor) return;
+    if (
+      current.anchor &&
+      Math.abs(current.anchor.top - anchor.top) < 0.5 &&
+      Math.abs(current.anchor.left - anchor.left) < 0.5
+    ) {
+      return;
+    }
+    setEdgeTooltipState({ ...current, anchor });
+  }, [getAnchorFromElement, setEdgeTooltipState]);
 
   const persistLayoutSnapshot = useCallback(() => {
     const cy = cyRef.current;
@@ -841,14 +860,7 @@ function TMGraph() {
     };
 
     const onViewportChanged = () => {
-      const current = edgeTooltipRef.current;
-      if (current.reason === 'select' && current.id) {
-        const anchor = getAnchorFromElement(current.id);
-        if (anchor) {
-          setEdgeTooltipState({ ...current, anchor });
-        }
-      }
-
+      refreshSelectedEdgeTooltipAnchor();
       schedulePersistLayoutSnapshot();
     };
 
@@ -902,8 +914,8 @@ function TMGraph() {
   }, [
     clearHoverTimer,
     cyStyles,
-    getAnchorFromElement,
     getAnchorFromEvent,
+    refreshSelectedEdgeTooltipAnchor,
     setEdgeTooltipState,
     schedulePersistLayoutSnapshot,
     setSelected,
@@ -1181,17 +1193,13 @@ function TMGraph() {
       cy.resize();
 
       if (visible) {
-        const current = edgeTooltipRef.current;
-        if (current.reason === 'select' && current.id) {
-          const anchor = getAnchorFromElement(current.id);
-          if (anchor) setEdgeTooltipState({ ...current, anchor });
-        }
+        refreshSelectedEdgeTooltipAnchor();
       }
     });
 
     ro.observe(el);
     return () => ro.disconnect();
-  }, [getAnchorFromElement, isContainerVisible, setEdgeTooltipState]);
+  }, [isContainerVisible, refreshSelectedEdgeTooltipAnchor]);
 
   const refreshViewportAfterSwitch = useCallback(() => {
     const cy = cyRef.current;
@@ -1199,14 +1207,10 @@ function TMGraph() {
 
     requestAnimationFrame(() => {
       cy.resize();
-      const current = edgeTooltipRef.current;
-      if (current.reason === 'select' && current.id) {
-        const anchor = getAnchorFromElement(current.id);
-        if (anchor) setEdgeTooltipState({ ...current, anchor });
-      }
+      refreshSelectedEdgeTooltipAnchor();
       schedulePersistLayoutSnapshot();
     });
-  }, [getAnchorFromElement, schedulePersistLayoutSnapshot, setEdgeTooltipState]);
+  }, [refreshSelectedEdgeTooltipAnchor, schedulePersistLayoutSnapshot]);
 
   useEffect(() => {
     const handler: EventListener = (event) => {
@@ -1220,6 +1224,25 @@ function TMGraph() {
       window.removeEventListener(PORTAL_BRIDGE_SWITCH_EVENT, handler);
     };
   }, [refreshViewportAfterSwitch]);
+
+  useEffect(() => {
+    let rafId: number | null = null;
+    const scheduleRefresh = () => {
+      if (rafId != null) return;
+      rafId = window.requestAnimationFrame(() => {
+        rafId = null;
+        refreshSelectedEdgeTooltipAnchor();
+      });
+    };
+
+    window.addEventListener('scroll', scheduleRefresh, true);
+    window.addEventListener('resize', scheduleRefresh);
+    return () => {
+      window.removeEventListener('scroll', scheduleRefresh, true);
+      window.removeEventListener('resize', scheduleRefresh);
+      if (rafId != null) window.cancelAnimationFrame(rafId);
+    };
+  }, [refreshSelectedEdgeTooltipAnchor]);
 
   const recalcLayout = useCallback(() => {
     setViewportReady(false);
