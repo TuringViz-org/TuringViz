@@ -4,6 +4,7 @@ import {
   Accordion,
   AccordionDetails,
   AccordionSummary,
+  Button,
   Box,
   Chip,
   Container,
@@ -16,12 +17,14 @@ import {
   Tabs,
   Typography,
 } from '@mui/material';
+import { alpha } from '@mui/material/styles';
 import {
   AccountTreeOutlined,
   DataObjectOutlined,
   ExpandMore,
   GitHub,
   MenuBookOutlined,
+  NorthEast,
   SchemaOutlined,
 } from '@mui/icons-material';
 
@@ -31,6 +34,7 @@ import { extractGistId } from '@utils/gist';
 import type { AppTab } from '@components/MainPage/appTabs';
 
 type ActionTab = { label: string; render: () => ReactNode };
+const GITHUB_REPO_URL = 'https://github.com/TuringViz-org/TuringViz';
 
 const ACTION_TABS: ActionTab[] = [
   {
@@ -604,6 +608,90 @@ function GistGuide() {
   );
 }
 
+function GithubDiscoverCta() {
+  return (
+    <Paper
+      variant="outlined"
+      sx={{
+        mt: 3,
+        p: { xs: 2, md: 2.5 },
+        borderRadius: 2.5,
+        position: 'relative',
+        overflow: 'hidden',
+        borderColor: (t) => alpha(t.palette.primary.main, 0.35),
+        background: (t) =>
+          `linear-gradient(125deg, ${alpha(t.palette.primary.main, 0.12)} 0%, ${
+            t.palette.background.paper
+          } 55%, ${alpha(t.palette.info.main, 0.1)} 100%)`,
+      }}
+    >
+      <Box
+        sx={{
+          position: 'absolute',
+          inset: 0,
+          pointerEvents: 'none',
+          background: (t) =>
+            `radial-gradient(circle at 12% -10%, ${alpha(
+              t.palette.primary.main,
+              0.18
+            )} 0%, transparent 55%)`,
+        }}
+      />
+      <Stack
+        direction={{ xs: 'column', md: 'row' }}
+        spacing={1.5}
+        justifyContent="space-between"
+        alignItems={{ xs: 'flex-start', md: 'center' }}
+        sx={{ position: 'relative', zIndex: 1 }}
+      >
+        <Box>
+          <Typography variant="subtitle1" sx={{ fontWeight: 800 }}>
+            Explore the project source
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            Star, follow updates, or contribute directly on GitHub.
+          </Typography>
+        </Box>
+        <Button
+          component="a"
+          href={GITHUB_REPO_URL}
+          target="_blank"
+          rel="noreferrer"
+          size="large"
+          variant="contained"
+          startIcon={<GitHub />}
+          endIcon={<NorthEast />}
+          sx={{
+            px: 2.5,
+            borderRadius: 999,
+            textTransform: 'none',
+            fontWeight: 700,
+            boxShadow: (t) => `0 10px 24px ${alpha(t.palette.primary.main, 0.3)}`,
+            position: 'relative',
+            overflow: 'hidden',
+            '&::after': {
+              content: '""',
+              position: 'absolute',
+              top: 0,
+              left: '-40%',
+              width: '32%',
+              height: '100%',
+              transform: 'skewX(-24deg)',
+              background: (t) => alpha(t.palette.common.white, 0.33),
+              transition: 'left 260ms ease',
+            },
+            '&:hover::after': {
+              left: '120%',
+            },
+          }}
+        >
+          Discover on GitHub
+        </Button>
+      </Stack>
+    </Paper>
+  );
+}
+
 export default function SiteFooter({ activeTab }: { activeTab: AppTab }) {
   const [actionTab, setActionTab] = useState(0);
   const showYaml = activeTab === 'input';
@@ -632,6 +720,7 @@ export default function SiteFooter({ activeTab }: { activeTab: AppTab }) {
             <GistGuide />
           </>
         ) : null}
+        <GithubDiscoverCta />
       </Container>
     </Box>
   );
