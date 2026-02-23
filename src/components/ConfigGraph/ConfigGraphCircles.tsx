@@ -849,7 +849,7 @@ export function ConfigGraphCircles() {
       container,
       elements: [],
       style: cyStyles,
-      minZoom: 0.05,
+      minZoom: 0.01,
       maxZoom: 2.5,
     });
 

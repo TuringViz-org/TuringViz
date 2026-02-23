@@ -740,7 +740,7 @@ function TMGraph() {
       container,
       elements: [],
       style: cyStyles,
-      minZoom: 0.25,
+      minZoom: 0.01,
       maxZoom: 2.5,
     });
 
