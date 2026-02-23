@@ -18,12 +18,13 @@ export const DEFAULT_ELK_OPTS: ElkOptions = {
 
 // Computation tree node-budget controls.
 // NOTE: DEFAULT_TREE_DEPTH is kept for backwards compatibility with existing imports.
-export const MIN_COMPUTATION_TREE_TARGET_NODES = 2;
-export const MAX_COMPUTATION_TREE_TARGET_NODES = 8000;
+export const MIN_COMPUTATION_TREE_TARGET_NODES = 30;
+export const MAX_COMPUTATION_TREE_TARGET_NODES = 100000;
 export const DEFAULT_TREE_DEPTH = 8000;
 
 // Minimum/Default target node count for configuration graph computation
 export const MIN_CONFIG_GRAPH_TARGET_NODES = 30;
+export const MAX_CONFIG_GRAPH_TARGET_NODES = 100000;
 
 // Default target node count for configuration graph computation
 export const DEFAULT_CONFIG_GRAPH_TARGET_NODES = 8000;

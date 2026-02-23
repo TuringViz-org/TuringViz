@@ -6,6 +6,7 @@ import {
   getStartConfiguration,
 } from '@tmfunctions/Configurations';
 import { useGlobalZustand } from '@zustands/GlobalZustand';
+import { MAX_COMPUTATION_TREE_TARGET_NODES } from '@utils/constants';
 import { toast } from 'sonner';
 
 export enum End {
@@ -14,7 +15,7 @@ export enum End {
   None, // Children are computed and displayed.
 }
 
-const TOTAL_MAX_NODES = 8000; // Absolute cap on total nodes to prevent performance issues.
+const TOTAL_MAX_NODES = MAX_COMPUTATION_TREE_TARGET_NODES; // Absolute cap on total nodes to prevent performance issues.
 
 function normalizeTargetNodes(targetNodes?: number): number {
   if (typeof targetNodes !== 'number' || !Number.isFinite(targetNodes)) {

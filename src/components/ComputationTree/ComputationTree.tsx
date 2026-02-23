@@ -66,6 +66,7 @@ import { buildComputationTreeGraph } from './util/buildComputationTree';
 import {
   CARDS_CONFIRM_THRESHOLD,
   ConfigNodeMode,
+  DEFAULT_TREE_DEPTH,
   DEFAULT_ELK_OPTS,
   HOVER_POPPER_DELAY_MS,
   MAX_COMPUTATION_TREE_TARGET_NODES,
@@ -2045,7 +2046,7 @@ export function ComputationTree(props: Props) {
 }
 
 export function ComputationTreeWrapper({
-  targetNodes = MAX_COMPUTATION_TREE_TARGET_NODES,
+  targetNodes = DEFAULT_TREE_DEPTH,
   compressing = false,
 }: {
   targetNodes?: number;
