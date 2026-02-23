@@ -298,7 +298,7 @@ export const NonDetSAT: ExampleTM = {
   name: 'NonDetSAT',
   code: `# SAT solver: accept if CNF formula is satisfiable, reject otherwise
 # Explanation: n = not; o = or; a = and; Formula must be in CNF; Every clause needs braces
-input: '(n101o10on100)a(n10o100o101)'
+input: '(n101o10on100)a(n10o100o101)a(n11on10o111)a(n100o110on111)'
 blank: ' '
 tapes: 3
 startstate: variables
@@ -335,7 +335,7 @@ table:
         #only first tape still needs to move
         '[0/#/all, 1/#/all]': "L/S/S"
         #only second tape still needs to move
-        '[a/0/all, o/0/all, (/0/all, )/0/all, a/1/all, o/1/all, (/1/all, )/1/all]': "S/R/S"
+        '[a/0/all, o/0/all, (/0/all, )/0/all, n/0/all, a/1/all, o/1/all, (/1/all, )/1/all, n/1/all]': "S/R/S"
 
     # write down variable that hasn't been "registered" yet
     writedownvariable:
