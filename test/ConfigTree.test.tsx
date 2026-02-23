@@ -383,6 +383,52 @@ table:
     });
   });
 
+  it('Compressed node budget counts rendered compressed nodes, not hidden chain steps', () => {
+    const DESCRIPTION_VALUE = `
+input: '1'
+blank: ' '
+tapes: 1
+startstate: q0
+table:
+  q0:
+    '1': [ {'S': qA1}, {'S': qB1} ]
+  qA1:
+    '1': {'S': qA2}
+  qA2:
+    '1': {'S': qA3}
+  qA3:
+    '1': {'S': qA4}
+  qA4:
+    '1': {'S': qA5}
+  qA5:
+    '1': [ {'S': qAL}, {'S': qAR} ]
+  qAL: {}
+  qAR: {}
+  qB1:
+    '1': {'S': qB2}
+  qB2:
+    '1': {'S': qB3}
+  qB3:
+    '1': {'S': qB4}
+  qB4:
+    '1': {'S': qB5}
+  qB5:
+    '1': [ {'S': qBL}, {'S': qBR} ]
+  qBL: {}
+  qBR: {}
+`;
+
+    const errors = parseYaml(DESCRIPTION_VALUE);
+    expect(errors).toEqual([]);
+
+    const targetNodes = 7;
+    const tree = getComputationTree(6, /* compressing */ true, targetNodes);
+
+    expect(tree.nodes.length).toBe(targetNodes);
+    const states = new Set(tree.nodes.map(n => n.config.state));
+    expect(states.has('qA5') || states.has('qB5')).toBe(true);
+  });
+
   it('Single-step tail is NOT compressed (chain length = 1)', () => {
     // q0 has exactly one child; that child is a leaf (no further transitions).
     // Compression should not trigger (length=1), so we still get a normal edge with compressed=false.

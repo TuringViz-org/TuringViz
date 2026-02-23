@@ -21,7 +21,15 @@ export function buildTMGraph(
   transitions: Map<string, Transition[]>
 ): { nodes: Node[]; edges: Edge[]; topoKey: string } {
   // --- Nodes ---
-  const stateIds = Array.from(states);
+  const stateSet = new Set<string>(states);
+  transitions.forEach((list, fromState) => {
+    stateSet.add(fromState);
+    list.forEach((t) => {
+      stateSet.add(t.from);
+      stateSet.add(t.to ?? t.from);
+    });
+  });
+  const stateIds = Array.from(stateSet);
   const nodes: Node[] = stateIds.map((s) => ({
     id: s,
     type: NodeType.STATE,

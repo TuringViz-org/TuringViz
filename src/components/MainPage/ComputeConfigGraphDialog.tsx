@@ -7,7 +7,10 @@ import {
   Slider,
   Typography,
 } from '@mui/material';
-import { MIN_CONFIG_GRAPH_TARGET_NODES } from '@utils/constants';
+import {
+  MIN_CONFIG_GRAPH_TARGET_NODES,
+  MAX_CONFIG_GRAPH_TARGET_NODES,
+} from '@utils/constants';
 
 type ComputeConfigGraphDialogProps = {
   open: boolean;
@@ -42,7 +45,7 @@ export function ComputeConfigGraphDialog({
         <Slider
           value={targetNodes}
           min={MIN_CONFIG_GRAPH_TARGET_NODES}
-          max={30000}
+          max={MAX_CONFIG_GRAPH_TARGET_NODES}
           step={10}
           onChange={(_, value) => onTargetNodesChange(value as number)}
           valueLabelDisplay="on"

@@ -150,20 +150,18 @@ export function computeComputationTreeInWorker(
 
   return new Promise<ComputationTree>((resolve, reject) => {
     const timer = setTimeout(() => {
-      // Timed out: compute a smaller tree synchronously
+      // Timed out: compute synchronously with the requested budget so visible node targets stay stable.
       treePending.delete(id);
       terminateTreeWorker(false);
-      const initialTarget = payload.targetNodes ?? payload.depth;
-      const reducedTarget = Math.max(2, Math.floor(initialTarget * 0.6));
       const tree = getComputationTreeFromInputs(
         payload.startConfig,
         payload.transitions,
         payload.numberOfTapes,
         payload.blank,
-        reducedTarget,
+        payload.depth,
         !!payload.compressing,
         undefined,
-        reducedTarget
+        payload.targetNodes
       );
       resolve(tree);
     }, TREE_WORKER_TIMEOUT_MS);

@@ -24,7 +24,9 @@ import { useEditorZustand } from '@zustands/EditorZustand';
 import {
   DEFAULT_TREE_DEPTH,
   MIN_COMPUTATION_TREE_TARGET_NODES,
+  MAX_COMPUTATION_TREE_TARGET_NODES,
   MIN_CONFIG_GRAPH_TARGET_NODES,
+  MAX_CONFIG_GRAPH_TARGET_NODES,
 } from '@utils/constants';
 import { recomputeConfigGraphWithTargetNodes } from '@tmfunctions/ConfigGraph';
 import { useFullscreenState } from '@components/MainPage/hooks/useFullscreenState';
@@ -44,11 +46,17 @@ const graphLoader = (
 );
 
 function sanitizeTargetNodes(value: number): number {
-  return Math.max(MIN_CONFIG_GRAPH_TARGET_NODES, Math.floor(value));
+  return Math.min(
+    MAX_CONFIG_GRAPH_TARGET_NODES,
+    Math.max(MIN_CONFIG_GRAPH_TARGET_NODES, Math.floor(value))
+  );
 }
 
 function sanitizeTreeTargetNodes(value: number): number {
-  return Math.max(MIN_COMPUTATION_TREE_TARGET_NODES, Math.floor(value));
+  return Math.min(
+    MAX_COMPUTATION_TREE_TARGET_NODES,
+    Math.max(MIN_COMPUTATION_TREE_TARGET_NODES, Math.floor(value))
+  );
 }
 
 function useDeferredPanelMount(activeTab: AppTab) {
@@ -161,8 +169,11 @@ export default function App() {
     }
   }, [pendingConfigTargetNodes, setConfigGraphTargetNodes]);
 
-  // Keep TM graph mounted to preserve viewport and selection state across tabs.
-  const tmGraphEnabled = true;
+  const tmGraphEnabled =
+    activeTab === 'input' ||
+    activeTab === 'run' ||
+    tmFullscreen.open ||
+    tmFullscreen.render;
 
   const configGraphEnabled =
     configTabActive ||
@@ -215,7 +226,7 @@ export default function App() {
       },
       {
         id: 'computationTree',
-        title: 'Configuration Tree — Fullscreen',
+        title: 'Computation Tree — Fullscreen',
         open: treeFullscreen.open,
         onClose: treeFullscreen.closeFullscreen,
         render: treeFullscreen.render,

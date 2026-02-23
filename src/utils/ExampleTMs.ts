@@ -294,6 +294,173 @@ export const NonDetSubSetSum: ExampleTM = {
     '    reject: {}',
 };
 
+export const NonDetSAT: ExampleTM = {
+  name: 'NonDetSAT',
+  code: `# SAT solver: accept if CNF formula is satisfiable, reject otherwise
+# Explanation: n = not; o = or; a = and; Formula must be in CNF; Every clause needs braces
+input: '(n101o10on100)a(n10o100o101)a(n11on10o111)a(n100o110on111)'
+blank: ' '
+tapes: 3
+startstate: variables
+table:
+    # identification of variables and writing them on tape 2
+    variables:
+        '[(/all/all, n/all/all, o/all/all, )/all/all, a/all/all]': "R/S/S"
+        '[1/all/all, 0/all/all]': {"S/S/S": findvar}
+        #finished
+        '[ /0/all,  /1/all]': {"L/L/S": goleftfirsttape}
+    # Find the variable in the variables
+    findvar:
+        # Compare variables
+
+        # Case: Same char
+        '[1/1/all, 0/0/all]': "R/R/S" # Just continue comparing
+
+        # Case: Different char
+        # Case1: no match
+        '[1/0/all, 1/#/all, 0/1/all, 0/#/all, a/0/all, o/0/all, (/0/all, )/0/all, a/1/all, o/1/all, (/1/all, )/1/all]': {"L/S/S": goleftonevarfirst_gorightonevarsecond}
+
+        # Case2: match
+        '[o/#/all, a/#/all, (/#/all, )/#/all, n/#/all]': {"S/S/S": gorightonefirst_goleftsecond}
+
+        # Case: Variable Tape empty here
+        '[1/ /all, 0/ /all]': {"S/S/S": writedownvariable}
+
+    # go left one var on first tape and right one var on second tape
+    goleftonevarfirst_gorightonevarsecond:
+        #finished
+        '[(/#/all, )/#/all, a/#/all, o/#/all, n/#/all]': {"S/R/S": variables}
+        #first tape and second tape still need to move
+        '[0/1/all, 0/0/all, 1/0/all, 1/1/all]': "L/R/S"
+        #only first tape still needs to move
+        '[0/#/all, 1/#/all]': "L/S/S"
+        #only second tape still needs to move
+        '[a/0/all, o/0/all, (/0/all, )/0/all, n/0/all, a/1/all, o/1/all, (/1/all, )/1/all, n/1/all]': "S/R/S"
+
+    # write down variable that hasn't been "registered" yet
+    writedownvariable:
+        '1/all/all': {write: 'same/1/same', "R/R/S"}
+        '0/all/all': {write: "same/0/same", "R/R/S"}
+        '[(/all/all, n/all/all, o/all/all, )/all/all]': {write: "same/#/same", "S/L/S": gorightonefirst_goleftsecond}
+    gorightonefirst_goleftsecond:
+        #finished
+        '[(/ /all, )/ /all, a/ /all, o/ /all, n/ /all]': {"S/R/S": variables}
+        #first tape finished, second not
+        '[(/1/all, )/1/all, a/1/all, o/1/all, n/1/all, (/0/all, )/0/all, a/0/all, o/0/all, n/0/all, (/#/all, )/#/all, a/#/all, o/#/all, n/#/all]': "S/L/S"
+        #both tapes not finished
+        '[0/1/all, 1/1/all, 0/0/all, 1/0/all, 0/#/all, 1/#/all]': "R/L/S"
+
+    goleftfirsttape:
+        '[1/all/all, 0/all/all, o/all/all, a/all/all, n/all/all, (/all/all, )/all/all]': "L/S/S"
+        ' / /all': {"R/R/S": guessassignment}
+
+    guessassignment:
+        #write string of 1s and 0s on the third tape. For each variable one char
+        '[all/0/all, all/1/all]': [{write: "same/same/1", "S/R/R": nextvar},{write: "same/same/0", "S/R/R": nextvar}]
+        #finished
+        'all/ / ': {"S/L/L": goeval}
+
+    nextvar:
+        #skip the var on second tape
+        '[all/0/all, all/1/all]': "S/R/S"
+        #finished
+        '[all/#/all]': {"S/R/S": guessassignment}
+
+    goeval:
+        #goleft on second and third tape until there is no more to go
+        #both tapes
+        '[all/0/0, all/0/1, all/1/0, all/1/1, all/#/0, all/#/1]': "S/L/L"
+        #just second tape
+        '[all/0/ , all/1/ , all/#/ ]': "S/L/S"
+        #just third tape
+        '[all/ /0, all/ /1]': "S/S/L"
+        #finished
+        '[all/ / ]': {"S/R/R": eval}
+
+    # go through clause from left to right and check for true in this clause
+    #assert: 2nd and 3rd tape are on their first char
+    eval:
+        ')/all/all': {"S/S/S": reject}
+        '[(/all/all, a/all/all, o/all/all]': "R/S/S"
+        ' /all/all': {"S/S/S": accept}
+        '[0/all/all, 1/all/all]': {"S/S/S": evalpositive}
+        'n/all/all': {"R/S/S": evalnegative}
+
+    # check if assignment of variable is 1
+    #assert: 2nd and 3rd tape are on their first char
+    evalpositive:
+        '[0/0/all, 1/1/all]': "R/R/S"
+        # no hit
+        '[1/0/all, 0/1/all, o/1/all, )/1/all, )/0/all]': {"L/R/S": evalpositive_nextvarsearch}
+        '[1/#/all, 0/#/all]': {"S/S/S": evalpositive_nextvarsearch}
+        # "good" hit
+        '[o/#/1, )/#/1]': {"S/S/S": nextclause}
+        # "bad" hit
+        '[o/#/0, )/#/0]': {"S/S/S": reset_second_third_tape}
+
+    evalpositive_nextvarsearch:
+        # both need to move
+        '[1/0/all, 0/1/all, 1/1/all, 0/0/all]': "L/R/S"
+        # only first tape
+        '[1/#/all, 0/#/all]': "L/S/S"
+        # only second tape
+        '[n/0/all, o/0/all, (/0/all, n/1/all, o/1/all, (/1/all]': "S/R/S"
+        # finished
+        '[o/#/all, n/#/all, (/#/all]': {"R/R/R": evalpositive}
+
+    # reset second and third tape and on the first move to next clause; Then go eval
+    nextclause:
+        'all/all/all': {"S/S/S": movefirsttonextclause}
+    movefirsttonextclause:
+        '[0/all/all, 1/all/all, o/all/all, n/all/all]': "R/S/S"
+        ')/all/all': {"R/S/S": movesecondtonextclause}
+    movesecondtonextclause:
+        '[all/0/all, all/1/all, all/#/all]': "S/L/S"
+        'all/ /all': {"S/R/S": movethirdtonextclause}
+    movethirdtonextclause:
+        '[all/all/0, all/all/1]': "S/S/L"
+        'all/all/ ': {"S/S/R": eval}
+
+    # go completely left on second and third tape; Then go eval
+    reset_second_third_tape:
+        # both need to move
+        '[all/0/1, all/1/1, all/#/1, all/0/0, all/1/0, all/#/0]': "S/L/L"
+        # only second needs to move
+        '[all/0/ , all/1/ , all/#/ ]': "S/L/S"
+        # only third needs to move
+        '[all/ /1, all/ /0]': "S/S/L"
+        #finished
+        'all/ / ': {"S/R/R": eval}
+
+
+    #This mostly is copy of evalpositive
+    # check if assignment of variable is 0
+    #assert: 2nd and 3rd tape are on their first char
+    evalnegative:
+        '[0/0/all, 1/1/all]': "R/R/S"
+        # no hit
+        '[1/0/all, 0/1/all, o/1/all, )/1/all, )/0/all]': {"L/R/S": evalnegative_nextvarsearch}
+        '[1/#/all, 0/#/all]': {"S/S/S": evalnegative_nextvarsearch}
+        # "good" hit
+        '[o/#/0, )/#/0]': {"S/S/S": nextclause}
+        # "bad" hit
+        '[o/#/1, )/#/1]': {"S/S/S": reset_second_third_tape}
+
+    evalnegative_nextvarsearch:
+        # both need to move
+        '[1/0/all, 0/1/all, 1/1/all, 0/0/all]': "L/R/S"
+        # only first tape
+        '[1/#/all, 0/#/all]': "L/S/S"
+        # only second tape
+        '[n/0/all, o/0/all, (/0/all, n/1/all, o/1/all, (/1/all]': "S/R/S"
+        # finished
+        '[o/#/all, n/#/all, (/#/all]': {"R/R/R": evalnegative}
+
+    accept: {}
+
+    reject: {}`,
+};
+
 
 ExampleTMs.push(BinaryAdd);
 ExampleTMs.push(NonDetSubstring);
@@ -305,3 +472,4 @@ ExampleTMs.push(AllStrings);
 ExampleTMs.push(SelfLoops);
 ExampleTMs.push(DAG);
 ExampleTMs.push(Circle);
+ExampleTMs.push(NonDetSAT);

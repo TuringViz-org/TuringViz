@@ -250,7 +250,7 @@ export function DashboardLayout({
           }}
         >
           <PanelCard
-            title="Configuration Tree"
+            title="Computation Tree"
             minHeight={graphPanelMinHeight}
             actions={
               <>
