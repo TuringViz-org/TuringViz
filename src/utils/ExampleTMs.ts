@@ -1,297 +1,289 @@
 type ExampleTM = {
-  name: string,
-  code: string,
-}
+  name: string;
+  code: string;
+};
 
-export const ExampleTMs : ExampleTM[] = [];
+export const ExampleTMs: ExampleTM[] = [];
 
 export const CheckEven: ExampleTM = {
   name: 'CheckEven',
-  code:
-    "# Checks if the number of 1's in the input \n" +
-    "# (consisting of 0's and 1's) is even\n" +
-    "input: '101100001100000111000000000011111'\n" +
-    "blank: ' '\n" +
-    'tapes: 1 \n' +
-    'startstate: even\n' +
-    'table:\n' +
-    '    even: \n' +
-    "        '1': {'R': odd}\n" +
-    "        '0': 'R'\n" +
-    "        ' ': {'S': accept}\n" +
-    '    odd:\n' +
-    "        '1': {'R': even}\n" +
-    "        '0': 'R'\n" +
-    "        ' ': {'S': reject}\n" +
-    '    accept: {}\n' +
-    '    reject: {}',
+  code: `# Checks if the number of 1's in the input
+# (consisting of 0's and 1's) is even
+input: '101100001100000111000000000011111'
+blank: ' '
+tapes: 1
+startstate: even
+table:
+  even:
+    '1': {'R': odd}
+    '0': 'R'
+    ' ': {'S': accept}
+  odd:
+    '1': {'R': even}
+    '0': 'R'
+    ' ': {'S': reject}
+  accept: {}
+  reject: {}`,
 };
 
 export const GCD: ExampleTM = {
   name: 'GCD',
-  code:
-    '# Computes the GCD of two numbers in unary\n' +
-    'tapes: 4\n' +
-    'input: "000000#0000///"   # Example input: 6 and 2 in unary ("000000" and "000")\n' +
-    'blank: " "\n' +
-    'startstate: copy_first\n' +
-    'table:\n' +
-    '  copy_first:\n' +
-    "    '0/ / / ': {write: \"same/0/same/same\", 'R/R/S/S'}\n" +
-    '    \'#/ / / \': {"R/S/S/S": copy_second}\n' +
-    '  copy_second: \n' +
-    '    \'0/ / / \': {write: "same/same/0/same", "R/S/R/S"}\n' +
-    '    \' / / / \': {"L/L/L/S": move_to_begin}\n' +
-    '  move_to_begin: \n' +
-    '    \'[0/0/0/ , #/0/0/ ]\': "L/L/L/S"\n' +
-    '    \'[0/0/ / , #/0/ / ]\': "L/L/S/S"\n' +
-    '    \'[0/ / / , #/ / / ]\': "L/S/S/S"\n' +
-    '    \'[0/ /0/ , #/ /0/ ]\': "L/S/L/S"\n' +
-    '    \' /0/ / \': "S/L/S/S"\n' +
-    '    \' / /0/ \': "S/S/L/S"\n' +
-    '    \' / / / \': {"R/R/R/S": euclid}\n' +
-    '  euclid:\n' +
-    '    \'all/0/0/ \': "S/R/R/S"\n' +
-    '    \'all/ /0/ \': {"S/L/R/S": firstsmaller_goright}\n' +
-    '    \'all/0/ / \': {"S/R/L/S": secondsmaller_goright}\n' +
-    '    \'all/ / / \': {"S/L/L/S": copy_result}\n' +
-    '  firstsmaller_goright: \n' +
-    '    \'all/0/0/ \': "S/S/R/S"\n' +
-    '    \'all/0/ / \': {"S/S/L/S": firstsmaller_substract}\n' +
-    '  secondsmaller_goright: \n' +
-    '    \'all/0/0/ \': "S/R/S/S"\n' +
-    '    \'all/ /0/ \': {"S/L/S/S": secondsmaller_substract}\n' +
-    '  firstsmaller_substract:\n' +
-    '    \'all/0/0/ \': {"S/L/L/S", write: "same/0/ / "}\n' +
-    '    \'all/ /0/ \': {"S/S/S/S": move_to_begin}\n' +
-    '  secondsmaller_substract:\n' +
-    '    \'all/0/0/ \': {"S/L/L/S", write: "same/ /0/ "}\n' +
-    '    \'all/0/ / \': {"S/S/S/S": move_to_begin}\n' +
-    '  copy_result: \n' +
-    '    \'all/0/0/ \': {"S/L/L/R", write: "same/same/same/0"}\n' +
-    '    \'all/ / / \': {"S/R/R/L": finish_up}\n' +
-    '  finish_up: \n' +
-    '    \'all/all/all/0\': "S/S/S/L"\n' +
-    '    \'all/all/all/ \': {"S/S/S/R": accept}\n' +
-    '  accept: {}\n',
+  code: `# Computes the GCD of two numbers in unary
+tapes: 4
+input: "000000#0000///" # Example input: 6 and 2 in unary ("000000" and "000")
+blank: " "
+startstate: copy_first
+table:
+  copy_first:
+    '0/ / / ': {write: "same/0/same/same", 'R/R/S/S'}
+    '#/ / / ': {"R/S/S/S": copy_second}
+  copy_second:
+    '0/ / / ': {write: "same/same/0/same", "R/S/R/S"}
+    ' / / / ': {"L/L/L/S": move_to_begin}
+  move_to_begin:
+    '[0/0/0/ , #/0/0/ ]': "L/L/L/S"
+    '[0/0/ / , #/0/ / ]': "L/L/S/S"
+    '[0/ / / , #/ / / ]': "L/S/S/S"
+    '[0/ /0/ , #/ /0/ ]': "L/S/L/S"
+    ' /0/ / ': "S/L/S/S"
+    ' / /0/ ': "S/S/L/S"
+    ' / / / ': {"R/R/R/S": euclid}
+  euclid:
+    'all/0/0/ ': "S/R/R/S"
+    'all/ /0/ ': {"S/L/R/S": firstsmaller_goright}
+    'all/0/ / ': {"S/R/L/S": secondsmaller_goright}
+    'all/ / / ': {"S/L/L/S": copy_result}
+  firstsmaller_goright:
+    'all/0/0/ ': "S/S/R/S"
+    'all/0/ / ': {"S/S/L/S": firstsmaller_substract}
+  secondsmaller_goright:
+    'all/0/0/ ': "S/R/S/S"
+    'all/ /0/ ': {"S/L/S/S": secondsmaller_substract}
+  firstsmaller_substract:
+    'all/0/0/ ': {"S/L/L/S", write: "same/0/ / "}
+    'all/ /0/ ': {"S/S/S/S": move_to_begin}
+  secondsmaller_substract:
+    'all/0/0/ ': {"S/L/L/S", write: "same/ /0/ "}
+    'all/0/ / ': {"S/S/S/S": move_to_begin}
+  copy_result:
+    'all/0/0/ ': {"S/L/L/R", write: "same/same/same/0"}
+    'all/ / / ': {"S/R/R/L": finish_up}
+  finish_up:
+    'all/all/all/0': "S/S/S/L"
+    'all/all/all/ ': {"S/S/S/R": accept}
+  accept: {}
+`,
 };
 
 export const AllStrings: ExampleTM = {
   name: 'AllStrings',
-  code:
-    "#Generating all possible strings of given length, consisting of 0's and 1's\n" +
-    'tapes: 1\n' +
-    'input: "000"  #length 3 \n' +
-    'blank: " "\n' +
-    'startstate: generate\n' +
-    'table:\n' +
-    '    generate: \n' +
-    '        "0": [{write: "0", "R"}, {write: "1", "R"}]\n' +
-    '        " ": {"S": done}\n' +
-    '    done: {}',
+  code: `# Generating all possible strings of given length, consisting of 0's and 1's
+tapes: 1
+input: "000" # length 3
+blank: " "
+startstate: generate
+table:
+  generate:
+    "0": [{write: "0", "R"}, {write: "1", "R"}]
+    " ": {"S": done}
+  done: {}`,
 };
 
 export const SelfLoops: ExampleTM = {
   name: 'Self Loops',
-  code:
-    '# Generating Graph with Self Loops\n' +
-    "input: '000000' #length 6\n" +
-    "blank: ' '\n" +
-    'tapes: 1 \n' +
-    'startstate: go\n' +
-    'table:\n' +
-    '    go: \n' +
-    '        \'0\': ["R", "S"]\n' +
-    '        \' \': {"S": done}\n' +
-    '    done: {}',
+  code: `# Generating graph with self loops
+input: '000000' # length 6
+blank: ' '
+tapes: 1
+startstate: go
+table:
+  go:
+    '0': ["R", "S"]
+    ' ': {"S": done}
+  done: {}`,
 };
 
 export const DAG: ExampleTM = {
   name: 'DAG',
-  code:
-    '# Computing a config graph that is a DAG\n' +
-    "input: '000000' #length 6\n" +
-    "blank: ' '\n" +
-    'tapes: 1 \n' +
-    'startstate: go\n' +
-    'table:\n' +
-    '    go: \n' +
-    '        \'0\': ["R", {"S": goright}]\n' +
-    '        \' \': {"S": done}\n' +
-    '    goright: \n' +
-    '        \'0\': {"R": go}\n' +
-    '    done: {}',
+  code: `# Computing a config graph that is a DAG
+input: '000000' # length 6
+blank: ' '
+tapes: 1
+startstate: go
+table:
+  go:
+    '0': ["R", {"S": goright}]
+    ' ': {"S": done}
+  goright:
+    '0': {"R": go}
+  done: {}`,
 };
 
 export const Circle: ExampleTM = {
   name: 'Circle',
-  code:
-    '# Creates a Configgraph that is a circle\n' +
-    "input: '0'\n" +
-    "blank: ' '\n" +
-    'tapes: 1 \n' +
-    'startstate: goright\n' +
-    'table:\n' +
-    '    goright: \n' +
-    '        "0": "R"\n' +
-    '        " ": {"L": goleft}\n' +
-    '    goleft:\n' +
-    '        "0": "L"\n' +
-    '        " ": {"R": goright}',
+  code: `# Creates a config graph that is a circle
+input: '0'
+blank: ' '
+tapes: 1
+startstate: goright
+table:
+  goright:
+    "0": "R"
+    " ": {"L": goleft}
+  goleft:
+    "0": "L"
+    " ": {"R": goright}`,
 };
 
 export const BinaryAdd: ExampleTM = {
   name: 'BinaryAdd',
-  code:
-    '# Binary Addition on 2 tapes with output on 3rd\n' +
-    "input: '111010/1111'\n" +
-    "blank: ' '\n" +
-    'tapes: 3 \n' +
-    'startstate: goright\n' +
-    'table:\n' +
-    '    goright:\n' +
-    '        \'[1/1/all, 1/0/all, 0/1/all, 0/0/all]\': "R/R/S"\n' +
-    '        \'[1/ /all, 0/ /all]\': "R/S/S"\n' +
-    '        \'[ /1/all,  /0/all]\': "S/R/S"\n' +
-    '        \' / /all\': {"L/L/S": add}\n' +
-    '    add:\n' +
-    "        '1/1/all': {write: 'same/same/0', \"L/L/L\": carry} \n" +
-    "        '[1/0/all, 0/1/all, 1/ /all,  /1/all]': {write: 'same/same/1', \"L/L/L\": add} \n" +
-    "        '[0/0/all, 0/ /all,  /0/all]': {write: 'same/same/0', \"L/L/L\": add}\n" +
-    '    carry:\n' +
-    "        '1/1/all': {write: 'same/same/1', \"L/L/L\": carry} \n" +
-    "        '[1/0/all, 0/1/all, 1/ /all,  /1/all]': {write: 'same/same/0', \"L/L/L\": carry} \n" +
-    "        '[0/0/all, 0/ /all,  /0/all]': {write: 'same/same/1', \"L/L/L\": add}\n" +
-    "        ' / /all': {write: 'same/same/1', \"S/S/S\": done}\n" +
-    '    done: {}',
+  code: `# Binary addition on 2 tapes with output on tape 3
+input: '111010/1111'
+blank: ' '
+tapes: 3
+startstate: goright
+table:
+  goright:
+    '[1/1/all, 1/0/all, 0/1/all, 0/0/all]': "R/R/S"
+    '[1/ /all, 0/ /all]': "R/S/S"
+    '[ /1/all,  /0/all]': "S/R/S"
+    ' / /all': {"L/L/S": add}
+  add:
+    '1/1/all': {write: 'same/same/0', "L/L/L": carry}
+    '[1/0/all, 0/1/all, 1/ /all,  /1/all]': {write: 'same/same/1', "L/L/L": add}
+    '[0/0/all, 0/ /all,  /0/all]': {write: 'same/same/0', "L/L/L": add}
+  carry:
+    '1/1/all': {write: 'same/same/1', "L/L/L": carry}
+    '[1/0/all, 0/1/all, 1/ /all,  /1/all]': {write: 'same/same/0', "L/L/L": carry}
+    '[0/0/all, 0/ /all,  /0/all]': {write: 'same/same/1', "L/L/L": add}
+    ' / /all': {write: 'same/same/1', "S/S/S": done}
+  done: {}`,
 };
 
 export const NonDetSubstring: ExampleTM = {
   name: 'NonDetSubstring',
-  code:
-    '# Contains SubString Non-Deterministic\n' +
-    '#Input: First tape the input string, second tape the string we try to find in the first.\n' +
-    "input: '111010/101'\n" +
-    "blank: ' '\n" +
-    'tapes: 2\n' +
-    'startstate: goright\n' +
-    'table:\n' +
-    '    #Go right of start comparing\n' +
-    '    goright:\n' +
-    '        #Guess that this is the beginning of the substring\n' +
-    "        '[1/0, 0/1, 1/1, 0/0]': \n" +
-    '            - {"R/S": goright}\n' +
-    '            - {"S/S": compare}\n' +
-    '        \'[ /1, 1/ , 0/ ,  /0,  / ]\': {"S/S": reject}\n' +
-    '    compare: \n' +
-    '        \'[1/1, 0/0]\': "R/R"\n' +
-    '        \'[ / , 1/ , 0/ ]\': {"S/S": accept}\n' +
-    '        \'[1/0, 0/1,  /1, /0]\': {"S/S": reject} \n' +
-    '    accept: {}\n' +
-    '    reject: {}',
+  code: `# Contains substring (nondeterministic)
+# Input: First tape is the input string, second tape is the string searched in the first.
+input: '111010/101'
+blank: ' '
+tapes: 2
+startstate: goright
+table:
+  # Go right and compare
+  goright:
+    # Guess that this is the beginning of the substring
+    '[1/0, 0/1, 1/1, 0/0]':
+      - {"R/S": goright}
+      - {"S/S": compare}
+    '[ /1, 1/ , 0/ ,  /0,  / ]': {"S/S": reject}
+  compare:
+    '[1/1, 0/0]': "R/R"
+    '[ / , 1/ , 0/ ]': {"S/S": accept}
+    '[1/0, 0/1,  /1, /0]': {"S/S": reject}
+  accept: {}
+  reject: {}`,
 };
 
 export const vvWord: ExampleTM = {
   name: 'vvWord',
-  code:
-    '# Check if string is two times one same string\n' +
-    '#Input: A string w. Programm checks (non-det) if if w=vv for some string v\n' +
-    "input: '010010'\n" +
-    "blank: ' '\n" +
-    'tapes: 2\n' +
-    'startstate: gobyone\n' +
-    'table:\n' +
-    '    gobyone: \n' +
-    '        \'all/all\': {"R/S": goright}\n' +
-    '    goright:\n' +
-    '        #go right or choose this location as the middle\n' +
-    "        '[0/all, 1/all]': \n" +
-    '            - "R/S"\n' +
-    '            - {"S/S": copydown}\n' +
-    '        \' /all\': {"S/S": reject}\n' +
-    '    #copy the remaining string\n' +
-    '    copydown:\n' +
-    '        \'0/all\': {write: " /0", "R/R"} \n' +
-    '        \'1/all\': {write: " /1", "R/R"}\n' +
-    '        \' /all\': {"S/L": gotoendfirst}\n' +
-    '    gotoendfirst: \n' +
-    '        \' /all\': "L/S"\n' +
-    '        \'[1/all, 0/all]\': {"S/S": gotobegin}\n' +
-    '    gotobegin: \n' +
-    '        \'[1/1, 0/0, 1/0, 0/1]\': "L/L"\n' +
-    '        \'[1/ , 0/ ]\': "L/S"\n' +
-    '        \'[ /1,  /0]\': "S/L"\n' +
-    '        \' / \': {"R/R": compare}\n' +
-    '    #Compare if the split creates to strings that are the same\n' +
-    '    compare: \n' +
-    '        \'[1/1, 0/0]\': "R/R"\n' +
-    '        \' / \': {"S/S": accept}\n' +
-    '        \'[1/0, 0/1,  /1,  /0, 1/ , 0/ ]\': {"S/S": reject}\n' +
-    '    accept: {}\n' +
-    '    reject: {}',
+  code: `# Check if string is two times the same string
+# Input: A string w. Program checks (non-det) if w = vv for some string v
+input: '010010'
+blank: ' '
+tapes: 2
+startstate: gobyone
+table:
+  gobyone:
+    'all/all': {"R/S": goright}
+  goright:
+    # Go right or choose this location as the middle
+    '[0/all, 1/all]':
+      - "R/S"
+      - {"S/S": copydown}
+    ' /all': {"S/S": reject}
+  # Copy the remaining string
+  copydown:
+    '0/all': {write: " /0", "R/R"}
+    '1/all': {write: " /1", "R/R"}
+    ' /all': {"S/L": gotoendfirst}
+  gotoendfirst:
+    ' /all': "L/S"
+    '[1/all, 0/all]': {"S/S": gotobegin}
+  gotobegin:
+    '[1/1, 0/0, 1/0, 0/1]': "L/L"
+    '[1/ , 0/ ]': "L/S"
+    '[ /1,  /0]': "S/L"
+    ' / ': {"R/R": compare}
+  # Compare if the split creates two strings that are the same
+  compare:
+    '[1/1, 0/0]': "R/R"
+    ' / ': {"S/S": accept}
+    '[1/0, 0/1,  /1,  /0, 1/ , 0/ ]': {"S/S": reject}
+  accept: {}
+  reject: {}`,
 };
 
 export const NonDetSubSetSum: ExampleTM = {
   name: 'NonDetSubSetSum',
-  code:
-    '# This Turing-Machine solves SubSetSum non-deterministically in linear time. \n' +
-    '#Input: #n1#n2#n3#n4#....# on the first tape and the desired sum n on the second tape. Every number in binary\n' +
-    "input: '#100#11#10#101#/1000'\n" +
-    "blank: ' '\n" +
-    'tapes: 3\n' +
-    'startstate: choose\n' +
-    'table:\n' +
-    '    #Decide wether to take that number into the sum or not\n' +
-    '    choose:\n' +
-    '        \'#/all/all\': "R/S/S"\n' +
-    "        '[1/all/all, 0/all/all]': \n" +
-    '            - {"S/S/S": skip}\n' +
-    '            - {"S/S/S": take}\n' +
-    '        \' /all/all\': {"S/S/S": goforcompare}\n' +
-    '    #Skip the number\n' +
-    '    skip: \n' +
-    '        \'[0/all/all, 1/all/all]\': "R/S/S"\n' +
-    '        \'#/all/all\': {"R/S/S": choose}\n' +
-    '    #Take the number to the sum\n' +
-    '    #For this: first go right until the end of that number\n' +
-    '    take: \n' +
-    '        \'[1/all/all, 0/all/all]\': "R/S/S"\n' +
-    '        \'#/all/all\': {"L/S/S": add}\n' +
-    '        \' /all/all\': {"S/S/S": goforcompare}\n' +
-    '    #Add the number to the sum\n' +
-    '    add:\n' +
-    '        \'[0/all/0, 0/all/1]\': "L/S/L"\n' +
-    '        \'[1/all/0, 1/all/ ]\': {write: "same/same/1", "L/S/L"}\n' +
-    '        \'0/all/ \': {write: "same/same/0", "L/S/L"}\n' +
-    '        \'1/all/1\': {write: "same/same/0", "L/S/L": carry}\n' +
-    '        \'#/all/all\': {"R/S/R": continue}  \n' +
-    '    carry: \n' +
-    '        \'0/all/0\': {write: "same/same/1", "L/S/L": add}\n' +
-    '        \'[1/all/0, 0/all/1, 1/all/ ]\': {write: "same/same/0", "L/S/L": carry}\n' +
-    '        \'[#/all/0, 0/all/ , #/all/ ]\': {write: "same/same/1", "R/S/R": continue}\n' +
-    '        \'#/all/1\': {write: "same/same/0", "S/S/L": carry}\n' +
-    '        \'1/all/0\': "L/S/L"\n' +
-    '        \'1/all/1\': {write: "same/same/1", "L/S/L": carry}\n' +
-    '    #Go completely right on the sum on tape 3 and the number we are currently looking at on tape 1\n' +
-    '    continue: \n' +
-    '        \'[1/all/1, 0/all/0, 1/all/0, 0/all/1]\': "R/S/R"\n' +
-    '        \'[#/all/1, #/all/0]\': "S/S/R"\n' +
-    '        \'[0/all/ , 1/all/ ]\': "R/S/S"\n' +
-    '        \'#/all/ \': {"R/S/L": choose}\n' +
-    '    #Compare if the calculated sum is the desired sum\n' +
-    '    #Go left for being able to compare\n' +
-    '    goforcompare:\n' +
-    '        \'[all/1/1, all/0/0, all/1/0, all/0/1]\': "S/L/L"\n' +
-    '        \'[all/ /1, all/ /0]\': "S/S/L"\n' +
-    '        \'[all/1/ , all/0/ ]\': "S/L/S"\n' +
-    '        \'all/ / \': {"S/R/R": compare}\n' +
-    '    #Actually compare both numbers\n' +
-    '    compare: \n' +
-    '        \'[all/1/1, all/0/0]\': "S/R/R"\n' +
-    '        \'all/ / \': {"S/S/S": accept}\n' +
-    '        \'[all/1/0, all/1/ , all/0/1, all/0/ , all/ /1, all/ /0]\': {"S/S/S": reject}\n' +
-    '    accept: {}\n' +
-    '    reject: {}',
+  code: `# This Turing machine solves SubSetSum non-deterministically in linear time.
+# Input: #n1#n2#n3#n4#....# on the first tape and the desired sum n on the second tape.
+# Every number is in binary.
+input: '#100#11#10#101#/1000'
+blank: ' '
+tapes: 3
+startstate: choose
+table:
+  # Decide whether to take that number into the sum or not
+  choose:
+    '#/all/all': "R/S/S"
+    '[1/all/all, 0/all/all]':
+      - {"S/S/S": skip}
+      - {"S/S/S": take}
+    ' /all/all': {"S/S/S": goforcompare}
+  # Skip the number
+  skip:
+    '[0/all/all, 1/all/all]': "R/S/S"
+    '#/all/all': {"R/S/S": choose}
+  # Take the number to the sum
+  # For this: first go right until the end of that number
+  take:
+    '[1/all/all, 0/all/all]': "R/S/S"
+    '#/all/all': {"L/S/S": add}
+    ' /all/all': {"S/S/S": goforcompare}
+  # Add the number to the sum
+  add:
+    '[0/all/0, 0/all/1]': "L/S/L"
+    '[1/all/0, 1/all/ ]': {write: "same/same/1", "L/S/L"}
+    '0/all/ ': {write: "same/same/0", "L/S/L"}
+    '1/all/1': {write: "same/same/0", "L/S/L": carry}
+    '#/all/all': {"R/S/R": continue}
+  carry:
+    '0/all/0': {write: "same/same/1", "L/S/L": add}
+    '[1/all/0, 0/all/1, 1/all/ ]': {write: "same/same/0", "L/S/L": carry}
+    '[#/all/0, 0/all/ , #/all/ ]': {write: "same/same/1", "R/S/R": continue}
+    '#/all/1': {write: "same/same/0", "S/S/L": carry}
+    '1/all/0': "L/S/L"
+    '1/all/1': {write: "same/same/1", "L/S/L": carry}
+  # Go completely right on the sum on tape 3 and the number we are currently looking at on tape 1
+  continue:
+    '[1/all/1, 0/all/0, 1/all/0, 0/all/1]': "R/S/R"
+    '[#/all/1, #/all/0]': "S/S/R"
+    '[0/all/ , 1/all/ ]': "R/S/S"
+    '#/all/ ': {"R/S/L": choose}
+  # Compare if the calculated sum is the desired sum
+  # Go left for being able to compare
+  goforcompare:
+    '[all/1/1, all/0/0, all/1/0, all/0/1]': "S/L/L"
+    '[all/ /1, all/ /0]': "S/S/L"
+    '[all/1/ , all/0/ ]': "S/L/S"
+    'all/ / ': {"S/R/R": compare}
+  # Actually compare both numbers
+  compare:
+    '[all/1/1, all/0/0]': "S/R/R"
+    'all/ / ': {"S/S/S": accept}
+    '[all/1/0, all/1/ , all/0/1, all/0/ , all/ /1, all/ /0]': {"S/S/S": reject}
+  accept: {}
+  reject: {}`,
 };
 
 export const NonDetSAT: ExampleTM = {
@@ -303,164 +295,161 @@ blank: ' '
 tapes: 3
 startstate: variables
 table:
-    # identification of variables and writing them on tape 2
-    variables:
-        '[(/all/all, n/all/all, o/all/all, )/all/all, a/all/all]': "R/S/S"
-        '[1/all/all, 0/all/all]': {"S/S/S": findvar}
-        #finished
-        '[ /0/all,  /1/all]': {"L/L/S": goleftfirsttape}
-    # Find the variable in the variables
-    findvar:
-        # Compare variables
+  # Identification of variables and writing them on tape 2
+  variables:
+    '[(/all/all, n/all/all, o/all/all, )/all/all, a/all/all]': "R/S/S"
+    '[1/all/all, 0/all/all]': {"S/S/S": findvar}
+    # Finished
+    '[ /0/all,  /1/all]': {"L/L/S": goleftfirsttape}
+  # Find the variable in the variables
+  findvar:
+    # Compare variables
 
-        # Case: Same char
-        '[1/1/all, 0/0/all]': "R/R/S" # Just continue comparing
+    # Case: same char
+    '[1/1/all, 0/0/all]': "R/R/S" # Just continue comparing
 
-        # Case: Different char
-        # Case1: no match
-        '[1/0/all, 1/#/all, 0/1/all, 0/#/all, a/0/all, o/0/all, (/0/all, )/0/all, a/1/all, o/1/all, (/1/all, )/1/all]': {"L/S/S": goleftonevarfirst_gorightonevarsecond}
+    # Case: different char
+    # Case 1: no match
+    '[1/0/all, 1/#/all, 0/1/all, 0/#/all, a/0/all, o/0/all, (/0/all, )/0/all, a/1/all, o/1/all, (/1/all, )/1/all]': {"L/S/S": goleftonevarfirst_gorightonevarsecond}
 
-        # Case2: match
-        '[o/#/all, a/#/all, (/#/all, )/#/all, n/#/all]': {"S/S/S": gorightonefirst_goleftsecond}
+    # Case 2: match
+    '[o/#/all, a/#/all, (/#/all, )/#/all, n/#/all]': {"S/S/S": gorightonefirst_goleftsecond}
 
-        # Case: Variable Tape empty here
-        '[1/ /all, 0/ /all]': {"S/S/S": writedownvariable}
+    # Case: variable tape empty here
+    '[1/ /all, 0/ /all]': {"S/S/S": writedownvariable}
 
-    # go left one var on first tape and right one var on second tape
-    goleftonevarfirst_gorightonevarsecond:
-        #finished
-        '[(/#/all, )/#/all, a/#/all, o/#/all, n/#/all]': {"S/R/S": variables}
-        #first tape and second tape still need to move
-        '[0/1/all, 0/0/all, 1/0/all, 1/1/all]': "L/R/S"
-        #only first tape still needs to move
-        '[0/#/all, 1/#/all]': "L/S/S"
-        #only second tape still needs to move
-        '[a/0/all, o/0/all, (/0/all, )/0/all, n/0/all, a/1/all, o/1/all, (/1/all, )/1/all, n/1/all]': "S/R/S"
+  # Go left one var on first tape and right one var on second tape
+  goleftonevarfirst_gorightonevarsecond:
+    # Finished
+    '[(/#/all, )/#/all, a/#/all, o/#/all, n/#/all]': {"S/R/S": variables}
+    # First tape and second tape still need to move
+    '[0/1/all, 0/0/all, 1/0/all, 1/1/all]': "L/R/S"
+    # Only first tape still needs to move
+    '[0/#/all, 1/#/all]': "L/S/S"
+    # Only second tape still needs to move
+    '[a/0/all, o/0/all, (/0/all, )/0/all, n/0/all, a/1/all, o/1/all, (/1/all, )/1/all, n/1/all]': "S/R/S"
 
-    # write down variable that hasn't been "registered" yet
-    writedownvariable:
-        '1/all/all': {write: 'same/1/same', "R/R/S"}
-        '0/all/all': {write: "same/0/same", "R/R/S"}
-        '[(/all/all, n/all/all, o/all/all, )/all/all]': {write: "same/#/same", "S/L/S": gorightonefirst_goleftsecond}
-    gorightonefirst_goleftsecond:
-        #finished
-        '[(/ /all, )/ /all, a/ /all, o/ /all, n/ /all]': {"S/R/S": variables}
-        #first tape finished, second not
-        '[(/1/all, )/1/all, a/1/all, o/1/all, n/1/all, (/0/all, )/0/all, a/0/all, o/0/all, n/0/all, (/#/all, )/#/all, a/#/all, o/#/all, n/#/all]': "S/L/S"
-        #both tapes not finished
-        '[0/1/all, 1/1/all, 0/0/all, 1/0/all, 0/#/all, 1/#/all]': "R/L/S"
+  # Write down variable that hasn't been "registered" yet
+  writedownvariable:
+    '1/all/all': {write: 'same/1/same', "R/R/S"}
+    '0/all/all': {write: "same/0/same", "R/R/S"}
+    '[(/all/all, n/all/all, o/all/all, )/all/all]': {write: "same/#/same", "S/L/S": gorightonefirst_goleftsecond}
+  gorightonefirst_goleftsecond:
+    # Finished
+    '[(/ /all, )/ /all, a/ /all, o/ /all, n/ /all]': {"S/R/S": variables}
+    # First tape finished, second not
+    '[(/1/all, )/1/all, a/1/all, o/1/all, n/1/all, (/0/all, )/0/all, a/0/all, o/0/all, n/0/all, (/#/all, )/#/all, a/#/all, o/#/all, n/#/all]': "S/L/S"
+    # Both tapes not finished
+    '[0/1/all, 1/1/all, 0/0/all, 1/0/all, 0/#/all, 1/#/all]': "R/L/S"
 
-    goleftfirsttape:
-        '[1/all/all, 0/all/all, o/all/all, a/all/all, n/all/all, (/all/all, )/all/all]': "L/S/S"
-        ' / /all': {"R/R/S": guessassignment}
+  goleftfirsttape:
+    '[1/all/all, 0/all/all, o/all/all, a/all/all, n/all/all, (/all/all, )/all/all]': "L/S/S"
+    ' / /all': {"R/R/S": guessassignment}
 
-    guessassignment:
-        #write string of 1s and 0s on the third tape. For each variable one char
-        '[all/0/all, all/1/all]': [{write: "same/same/1", "S/R/R": nextvar},{write: "same/same/0", "S/R/R": nextvar}]
-        #finished
-        'all/ / ': {"S/L/L": goeval}
+  guessassignment:
+    # Write string of 1s and 0s on the third tape. For each variable one char
+    '[all/0/all, all/1/all]': [{write: "same/same/1", "S/R/R": nextvar}, {write: "same/same/0", "S/R/R": nextvar}]
+    # Finished
+    'all/ / ': {"S/L/L": goeval}
 
-    nextvar:
-        #skip the var on second tape
-        '[all/0/all, all/1/all]': "S/R/S"
-        #finished
-        '[all/#/all]': {"S/R/S": guessassignment}
+  nextvar:
+    # Skip the var on second tape
+    '[all/0/all, all/1/all]': "S/R/S"
+    # Finished
+    '[all/#/all]': {"S/R/S": guessassignment}
 
-    goeval:
-        #goleft on second and third tape until there is no more to go
-        #both tapes
-        '[all/0/0, all/0/1, all/1/0, all/1/1, all/#/0, all/#/1]': "S/L/L"
-        #just second tape
-        '[all/0/ , all/1/ , all/#/ ]': "S/L/S"
-        #just third tape
-        '[all/ /0, all/ /1]': "S/S/L"
-        #finished
-        '[all/ / ]': {"S/R/R": eval}
+  goeval:
+    # Go left on second and third tape until there is no more to go
+    # Both tapes
+    '[all/0/0, all/0/1, all/1/0, all/1/1, all/#/0, all/#/1]': "S/L/L"
+    # Just second tape
+    '[all/0/ , all/1/ , all/#/ ]': "S/L/S"
+    # Just third tape
+    '[all/ /0, all/ /1]': "S/S/L"
+    # Finished
+    '[all/ / ]': {"S/R/R": eval}
 
-    # go through clause from left to right and check for true in this clause
-    #assert: 2nd and 3rd tape are on their first char
-    eval:
-        ')/all/all': {"S/S/S": reject}
-        '[(/all/all, a/all/all, o/all/all]': "R/S/S"
-        ' /all/all': {"S/S/S": accept}
-        '[0/all/all, 1/all/all]': {"S/S/S": evalpositive}
-        'n/all/all': {"R/S/S": evalnegative}
+  # Go through clause from left to right and check for true in this clause
+  # Assert: 2nd and 3rd tape are on their first char
+  eval:
+    ')/all/all': {"S/S/S": reject}
+    '[(/all/all, a/all/all, o/all/all]': "R/S/S"
+    ' /all/all': {"S/S/S": accept}
+    '[0/all/all, 1/all/all]': {"S/S/S": evalpositive}
+    'n/all/all': {"R/S/S": evalnegative}
 
-    # check if assignment of variable is 1
-    #assert: 2nd and 3rd tape are on their first char
-    evalpositive:
-        '[0/0/all, 1/1/all]': "R/R/S"
-        # no hit
-        '[1/0/all, 0/1/all, o/1/all, )/1/all, )/0/all]': {"L/R/S": evalpositive_nextvarsearch}
-        '[1/#/all, 0/#/all]': {"S/S/S": evalpositive_nextvarsearch}
-        # "good" hit
-        '[o/#/1, )/#/1]': {"S/S/S": nextclause}
-        # "bad" hit
-        '[o/#/0, )/#/0]': {"S/S/S": reset_second_third_tape}
+  # Check if assignment of variable is 1
+  # Assert: 2nd and 3rd tape are on their first char
+  evalpositive:
+    '[0/0/all, 1/1/all]': "R/R/S"
+    # No hit
+    '[1/0/all, 0/1/all, o/1/all, )/1/all, )/0/all]': {"L/R/S": evalpositive_nextvarsearch}
+    '[1/#/all, 0/#/all]': {"S/S/S": evalpositive_nextvarsearch}
+    # "Good" hit
+    '[o/#/1, )/#/1]': {"S/S/S": nextclause}
+    # "Bad" hit
+    '[o/#/0, )/#/0]': {"S/S/S": reset_second_third_tape}
 
-    evalpositive_nextvarsearch:
-        # both need to move
-        '[1/0/all, 0/1/all, 1/1/all, 0/0/all]': "L/R/S"
-        # only first tape
-        '[1/#/all, 0/#/all]': "L/S/S"
-        # only second tape
-        '[n/0/all, o/0/all, (/0/all, n/1/all, o/1/all, (/1/all]': "S/R/S"
-        # finished
-        '[o/#/all, n/#/all, (/#/all]': {"R/R/R": evalpositive}
+  evalpositive_nextvarsearch:
+    # Both need to move
+    '[1/0/all, 0/1/all, 1/1/all, 0/0/all]': "L/R/S"
+    # Only first tape
+    '[1/#/all, 0/#/all]': "L/S/S"
+    # Only second tape
+    '[n/0/all, o/0/all, (/0/all, n/1/all, o/1/all, (/1/all]': "S/R/S"
+    # Finished
+    '[o/#/all, n/#/all, (/#/all]': {"R/R/R": evalpositive}
 
-    # reset second and third tape and on the first move to next clause; Then go eval
-    nextclause:
-        'all/all/all': {"S/S/S": movefirsttonextclause}
-    movefirsttonextclause:
-        '[0/all/all, 1/all/all, o/all/all, n/all/all]': "R/S/S"
-        ')/all/all': {"R/S/S": movesecondtonextclause}
-    movesecondtonextclause:
-        '[all/0/all, all/1/all, all/#/all]': "S/L/S"
-        'all/ /all': {"S/R/S": movethirdtonextclause}
-    movethirdtonextclause:
-        '[all/all/0, all/all/1]': "S/S/L"
-        'all/all/ ': {"S/S/R": eval}
+  # Reset second and third tape and on the first move to next clause; then go eval
+  nextclause:
+    'all/all/all': {"S/S/S": movefirsttonextclause}
+  movefirsttonextclause:
+    '[0/all/all, 1/all/all, o/all/all, n/all/all]': "R/S/S"
+    ')/all/all': {"R/S/S": movesecondtonextclause}
+  movesecondtonextclause:
+    '[all/0/all, all/1/all, all/#/all]': "S/L/S"
+    'all/ /all': {"S/R/S": movethirdtonextclause}
+  movethirdtonextclause:
+    '[all/all/0, all/all/1]': "S/S/L"
+    'all/all/ ': {"S/S/R": eval}
 
-    # go completely left on second and third tape; Then go eval
-    reset_second_third_tape:
-        # both need to move
-        '[all/0/1, all/1/1, all/#/1, all/0/0, all/1/0, all/#/0]': "S/L/L"
-        # only second needs to move
-        '[all/0/ , all/1/ , all/#/ ]': "S/L/S"
-        # only third needs to move
-        '[all/ /1, all/ /0]': "S/S/L"
-        #finished
-        'all/ / ': {"S/R/R": eval}
+  # Go completely left on second and third tape; then go eval
+  reset_second_third_tape:
+    # Both need to move
+    '[all/0/1, all/1/1, all/#/1, all/0/0, all/1/0, all/#/0]': "S/L/L"
+    # Only second needs to move
+    '[all/0/ , all/1/ , all/#/ ]': "S/L/S"
+    # Only third needs to move
+    '[all/ /1, all/ /0]': "S/S/L"
+    # Finished
+    'all/ / ': {"S/R/R": eval}
 
+  # This mostly is copy of evalpositive
+  # Check if assignment of variable is 0
+  # Assert: 2nd and 3rd tape are on their first char
+  evalnegative:
+    '[0/0/all, 1/1/all]': "R/R/S"
+    # No hit
+    '[1/0/all, 0/1/all, o/1/all, )/1/all, )/0/all]': {"L/R/S": evalnegative_nextvarsearch}
+    '[1/#/all, 0/#/all]': {"S/S/S": evalnegative_nextvarsearch}
+    # "Good" hit
+    '[o/#/0, )/#/0]': {"S/S/S": nextclause}
+    # "Bad" hit
+    '[o/#/1, )/#/1]': {"S/S/S": reset_second_third_tape}
 
-    #This mostly is copy of evalpositive
-    # check if assignment of variable is 0
-    #assert: 2nd and 3rd tape are on their first char
-    evalnegative:
-        '[0/0/all, 1/1/all]': "R/R/S"
-        # no hit
-        '[1/0/all, 0/1/all, o/1/all, )/1/all, )/0/all]': {"L/R/S": evalnegative_nextvarsearch}
-        '[1/#/all, 0/#/all]': {"S/S/S": evalnegative_nextvarsearch}
-        # "good" hit
-        '[o/#/0, )/#/0]': {"S/S/S": nextclause}
-        # "bad" hit
-        '[o/#/1, )/#/1]': {"S/S/S": reset_second_third_tape}
+  evalnegative_nextvarsearch:
+    # Both need to move
+    '[1/0/all, 0/1/all, 1/1/all, 0/0/all]': "L/R/S"
+    # Only first tape
+    '[1/#/all, 0/#/all]': "L/S/S"
+    # Only second tape
+    '[n/0/all, o/0/all, (/0/all, n/1/all, o/1/all, (/1/all]': "S/R/S"
+    # Finished
+    '[o/#/all, n/#/all, (/#/all]': {"R/R/R": evalnegative}
 
-    evalnegative_nextvarsearch:
-        # both need to move
-        '[1/0/all, 0/1/all, 1/1/all, 0/0/all]': "L/R/S"
-        # only first tape
-        '[1/#/all, 0/#/all]': "L/S/S"
-        # only second tape
-        '[n/0/all, o/0/all, (/0/all, n/1/all, o/1/all, (/1/all]': "S/R/S"
-        # finished
-        '[o/#/all, n/#/all, (/#/all]': {"R/R/R": evalnegative}
-
-    accept: {}
-
-    reject: {}`,
+  accept: {}
+  reject: {}`,
 };
-
 
 ExampleTMs.push(BinaryAdd);
 ExampleTMs.push(NonDetSubstring);
