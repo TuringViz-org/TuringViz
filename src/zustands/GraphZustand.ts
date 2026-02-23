@@ -14,6 +14,19 @@ import type { ElkOptions } from '@mytypes/graphTypes';
 type Updater<T> = T | ((prev: T) => T);
 type PartialUpdater<T> = Partial<T> | ((prev: T) => Partial<T>);
 
+export type TMGraphViewportSnapshot = {
+  x: number;
+  y: number;
+  zoom: number;
+};
+
+export type TMGraphLayoutSnapshot = {
+  machineLoadVersion: number;
+  topoKey: string;
+  positions: Record<string, { x: number; y: number }>;
+  viewport: TMGraphViewportSnapshot;
+};
+
 interface GraphZustandState {
   // Node display modes for config graph and computation tree
   configGraphNodeMode: ConfigNodeMode;
@@ -27,6 +40,7 @@ interface GraphZustandState {
   // Other
   computationTreeDepth: number;
   configGraphTargetNodes: number;
+  tmGraphLayoutSnapshot: TMGraphLayoutSnapshot | null;
 }
 
 interface GraphZustandActions {
@@ -42,6 +56,9 @@ interface GraphZustandActions {
   // Other
   setComputationTreeDepth: (depth: Updater<number>) => void;
   setConfigGraphTargetNodes: (nodes: Updater<number>) => void;
+  setTMGraphLayoutSnapshot: (
+    snapshot: Updater<TMGraphLayoutSnapshot | null>
+  ) => void;
 
   // Utilities
   reset: () => void;
@@ -59,6 +76,7 @@ const initialState: GraphZustandState = {
 
   computationTreeDepth: DEFAULT_TREE_DEPTH,
   configGraphTargetNodes: DEFAULT_CONFIG_GRAPH_TARGET_NODES,
+  tmGraphLayoutSnapshot: null,
 };
 
 /**
@@ -141,6 +159,19 @@ export const useGraphZustand = create<GraphZustand>()(
         false
       ),
 
+    setTMGraphLayoutSnapshot: (snapshot) =>
+      set(
+        (s) => ({
+          tmGraphLayoutSnapshot:
+            typeof snapshot === 'function'
+              ? (snapshot as (prev: TMGraphLayoutSnapshot | null) => TMGraphLayoutSnapshot | null)(
+                  s.tmGraphLayoutSnapshot
+                )
+              : snapshot,
+        }),
+        false
+      ),
+
     // Utilities
     reset: () => set(() => ({ ...initialState }), false),
   }))
@@ -164,3 +195,6 @@ export const useComputationTreeDepth = () =>
 
 export const useConfigGraphTargetNodes = () =>
   useGraphZustand((s) => s.configGraphTargetNodes);
+
+export const useTMGraphLayoutSnapshot = () =>
+  useGraphZustand((s) => s.tmGraphLayoutSnapshot);

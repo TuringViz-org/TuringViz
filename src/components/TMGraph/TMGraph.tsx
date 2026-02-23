@@ -24,7 +24,12 @@ import { FloatingEdge } from './edges/FloatingEdge';
 import { useElkLayout } from './layout/useElkLayout';
 import { LayoutSettingsPanel } from './layout/LayoutSettingsPanel';
 import { useGlobalZustand } from '@zustands/GlobalZustand';
-import { useTMGraphELKSettings, useGraphZustand } from '@zustands/GraphZustand';
+import {
+  useTMGraphELKSettings,
+  useGraphZustand,
+  type TMGraphLayoutSnapshot,
+  type TMGraphViewportSnapshot,
+} from '@zustands/GraphZustand';
 import { buildTMGraph } from './util/buildTMGraph';
 import { NodeType, EdgeType, CONTROL_HEIGHT } from './util/constants';
 import { DEFAULT_ELK_OPTS } from '@utils/constants';
@@ -57,25 +62,56 @@ type TransitionMap = Map<string, Transition[]>;
 type TMGraphBuildResult = ReturnType<typeof buildTMGraph>;
 type TMGraphNode = TMGraphBuildResult['nodes'][number];
 
+function applySnapshotPositions(
+  nodes: TMGraphNode[],
+  positions: TMGraphLayoutSnapshot['positions']
+): TMGraphNode[] {
+  return nodes.map((node) => {
+    const saved = positions[node.id];
+    if (!saved) return node;
+    const same = node.position.x === saved.x && node.position.y === saved.y;
+    return same ? node : { ...node, position: saved };
+  });
+}
+
 function useTMGraphData({
   states,
   transitions,
   startState,
   currentState,
   lastState,
+  machineLoadVersion,
+  snapshot,
 }: {
   states: BuildTMGraphArgs[0];
   transitions: BuildTMGraphArgs[1];
   startState: string;
   currentState: string;
   lastState: string;
+  machineLoadVersion: number;
+  snapshot: TMGraphLayoutSnapshot | null;
 }) {
   const { nodes: rawNodes, edges: rawEdges, topoKey } = useMemo(
     () => buildTMGraph(states, transitions),
     [states, transitions]
   );
 
-  const [nodes, setNodes, onNodesChange] = useNodesState(rawNodes);
+  const applicableSnapshot = useMemo(() => {
+    if (!snapshot) return null;
+    if (snapshot.machineLoadVersion !== machineLoadVersion) return null;
+    if (snapshot.topoKey !== topoKey) return null;
+    return snapshot;
+  }, [snapshot, machineLoadVersion, topoKey]);
+
+  const initialNodes = useMemo(
+    () =>
+      applicableSnapshot
+        ? applySnapshotPositions(rawNodes, applicableSnapshot.positions)
+        : rawNodes,
+    [rawNodes, applicableSnapshot]
+  );
+
+  const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(rawEdges);
 
   useEffect(() => {
@@ -94,6 +130,7 @@ function useTMGraphData({
     nodes,
     edges,
     topoKey,
+    restoredSnapshot: applicableSnapshot,
     onNodesChange,
     onEdgesChange,
   };
@@ -155,6 +192,7 @@ function useAutoLayout({
   rf,
   portalId,
   machineLoadVersion,
+  skipInitialAutoLayout = false,
 }: {
   layout: ReturnType<typeof useElkLayout>;
   topoKey: string;
@@ -162,6 +200,7 @@ function useAutoLayout({
   rf: ReturnType<typeof useReactFlow>;
   portalId: string;
   machineLoadVersion: number;
+  skipInitialAutoLayout?: boolean;
 }) {
   const scheduleLayoutRestart = useDebouncedLayoutRestart(layout);
   const nodesReady = useNodesInitialized();
@@ -177,6 +216,7 @@ function useAutoLayout({
   const prevRunningRef = useRef(layout.running);
   const machineLoadFrameRef = useRef<number | null>(null);
   const awaitingRevealRef = useRef(false);
+  const skippedInitialLayoutRef = useRef(false);
   const [viewportReady, setViewportReady] = useState(false);
 
   useEffect(() => {
@@ -212,11 +252,18 @@ function useAutoLayout({
 
   useEffect(() => {
     if (!nodesReady || nodes.length === 0) return;
+    if (skipInitialAutoLayout && !skippedInitialLayoutRef.current) {
+      skippedInitialLayoutRef.current = true;
+      lastTopoKeyRef.current = topoKey;
+      awaitingRevealRef.current = false;
+      setViewportReady(true);
+      return;
+    }
     if (lastTopoKeyRef.current === topoKey) return;
     lastTopoKeyRef.current = topoKey;
 
     requestLayoutFitAndReveal();
-  }, [topoKey, nodesReady, nodes.length, requestLayoutFitAndReveal]);
+  }, [topoKey, nodesReady, nodes.length, requestLayoutFitAndReveal, skipInitialAutoLayout]);
 
   // Re-center on every successful "Load Machine".
   useEffect(() => {
@@ -315,15 +362,21 @@ function TMGraph() {
 
   const tmGraphELKSettings = useTMGraphELKSettings();
   const setTMGraphELKSettings = useGraphZustand((s) => s.setTMGraphELKSettings);
+  const setTMGraphLayoutSnapshot = useGraphZustand((s) => s.setTMGraphLayoutSnapshot);
 
   const { setHighlightedEdgeId, setSelected } = useGraphUI();
 
   const rf = useReactFlow();
+  const nodesReady = useNodesInitialized();
+  const initialSnapshotRef = useRef<TMGraphLayoutSnapshot | null>(
+    useGraphZustand.getState().tmGraphLayoutSnapshot
+  );
 
   const {
     nodes,
     edges,
     topoKey,
+    restoredSnapshot,
     onNodesChange,
     onEdgesChange,
   } = useTMGraphData({
@@ -332,6 +385,8 @@ function TMGraph() {
     startState,
     currentState,
     lastState,
+    machineLoadVersion,
+    snapshot: initialSnapshotRef.current,
   });
 
   useHighlightedTransition({
@@ -359,9 +414,71 @@ function TMGraph() {
     rf,
     portalId: 'tmGraph',
     machineLoadVersion,
+    skipInitialAutoLayout: Boolean(restoredSnapshot),
   });
 
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const restoredViewportAppliedRef = useRef(false);
+  const nodesRef = useRef(nodes);
+  const topoKeyRef = useRef(topoKey);
+
+  useEffect(() => {
+    nodesRef.current = nodes;
+  }, [nodes]);
+
+  useEffect(() => {
+    topoKeyRef.current = topoKey;
+  }, [topoKey]);
+
+  const persistLayoutSnapshot = useCallback(() => {
+    if (nodesRef.current.length === 0) return;
+    if (!topoKeyRef.current) return;
+
+    const positions: TMGraphLayoutSnapshot['positions'] = {};
+    for (const node of nodesRef.current) {
+      positions[node.id] = { x: node.position.x, y: node.position.y };
+    }
+
+    const viewport = rf.getViewport();
+    const viewportSnapshot: TMGraphViewportSnapshot = {
+      x: viewport.x,
+      y: viewport.y,
+      zoom: viewport.zoom,
+    };
+
+    setTMGraphLayoutSnapshot({
+      machineLoadVersion,
+      topoKey: topoKeyRef.current,
+      positions,
+      viewport: viewportSnapshot,
+    });
+  }, [machineLoadVersion, rf, setTMGraphLayoutSnapshot]);
+
+  useEffect(() => {
+    return () => {
+      persistLayoutSnapshot();
+    };
+  }, [persistLayoutSnapshot]);
+
+  useEffect(() => {
+    if (restoredViewportAppliedRef.current) return;
+    const viewport = restoredSnapshot?.viewport;
+    if (!viewport) return;
+    if (!nodesReady || nodes.length === 0) return;
+    restoredViewportAppliedRef.current = true;
+
+    requestAnimationFrame(() => {
+      rf.setViewport(viewport, { duration: 0 });
+    });
+  }, [nodes.length, nodesReady, restoredSnapshot, rf]);
+
+  const handleNodeDragStop = useCallback(() => {
+    persistLayoutSnapshot();
+  }, [persistLayoutSnapshot]);
+
+  const handleMoveEnd = useCallback(() => {
+    persistLayoutSnapshot();
+  }, [persistLayoutSnapshot]);
 
   const resetToDefaults = useCallback(() => {
     setTMGraphELKSettings({ ...DEFAULT_ELK_OPTS });
@@ -385,6 +502,8 @@ function TMGraph() {
       edges={edges}
       onNodesChange={onNodesChange}
       onEdgesChange={onEdgesChange}
+      onNodeDragStop={handleNodeDragStop}
+      onMoveEnd={handleMoveEnd}
       onPaneClick={handlePaneClick}
       nodeTypes={nodeTypes}
       edgeTypes={edgeTypes}

@@ -161,8 +161,11 @@ export default function App() {
     }
   }, [pendingConfigTargetNodes, setConfigGraphTargetNodes]);
 
-  // Keep TM graph mounted to preserve viewport and selection state across tabs.
-  const tmGraphEnabled = true;
+  const tmGraphEnabled =
+    activeTab === 'input' ||
+    activeTab === 'run' ||
+    tmFullscreen.open ||
+    tmFullscreen.render;
 
   const configGraphEnabled =
     configTabActive ||
