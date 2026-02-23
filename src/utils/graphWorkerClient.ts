@@ -3,7 +3,10 @@ import type { ComputationTree } from '@tmfunctions/ComputationTree';
 import { getComputationTreeFromInputs } from '@tmfunctions/ComputationTree';
 import type { ConfigGraph } from '@tmfunctions/ConfigGraph';
 import { computeConfigGraph } from '@tmfunctions/ConfigGraph';
-import { MIN_CONFIG_GRAPH_TARGET_NODES } from './constants';
+import {
+  DEFAULT_CONFIG_GRAPH_TARGET_NODES,
+  MIN_CONFIG_GRAPH_TARGET_NODES,
+} from './constants';
 
 const TREE_WORKER_TIMEOUT_MS = 4500;
 const CONFIG_WORKER_TIMEOUT_MS = 4500;
@@ -188,7 +191,7 @@ export function computeConfigGraphInWorker(
     return Promise.resolve(
       computeConfigGraph(
         payload.startConfig,
-        payload.targetNodes ?? 8000,
+        payload.targetNodes ?? DEFAULT_CONFIG_GRAPH_TARGET_NODES,
         payload.transitions,
         payload.numberOfTapes,
         payload.blank
@@ -208,7 +211,7 @@ export function computeConfigGraphInWorker(
       terminateConfigWorker(false);
       const reducedTarget = Math.max(
         MIN_CONFIG_GRAPH_TARGET_NODES,
-        Math.floor((payload.targetNodes ?? 8000) / 2)
+        Math.floor((payload.targetNodes ?? DEFAULT_CONFIG_GRAPH_TARGET_NODES) / 2)
       );
       const graph = computeConfigGraph(
         payload.startConfig,
