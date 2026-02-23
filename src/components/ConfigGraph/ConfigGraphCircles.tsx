@@ -159,17 +159,17 @@ const getCyStyles = (theme: ReturnType<typeof useTheme>): Stylesheet[] => [
     style: {
       width: 'data(width)',
       height: 'data(height)',
-      label: 'data(displayLabel)',
+      label: '',
       'text-valign': 'center',
       'text-halign': 'center',
       'font-size': 14,
       'font-weight': 600,
       color: theme.palette.text.primary,
       'text-outline-width': 2,
-      'text-outline-color': 'data(textOutline)',
-      'background-color': 'data(bgColor)',
+      'text-outline-color': normalizeColor(theme.palette.background.paper),
+      'background-color': normalizeColor(theme.palette.background.paper),
       'border-width': 'data(borderWidth)',
-      'border-color': 'data(borderColor)',
+      'border-color': normalizeColor(theme.palette.border?.main ?? theme.palette.divider),
       'border-style': 'solid',
       shape: 'ellipse',
       'z-index': 5,
@@ -177,9 +177,25 @@ const getCyStyles = (theme: ReturnType<typeof useTheme>): Stylesheet[] => [
     },
   },
   {
+    selector: 'node[displayLabel]',
+    style: { label: 'data(displayLabel)' },
+  },
+  {
+    selector: 'node[textOutline]',
+    style: { 'text-outline-color': 'data(textOutline)' },
+  },
+  {
+    selector: 'node[bgColor]',
+    style: { 'background-color': 'data(bgColor)' },
+  },
+  {
+    selector: 'node[borderColor]',
+    style: { 'border-color': 'data(borderColor)' },
+  },
+  {
     selector: 'node.start',
     style: {
-      'border-color': theme.palette.primary.main,
+      'border-color': normalizeColor(theme.palette.primary.main),
       'border-width': 8,
     },
   },
@@ -187,9 +203,9 @@ const getCyStyles = (theme: ReturnType<typeof useTheme>): Stylesheet[] => [
     selector: 'node.current',
     style: {
       'border-color':
-        theme.palette.error?.main ??
-        theme.palette.primary.dark ??
-        theme.palette.accent?.main ??
+        normalizeColor(theme.palette.error?.main) ??
+        normalizeColor(theme.palette.primary.dark) ??
+        normalizeColor(theme.palette.accent?.main) ??
         '#d32f2f',
       'border-width': 10,
     },
@@ -198,16 +214,17 @@ const getCyStyles = (theme: ReturnType<typeof useTheme>): Stylesheet[] => [
     selector: 'node.selectable',
     style: {
       'border-color':
-        theme.palette.node?.selectableConfig ?? theme.palette.accent?.main ?? theme.palette.secondary.main,
+        normalizeColor(theme.palette.node?.selectableConfig) ??
+        normalizeColor(theme.palette.accent?.main) ??
+        normalizeColor(theme.palette.secondary.main),
       'border-width': 10,
     },
   },
   {
     selector: 'node.ct-selected',
     style: {
-      'border-color': theme.palette.primary.dark,
+      'border-color': normalizeColor(theme.palette.primary.dark),
       'border-width': 11,
-      'box-shadow': `0 0 0 6px ${alpha(theme.palette.primary.main, 0.25)}`,
     },
   },
   {
@@ -230,6 +247,15 @@ const getCyStyles = (theme: ReturnType<typeof useTheme>): Stylesheet[] => [
       'text-margin-y': -6,
       'text-outline-width': 2,
       'text-outline-color': theme.palette.background.paper,
+    },
+  },
+  {
+    selector: 'edge.loop',
+    style: {
+      'curve-style': 'bezier',
+      'loop-direction': '-45deg',
+      'loop-sweep': '75deg',
+      'control-point-step-size': 64,
     },
   },
   {
@@ -823,7 +849,6 @@ export function ConfigGraphCircles() {
       container,
       elements: [],
       style: cyStyles,
-      wheelSensitivity: 0.6,
       minZoom: 0.05,
       maxZoom: 2.5,
     });
@@ -947,7 +972,7 @@ export function ConfigGraphCircles() {
         const bgColor =
           displayLabel === '' && stateColor
             ? stateColor
-            : stateColor ?? theme.palette.background.paper;
+            : stateColor ?? normalizeColor(theme.palette.background.paper);
         const classes = ['node'];
         if (data.isStart) classes.push('start');
         if (data.isCurrent) classes.push('current');
@@ -961,16 +986,18 @@ export function ConfigGraphCircles() {
           displayLabel,
           bgColor,
           borderColor: data.isStart
-            ? theme.palette.primary.main
+            ? normalizeColor(theme.palette.primary.main)
             : data.isCurrent
-              ? theme.palette.node?.currentConfig ?? theme.palette.primary.dark
+              ? normalizeColor(theme.palette.node?.currentConfig) ??
+                normalizeColor(theme.palette.primary.dark)
               : data.isSelectable
-                ? theme.palette.node?.selectableConfig ??
-                  theme.palette.accent?.main ??
-                  theme.palette.secondary.main
-                : theme.palette.border?.main ?? theme.palette.divider,
+                ? normalizeColor(theme.palette.node?.selectableConfig) ??
+                  normalizeColor(theme.palette.accent?.main) ??
+                  normalizeColor(theme.palette.secondary.main)
+                : normalizeColor(theme.palette.border?.main) ??
+                  normalizeColor(theme.palette.divider),
           borderWidth: data.isStart ? 8 : 0,
-          textOutline: theme.palette.background.paper,
+          textOutline: normalizeColor(theme.palette.background.paper),
           width: n.width ?? CONFIG_NODE_DIAMETER,
           height: n.height ?? CONFIG_NODE_DIAMETER,
         };
@@ -993,6 +1020,7 @@ export function ConfigGraphCircles() {
         const data = (e.data ?? {}) as any;
         const ele = cy.getElementById(e.id);
         const classes = ['edge', 'hidden-label'];
+        if (e.source === e.target) classes.push('loop');
         const cyData = {
           id: e.id,
           source: e.source,

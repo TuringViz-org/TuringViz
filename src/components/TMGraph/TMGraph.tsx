@@ -1,27 +1,28 @@
 // src/components/TMGraph/TMGraph.tsx
-import {
-  ReactFlow,
-  ReactFlowProvider,
-  useNodesState,
-  useEdgesState,
-  MarkerType,
-  Panel,
-  useReactFlow,
-  useNodesInitialized,
-  Controls,
-  Background,
-} from '@xyflow/react';
-import '@xyflow/react/dist/style.css';
-import { Box, Stack, Tooltip, Fab, Button } from '@mui/material';
-import { Cached, Tune } from '@mui/icons-material';
-import { alpha } from '@mui/material/styles';
 import { useMemo, useEffect, useRef, useState, useCallback } from 'react';
+import cytoscape, {
+  type Core as CyCore,
+  type EventObject,
+  type EventObjectEdge,
+  type EventObjectNode,
+  type Stylesheet,
+} from 'cytoscape';
+import {
+  Box,
+  Stack,
+  Tooltip,
+  Fab,
+  Button,
+  Popper,
+  Paper,
+  Typography,
+  IconButton,
+} from '@mui/material';
+import { Cached, Tune, Add, Remove, CenterFocusStrong } from '@mui/icons-material';
+import { alpha, useTheme } from '@mui/material/styles';
+import type { VirtualElement } from '@popperjs/core';
 
-import { StateNode } from './nodes/StateNode';
-import { LoopEdge } from './edges/LoopEdge';
-import { FloatingEdge } from './edges/FloatingEdge';
-
-import { useElkLayout } from './layout/useElkLayout';
+import { useElkLayout } from '@components/ComputationTree/layout/useElkLayout';
 import { LayoutSettingsPanel } from './layout/LayoutSettingsPanel';
 import { useGlobalZustand } from '@zustands/GlobalZustand';
 import {
@@ -31,36 +32,229 @@ import {
   type TMGraphViewportSnapshot,
 } from '@zustands/GraphZustand';
 import { buildTMGraph } from './util/buildTMGraph';
-import { NodeType, EdgeType, CONTROL_HEIGHT } from './util/constants';
-import { DEFAULT_ELK_OPTS } from '@utils/constants';
+import { CONTROL_HEIGHT, STATE_NODE_DIAMETER } from './util/constants';
+import { DEFAULT_ELK_OPTS, HOVER_POPPER_DELAY_MS } from '@utils/constants';
 import { GraphUIProvider, useGraphUI } from '@components/shared/GraphUIContext';
 import type { Transition } from '@mytypes/TMTypes';
 import {
   PORTAL_BRIDGE_SWITCH_EVENT,
   type PortalBridgeSwitchDetail,
 } from '@components/MainPage/PortalBridge';
-import { reconcileNodes, reconcileEdges } from '@utils/reactflow';
+import { reconcileEdges, reconcileNodes } from '@utils/reactflow';
 import { useDebouncedLayoutRestart } from '@hooks/useDebouncedLayoutRestart';
-
-const nodeTypes = {
-  [NodeType.STATE]: StateNode,
-};
-const edgeTypes = {
-  [EdgeType.LOOP]: LoopEdge,
-  [EdgeType.FLOATING]: FloatingEdge,
-};
-
-const defaultEdgeOptions = {
-  type: EdgeType.FLOATING,
-  markerEnd: {
-    type: MarkerType.ArrowClosed,
-  },
-};
+import { EdgeTooltip } from './edges/EdgeTooltip';
+import {
+  GRAPH_EDGE_ACTIVE_WIDTH,
+  GRAPH_EDGE_ARROW_SCALE,
+  GRAPH_EDGE_BASE_WIDTH,
+  GRAPH_EDGE_HOVER_WIDTH,
+} from '@components/shared/edgeVisualConstants';
+import { handleTMGraphRunChoiceEdgeClick } from '@tmfunctions/Running';
 
 type BuildTMGraphArgs = Parameters<typeof buildTMGraph>;
 type TransitionMap = Map<string, Transition[]>;
 type TMGraphBuildResult = ReturnType<typeof buildTMGraph>;
 type TMGraphNode = TMGraphBuildResult['nodes'][number];
+type TMGraphEdge = TMGraphBuildResult['edges'][number];
+
+type Anchor = { top: number; left: number };
+
+type EdgeTooltipState = {
+  id: string | null;
+  anchor: Anchor | null;
+  reason: 'hover' | 'select' | null;
+};
+
+type NodeHintState = {
+  id: string | null;
+  text: string | null;
+  anchor: Anchor | null;
+};
+
+const normalizeColor = (color?: string) => {
+  if (!color) return undefined;
+  const m = /^#([0-9a-fA-F]{8})$/.exec(color);
+  if (m) {
+    const hex = m[1];
+    const r = parseInt(hex.slice(0, 2), 16);
+    const g = parseInt(hex.slice(2, 4), 16);
+    const b = parseInt(hex.slice(4, 6), 16);
+    const a = parseInt(hex.slice(6, 8), 16) / 255;
+    return `rgba(${r}, ${g}, ${b}, ${a})`;
+  }
+  return color;
+};
+
+function makeVirtualAnchor(anchor: Anchor | null): VirtualElement {
+  const top = anchor?.top ?? 0;
+  const left = anchor?.left ?? 0;
+  return {
+    getBoundingClientRect: () =>
+      ({
+        width: 0,
+        height: 0,
+        x: left,
+        y: top,
+        top,
+        left,
+        right: left,
+        bottom: top,
+        toJSON: () => {},
+      }) as DOMRect,
+  };
+}
+
+function getNodeRoles(label: string, isStart: boolean, isCurrent: boolean, isLast: boolean) {
+  const roles: string[] = [];
+  if (isStart) roles.push('Start state');
+  if (isCurrent) roles.push('Current state');
+  if (isLast) roles.push('Last state');
+
+  const l = label.toLowerCase();
+  if (['done', 'accept', 'accepted'].includes(l)) roles.push('Accepting state');
+  if (['error', 'reject', 'rejected'].includes(l)) roles.push('Rejecting state');
+
+  return roles;
+}
+
+const getCyStyles = (theme: ReturnType<typeof useTheme>): Stylesheet[] => {
+  const baseEdge = theme.palette.grey[500];
+  const hoverEdge = theme.palette.grey[700];
+  const selectedEdge = theme.palette.primary.dark;
+
+  return [
+    {
+      selector: 'core',
+      style: {
+        'active-bg-color': theme.palette.grey[500],
+        'active-bg-opacity': 0.2,
+        'active-bg-size': 28,
+        'selection-box-opacity': 0,
+        'selection-box-border-width': 0,
+      },
+    },
+    {
+      selector: 'node',
+      style: {
+        width: STATE_NODE_DIAMETER,
+        height: STATE_NODE_DIAMETER,
+        label: '',
+        'text-valign': 'center',
+        'text-halign': 'center',
+        'font-size': 16,
+        'font-weight': 700,
+        color: theme.palette.text.primary,
+        'background-color': normalizeColor(theme.palette.background.paper),
+        'border-width': 3,
+        'border-color': normalizeColor(theme.palette.border.main),
+        'border-style': 'solid',
+        shape: 'ellipse',
+        'overlay-opacity': 0,
+      },
+    },
+    {
+      selector: 'node[label]',
+      style: { label: 'data(label)' },
+    },
+    {
+      selector: 'node[width]',
+      style: { width: 'data(width)' },
+    },
+    {
+      selector: 'node[height]',
+      style: { height: 'data(height)' },
+    },
+    {
+      selector: 'node[bgColor]',
+      style: { 'background-color': 'data(bgColor)' },
+    },
+    {
+      selector: 'node[borderWidth]',
+      style: { 'border-width': 'data(borderWidth)' },
+    },
+    {
+      selector: 'node[borderColor]',
+      style: { 'border-color': 'data(borderColor)' },
+    },
+    {
+      selector: 'node.start',
+      style: {
+        'border-style': 'double',
+        'border-width': 6,
+      },
+    },
+    {
+      selector: 'node.current',
+      style: {
+        'border-width': 6,
+      },
+    },
+    {
+      selector: 'node.last',
+      style: {
+        'border-width': 6,
+      },
+    },
+    {
+      selector: 'edge',
+      style: {
+        width: GRAPH_EDGE_BASE_WIDTH,
+        'line-color': baseEdge,
+        'target-arrow-color': baseEdge,
+        'target-arrow-shape': 'triangle',
+        'arrow-scale': GRAPH_EDGE_ARROW_SCALE,
+        'curve-style': 'straight',
+        'line-opacity': 0.85,
+        label: '',
+        'overlay-opacity': 0,
+      },
+    },
+    {
+      selector: 'edge.loop',
+      style: {
+        'curve-style': 'bezier',
+        'loop-direction': '-45deg',
+        'loop-sweep': '75deg',
+        'control-point-step-size': 64,
+      },
+    },
+    {
+      selector: 'edge.bended',
+      style: {
+        'curve-style': 'unbundled-bezier',
+        'control-point-distances': 'data(curveDistance)',
+        'control-point-weights': 0.5,
+      },
+    },
+    {
+      selector: 'edge.hovered',
+      style: {
+        width: GRAPH_EDGE_HOVER_WIDTH,
+        'line-color': hoverEdge,
+        'target-arrow-color': hoverEdge,
+        'line-opacity': 1,
+      },
+    },
+    {
+      selector: 'edge.ct-selected',
+      style: {
+        width: GRAPH_EDGE_ACTIVE_WIDTH,
+        'line-color': selectedEdge,
+        'target-arrow-color': selectedEdge,
+        'line-opacity': 1,
+      },
+    },
+    {
+      selector: 'edge.tm-highlighted',
+      style: {
+        width: 3.5,
+        'line-color': normalizeColor(theme.palette.primary.main),
+        'target-arrow-color': normalizeColor(theme.palette.primary.main),
+        'line-opacity': 0.95,
+      },
+    },
+  ];
+};
 
 function applySnapshotPositions(
   nodes: TMGraphNode[],
@@ -72,6 +266,23 @@ function applySnapshotPositions(
     const same = node.position.x === saved.x && node.position.y === saved.y;
     return same ? node : { ...node, position: saved };
   });
+}
+
+function isDegenerateSnapshot(
+  nodes: TMGraphNode[],
+  positions: TMGraphLayoutSnapshot['positions']
+): boolean {
+  if (nodes.length <= 1) return false;
+  const points = new Set<string>();
+
+  for (const node of nodes) {
+    const pos = positions[node.id];
+    if (!pos) return true;
+    points.add(`${Math.round(pos.x)}:${Math.round(pos.y)}`);
+    if (points.size > 1) return false;
+  }
+
+  return true;
 }
 
 function useTMGraphData({
@@ -100,10 +311,11 @@ function useTMGraphData({
     if (!snapshot) return null;
     if (snapshot.machineLoadVersion !== machineLoadVersion) return null;
     if (snapshot.topoKey !== topoKey) return null;
+    if (isDegenerateSnapshot(rawNodes, snapshot.positions)) return null;
     return snapshot;
-  }, [snapshot, machineLoadVersion, topoKey]);
+  }, [snapshot, machineLoadVersion, topoKey, rawNodes]);
 
-  const initialNodes = useMemo(
+  const baseNodes = useMemo(
     () =>
       applicableSnapshot
         ? applySnapshotPositions(rawNodes, applicableSnapshot.positions)
@@ -111,28 +323,35 @@ function useTMGraphData({
     [rawNodes, applicableSnapshot]
   );
 
-  const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
-  const [edges, setEdges, onEdgesChange] = useEdgesState(rawEdges);
+  const [nodes, setNodes] = useState<TMGraphNode[]>(baseNodes);
+  const [edges, setEdges] = useState<TMGraphEdge[]>(rawEdges);
 
   useEffect(() => {
     setNodes((prev) =>
-      reconcileNodes(prev, rawNodes, (node) => ({
+      reconcileNodes(prev, baseNodes, (node) => ({
         ...(node.data as any),
         isStart: node.id === startState,
         isCurrent: node.id === currentState,
         isLast: node.id === lastState,
-      }))
+      })) as TMGraphNode[]
     );
-    setEdges((prev) => reconcileEdges(prev, rawEdges));
-  }, [rawNodes, rawEdges, startState, currentState, lastState, setNodes, setEdges]);
+    setEdges((prev) => reconcileEdges(prev, rawEdges) as TMGraphEdge[]);
+  }, [baseNodes, rawEdges, startState, currentState, lastState]);
 
   return {
     nodes,
     edges,
+    setNodes,
     topoKey,
+    expectedNodeKey: rawNodes
+      .map((n) => n.id)
+      .sort((a, b) => a.localeCompare(b))
+      .join('|'),
+    expectedEdgeKey: rawEdges
+      .map((e) => e.id)
+      .sort((a, b) => a.localeCompare(b))
+      .join('|'),
     restoredSnapshot: applicableSnapshot,
-    onNodesChange,
-    onEdgesChange,
   };
 }
 
@@ -185,171 +404,50 @@ function useHighlightedTransition({
   ]);
 }
 
-function useAutoLayout({
-  layout,
-  topoKey,
-  nodes,
-  rf,
-  portalId,
-  machineLoadVersion,
-  skipInitialAutoLayout = false,
+function NodeHintPopper({
+  hint,
+  open,
 }: {
-  layout: ReturnType<typeof useElkLayout>;
-  topoKey: string;
-  nodes: TMGraphNode[];
-  rf: ReturnType<typeof useReactFlow>;
-  portalId: string;
-  machineLoadVersion: number;
-  skipInitialAutoLayout?: boolean;
+  hint: NodeHintState;
+  open: boolean;
 }) {
-  const scheduleLayoutRestart = useDebouncedLayoutRestart(layout);
-  const nodesReady = useNodesInitialized();
-  const lastTopoKeyRef = useRef<string | null>(null);
-  // Treat the currently mounted machine as already handled so we don't
-  // run a delayed "load" recenter during the first simulation step.
-  const lastHandledMachineLoadRef = useRef<number>(machineLoadVersion);
-  const fitAfterLayoutRef = useRef(false);
-  const layoutRunningRef = useRef(layout.running);
-  const nodesReadyRef = useRef(nodesReady);
-  const nodesCountRef = useRef(0);
-  const manualFitPendingRef = useRef(false);
-  const prevRunningRef = useRef(layout.running);
-  const machineLoadFrameRef = useRef<number | null>(null);
-  const awaitingRevealRef = useRef(false);
-  const skippedInitialLayoutRef = useRef(false);
-  const [viewportReady, setViewportReady] = useState(false);
+  if (!hint.text || !hint.anchor) return null;
 
-  useEffect(() => {
-    layoutRunningRef.current = layout.running;
-  }, [layout.running]);
-
-  useEffect(() => {
-    nodesReadyRef.current = nodesReady;
-  }, [nodesReady]);
-
-  useEffect(() => {
-    nodesCountRef.current = nodes.length;
-  }, [nodes.length]);
-
-  useEffect(() => {
-    return () => {
-      if (machineLoadFrameRef.current !== null) {
-        cancelAnimationFrame(machineLoadFrameRef.current);
-      }
-    };
-  }, []);
-
-  const requestLayoutAndFit = useCallback(() => {
-    scheduleLayoutRestart();
-    fitAfterLayoutRef.current = true;
-  }, [scheduleLayoutRestart]);
-
-  const requestLayoutFitAndReveal = useCallback(() => {
-    awaitingRevealRef.current = true;
-    setViewportReady(false);
-    requestLayoutAndFit();
-  }, [requestLayoutAndFit]);
-
-  useEffect(() => {
-    if (!nodesReady || nodes.length === 0) return;
-    if (skipInitialAutoLayout && !skippedInitialLayoutRef.current) {
-      skippedInitialLayoutRef.current = true;
-      lastTopoKeyRef.current = topoKey;
-      awaitingRevealRef.current = false;
-      setViewportReady(true);
-      return;
-    }
-    if (lastTopoKeyRef.current === topoKey) return;
-    lastTopoKeyRef.current = topoKey;
-
-    requestLayoutFitAndReveal();
-  }, [topoKey, nodesReady, nodes.length, requestLayoutFitAndReveal, skipInitialAutoLayout]);
-
-  // Re-center on every successful "Load Machine".
-  useEffect(() => {
-    if (!nodesReady || nodes.length === 0) return;
-    if (lastHandledMachineLoadRef.current === machineLoadVersion) return;
-    lastHandledMachineLoadRef.current = machineLoadVersion;
-    if (machineLoadFrameRef.current !== null) {
-      cancelAnimationFrame(machineLoadFrameRef.current);
-    }
-    machineLoadFrameRef.current = requestAnimationFrame(() => {
-      machineLoadFrameRef.current = null;
-      if (!nodesReadyRef.current || nodesCountRef.current === 0) return;
-      requestLayoutFitAndReveal();
-    });
-  }, [machineLoadVersion, nodesReady, nodes.length, requestLayoutFitAndReveal]);
-
-  const runFitView = useCallback((onDone?: () => void) => {
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        rf.fitView({ padding: 0.2, duration: 300 });
-        onDone?.();
-      });
-    });
-  }, [rf]);
-
-  useEffect(() => {
-    const justFinished = prevRunningRef.current && !layout.running;
-    if (justFinished) {
-      if (fitAfterLayoutRef.current && nodes.length > 0) {
-        fitAfterLayoutRef.current = false;
-        runFitView(() => {
-          if (awaitingRevealRef.current) {
-            awaitingRevealRef.current = false;
-            setViewportReady(true);
-          }
-        });
-      }
-
-      if (manualFitPendingRef.current && nodesCountRef.current > 0) {
-        manualFitPendingRef.current = false;
-        runFitView();
-      }
-    }
-
-    prevRunningRef.current = layout.running;
-  }, [layout.running, nodes.length, runFitView]);
-
-  const recalcLayout = useCallback(() => {
-    requestLayoutAndFit();
-  }, [requestLayoutAndFit]);
-
-  const scheduleFitAfterSwitch = useCallback(() => {
-    if (!nodesReadyRef.current || nodesCountRef.current === 0) return;
-    if (layoutRunningRef.current) {
-      manualFitPendingRef.current = true;
-      return;
-    }
-    manualFitPendingRef.current = false;
-    runFitView();
-  }, [runFitView]);
-
-  useEffect(() => {
-    const handler: EventListener = (event) => {
-      const detail = (event as CustomEvent<PortalBridgeSwitchDetail>).detail;
-      if (!detail || detail.id !== portalId) return;
-      scheduleFitAfterSwitch();
-    };
-
-    window.addEventListener(PORTAL_BRIDGE_SWITCH_EVENT, handler);
-    return () => {
-      window.removeEventListener(PORTAL_BRIDGE_SWITCH_EVENT, handler);
-    };
-  }, [portalId, scheduleFitAfterSwitch]);
-
-  useEffect(() => {
-    if (nodes.length === 0) {
-      awaitingRevealRef.current = false;
-      setViewportReady(true);
-    }
-  }, [nodes.length]);
-
-  return { recalcLayout, viewportReady };
+  return (
+    <Popper
+      open={open}
+      anchorEl={makeVirtualAnchor(hint.anchor)}
+      placement="top"
+      modifiers={[
+        { name: 'offset', options: { offset: [0, 8] } },
+        { name: 'preventOverflow', options: { padding: 8 } },
+      ]}
+      sx={{ zIndex: (t) => t.zIndex.tooltip }}
+      keepMounted
+    >
+      <Paper
+        elevation={6}
+        sx={{
+          px: 1,
+          py: 0.5,
+          borderRadius: 1.25,
+          bgcolor: (t) => alpha(t.palette.grey[900], 0.9),
+          color: '#fff',
+          fontSize: '0.75rem',
+          pointerEvents: 'none',
+        }}
+      >
+        <Typography variant="caption" sx={{ color: 'inherit' }}>
+          {hint.text}
+        </Typography>
+      </Paper>
+    </Popper>
+  );
 }
 
-// --- Component ---
 function TMGraph() {
+  const theme = useTheme();
+
   const states = useGlobalZustand((s) => s.states);
   const transitions = useGlobalZustand((s) => s.transitions);
   const startState = useGlobalZustand((s) => s.startState);
@@ -359,15 +457,16 @@ function TMGraph() {
   const lastTransitionTrigger = useGlobalZustand((s) => s.lastTransitionTrigger);
   const machineLoadVersion = useGlobalZustand((s) => s.machineLoadVersion);
   const runSpeedMs = useGlobalZustand((s) => s.runSpeedMs);
+  const runChoiceHighlightedTMEdges = useGlobalZustand(
+    (s) => s.runChoiceHighlightedTMEdges
+  );
 
   const tmGraphELKSettings = useTMGraphELKSettings();
   const setTMGraphELKSettings = useGraphZustand((s) => s.setTMGraphELKSettings);
   const setTMGraphLayoutSnapshot = useGraphZustand((s) => s.setTMGraphLayoutSnapshot);
 
-  const { setHighlightedEdgeId, setSelected } = useGraphUI();
+  const { highlightedEdgeId, setHighlightedEdgeId, selected, setSelected } = useGraphUI();
 
-  const rf = useReactFlow();
-  const nodesReady = useNodesInitialized();
   const initialSnapshotRef = useRef<TMGraphLayoutSnapshot | null>(
     useGraphZustand.getState().tmGraphLayoutSnapshot
   );
@@ -375,10 +474,11 @@ function TMGraph() {
   const {
     nodes,
     edges,
+    setNodes,
     topoKey,
+    expectedNodeKey,
+    expectedEdgeKey,
     restoredSnapshot,
-    onNodesChange,
-    onEdgesChange,
   } = useTMGraphData({
     states,
     transitions,
@@ -398,29 +498,38 @@ function TMGraph() {
     setHighlightedEdgeId,
   });
 
-  const layout = useElkLayout({
-    algorithm: tmGraphELKSettings.algorithm,
-    nodeSep: tmGraphELKSettings.nodeSep,
-    rankSep: tmGraphELKSettings.rankSep,
-    edgeSep: tmGraphELKSettings.edgeSep,
-    padding: tmGraphELKSettings.padding,
-    direction: tmGraphELKSettings.direction,
-  });
-
-  const { recalcLayout, viewportReady } = useAutoLayout({
-    layout,
-    topoKey,
-    nodes,
-    rf,
-    portalId: 'tmGraph',
-    machineLoadVersion,
-    skipInitialAutoLayout: Boolean(restoredSnapshot),
-  });
-
-  const [settingsOpen, setSettingsOpen] = useState(false);
-  const restoredViewportAppliedRef = useRef(false);
+  const cyRef = useRef<CyCore | null>(null);
+  const containerRef = useRef<HTMLDivElement | null>(null);
   const nodesRef = useRef(nodes);
   const topoKeyRef = useRef(topoKey);
+  const edgeTooltipRef = useRef<EdgeTooltipState>({
+    id: null,
+    anchor: null,
+    reason: null,
+  });
+  const nodeHintRef = useRef<NodeHintState>({ id: null, text: null, anchor: null });
+
+  const edgeMapRef = useRef<Map<string, TMGraphEdge>>(new Map());
+  const nodeMapRef = useRef<Map<string, TMGraphNode>>(new Map());
+
+  const hoverTimerRef = useRef<number | null>(null);
+  const persistTimerRef = useRef<number | null>(null);
+  const suppressEdgeTooltipCloseUntilRef = useRef(0);
+
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [containerVisible, setContainerVisible] = useState(true);
+  const [viewportReady, setViewportReady] = useState(false);
+  const [cyReady, setCyReady] = useState(false);
+  const [edgeTooltip, setEdgeTooltip] = useState<EdgeTooltipState>({
+    id: null,
+    anchor: null,
+    reason: null,
+  });
+  const [nodeHint, setNodeHint] = useState<NodeHintState>({
+    id: null,
+    text: null,
+    anchor: null,
+  });
 
   useEffect(() => {
     nodesRef.current = nodes;
@@ -430,20 +539,90 @@ function TMGraph() {
     topoKeyRef.current = topoKey;
   }, [topoKey]);
 
+  useEffect(() => {
+    edgeTooltipRef.current = edgeTooltip;
+  }, [edgeTooltip]);
+  useEffect(() => {
+    nodeHintRef.current = nodeHint;
+  }, [nodeHint]);
+
+  useEffect(() => {
+    edgeMapRef.current = new Map(edges.map((e) => [e.id, e]));
+  }, [edges]);
+
+  useEffect(() => {
+    nodeMapRef.current = new Map(nodes.map((n) => [n.id, n]));
+  }, [nodes]);
+
+  const setEdgeTooltipState = useCallback((next: EdgeTooltipState) => {
+    edgeTooltipRef.current = next;
+    setEdgeTooltip(next);
+  }, []);
+
+  const getAnchorFromEvent = useCallback(
+    (evt: { renderedPosition?: { x: number; y: number } }): Anchor => {
+      const rect = containerRef.current?.getBoundingClientRect();
+      const rx = evt.renderedPosition?.x ?? 0;
+      const ry = evt.renderedPosition?.y ?? 0;
+      return {
+        top: (rect?.top ?? 0) + ry,
+        left: (rect?.left ?? 0) + rx,
+      };
+    },
+    []
+  );
+
+  const getAnchorFromElement = useCallback((id: string): Anchor | null => {
+    try {
+      const cy = cyRef.current;
+      const rect = containerRef.current?.getBoundingClientRect();
+      if (!cy || !rect) return null;
+      const ele = cy.getElementById(id);
+      if (!ele || ele.empty()) return null;
+      const pos = ele.renderedPosition?.();
+      if (!pos) return null;
+      if (!Number.isFinite(pos.x) || !Number.isFinite(pos.y)) return null;
+      return { top: rect.top + pos.y, left: rect.left + pos.x };
+    } catch {
+      return null;
+    }
+  }, []);
+
+  const clearHoverTimer = useCallback(() => {
+    if (hoverTimerRef.current != null) {
+      window.clearTimeout(hoverTimerRef.current);
+      hoverTimerRef.current = null;
+    }
+  }, []);
+
   const persistLayoutSnapshot = useCallback(() => {
+    const cy = cyRef.current;
+    if (!cy) return;
     if (nodesRef.current.length === 0) return;
     if (!topoKeyRef.current) return;
 
     const positions: TMGraphLayoutSnapshot['positions'] = {};
+
+    cy.nodes().forEach((node) => {
+      const pos = node.position();
+      positions[node.id()] = { x: pos.x, y: pos.y };
+    });
+
     for (const node of nodesRef.current) {
-      positions[node.id] = { x: node.position.x, y: node.position.y };
+      if (!positions[node.id]) {
+        positions[node.id] = { x: node.position.x, y: node.position.y };
+      }
     }
 
-    const viewport = rf.getViewport();
+    if (isDegenerateSnapshot(nodesRef.current, positions)) return;
+
+    const pan = cy.pan();
+    const zoom = cy.zoom();
+
     const viewportSnapshot: TMGraphViewportSnapshot = {
-      x: viewport.x,
-      y: viewport.y,
-      zoom: viewport.zoom,
+      x: pan.x,
+      y: pan.y,
+      zoom,
     };
 
     setTMGraphLayoutSnapshot({
@@ -452,66 +631,670 @@ function TMGraph() {
       positions,
       viewport: viewportSnapshot,
     });
-  }, [machineLoadVersion, rf, setTMGraphLayoutSnapshot]);
+  }, [machineLoadVersion, setTMGraphLayoutSnapshot]);
+
+  const schedulePersistLayoutSnapshot = useCallback(() => {
+    if (persistTimerRef.current != null) {
+      window.clearTimeout(persistTimerRef.current);
+    }
+
+    persistTimerRef.current = window.setTimeout(() => {
+      persistTimerRef.current = null;
+      persistLayoutSnapshot();
+    }, 180);
+  }, [persistLayoutSnapshot]);
 
   useEffect(() => {
     return () => {
+      if (persistTimerRef.current != null) {
+        window.clearTimeout(persistTimerRef.current);
+        persistTimerRef.current = null;
+      }
       persistLayoutSnapshot();
     };
   }, [persistLayoutSnapshot]);
 
+  const layout = useElkLayout({
+    nodes,
+    edges,
+    algorithm: tmGraphELKSettings.algorithm,
+    nodeSep: tmGraphELKSettings.nodeSep,
+    rankSep: tmGraphELKSettings.rankSep,
+    edgeSep: tmGraphELKSettings.edgeSep,
+    edgeNodeSep: tmGraphELKSettings.edgeNodeSep,
+    padding: tmGraphELKSettings.padding,
+    direction: tmGraphELKSettings.direction,
+    topoKeyOverride: topoKey,
+    autoRun: false,
+    onLayout: (positions) => {
+      setNodes((prev) => {
+        const nextPositions = new Map<string, { x: number; y: number }>();
+        const seen = new Set<string>();
+
+        for (const node of prev) {
+          const p = positions.get(node.id);
+          if (!p) continue;
+          nextPositions.set(node.id, p);
+          seen.add(`${Math.round(p.x)}:${Math.round(p.y)}`);
+        }
+
+        // Fallback spread if ELK returns a collapsed layout.
+        if (prev.length > 1 && nextPositions.size > 1 && seen.size <= 1) {
+          const center = Array.from(nextPositions.values())[0] ?? { x: 0, y: 0 };
+          const radius = Math.max(130, prev.length * 6);
+          prev.forEach((node, idx) => {
+            const angle = (idx / Math.max(1, prev.length)) * Math.PI * 2;
+            nextPositions.set(node.id, {
+              x: center.x + Math.cos(angle) * radius,
+              y: center.y + Math.sin(angle) * radius,
+            });
+          });
+        }
+
+        return prev.map((node) => {
+          const next = nextPositions.get(node.id);
+          if (!next) return node;
+          const same = node.position.x === next.x && node.position.y === next.y;
+          return same ? node : { ...node, position: next };
+        });
+      });
+    },
+  });
+
+  const scheduleLayoutRestart = useDebouncedLayoutRestart(layout);
+
+  const runFitView = useCallback(
+    (onDone?: () => void) => {
+      const cy = cyRef.current;
+      if (!cy) return;
+
+      requestAnimationFrame(() => {
+        cy.resize();
+
+        if (cy.elements().length > 0) {
+          cy.fit(cy.elements(), 30);
+        }
+
+        schedulePersistLayoutSnapshot();
+        onDone?.();
+      });
+    },
+    [schedulePersistLayoutSnapshot]
+  );
+
+  const isContainerVisible = useCallback(() => {
+    const el = containerRef.current;
+    return !!el && el.clientWidth > 0 && el.clientHeight > 0;
+  }, []);
+
+  useEffect(() => {
+    setContainerVisible(isContainerVisible());
+  }, [isContainerVisible]);
+
+  const cyStyles = useMemo(() => getCyStyles(theme), [theme]);
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const cy = cytoscape({
+      container,
+      elements: [],
+      style: cyStyles,
+      minZoom: 0.25,
+      maxZoom: 2.5,
+    });
+
+    cy.boxSelectionEnabled(false);
+    cy.userPanningEnabled(true);
+    cy.userZoomingEnabled(true);
+    cy.autoungrabify(false);
+    cy.zoom(1);
+    cy.center();
+
+    const onPaneTap = (evt: EventObject) => {
+      if (evt.target !== cy) return;
+      setSelected({ type: null, id: null });
+      setSettingsOpen(false);
+      setEdgeTooltipState({ id: null, anchor: null, reason: null });
+      setNodeHint({ id: null, text: null, anchor: null });
+    };
+
+    const onNodeTap = (evt: EventObjectNode) => {
+      evt.stopPropagation();
+      const anchor = getAnchorFromEvent(evt);
+      setSelected({ type: 'node', id: evt.target.id(), anchor });
+      setEdgeTooltipState({ id: null, anchor: null, reason: null });
+    };
+
+    const onEdgeTap = (evt: EventObjectEdge) => {
+      evt.stopPropagation();
+      clearHoverTimer();
+
+      const id = evt.target.id();
+      const source = String(evt.target.data('source') ?? '');
+      const target = String(evt.target.data('target') ?? '');
+
+      if (handleTMGraphRunChoiceEdgeClick(source, target)) {
+        setSelected({ type: null, id: null });
+        setEdgeTooltipState({ id: null, anchor: null, reason: null });
+        return;
+      }
+
+      const anchor = getAnchorFromEvent(evt);
+      setSelected({ type: 'edge', id, anchor });
+      suppressEdgeTooltipCloseUntilRef.current = Date.now() + 180;
+      const next: EdgeTooltipState = { id, anchor, reason: 'select' };
+      setEdgeTooltipState(next);
+    };
+
+    const onEdgeMouseOver = (evt: EventObjectEdge) => {
+      const id = evt.target.id();
+      evt.target.addClass('hovered');
+      clearHoverTimer();
+
+      if (edgeTooltipRef.current.reason === 'select') return;
+
+      const anchor = getAnchorFromEvent(evt);
+      hoverTimerRef.current = window.setTimeout(() => {
+        setEdgeTooltipState({ id, anchor, reason: 'hover' });
+      }, HOVER_POPPER_DELAY_MS);
+    };
+
+    const onEdgeMouseMove = (evt: EventObjectEdge) => {
+      const current = edgeTooltipRef.current;
+      if (current.reason !== 'hover' || current.id !== evt.target.id()) return;
+
+      const base = getAnchorFromEvent(evt);
+      setEdgeTooltipState({
+        id: current.id,
+        anchor: { top: base.top + 8, left: base.left + 8 },
+        reason: 'hover',
+      });
+    };
+
+    const onEdgeMouseOut = (evt: EventObjectEdge) => {
+      evt.target.removeClass('hovered');
+      clearHoverTimer();
+      const current = edgeTooltipRef.current;
+      if (current.reason === 'hover' && current.id === evt.target.id()) {
+        setEdgeTooltipState({ id: null, anchor: null, reason: null });
+      }
+    };
+
+    const onNodeMouseOver = (evt: EventObjectNode) => {
+      const text = String(evt.target.data('rolesText') ?? '');
+      if (!text) return;
+      const anchor = getAnchorFromEvent(evt);
+      setNodeHint({ id: evt.target.id(), text, anchor });
+    };
+
+    const onNodeMouseMove = (evt: EventObjectNode) => {
+      const current = evt.target.id();
+      if (nodeHintRef.current.id !== current) return;
+      const anchor = getAnchorFromEvent(evt);
+      setNodeHint((prev) => ({ ...prev, anchor }));
+    };
+
+    const onNodeMouseOut = (evt: EventObjectNode) => {
+      if (nodeHintRef.current.id !== evt.target.id()) return;
+      setNodeHint({ id: null, text: null, anchor: null });
+    };
+
+    const onViewportChanged = () => {
+      const current = edgeTooltipRef.current;
+      if (current.reason === 'select' && current.id) {
+        const anchor = getAnchorFromElement(current.id);
+        if (anchor) {
+          setEdgeTooltipState({ ...current, anchor });
+        }
+      }
+
+      schedulePersistLayoutSnapshot();
+    };
+
+    const onNodeDragFree = (evt: EventObjectNode) => {
+      const id = evt.target.id();
+      const pos = evt.target.position();
+
+      setNodes((prev) =>
+        prev.map((node) => {
+          if (node.id !== id) return node;
+          const same = node.position.x === pos.x && node.position.y === pos.y;
+          return same ? node : { ...node, position: { x: pos.x, y: pos.y } };
+        })
+      );
+
+      schedulePersistLayoutSnapshot();
+    };
+
+    cy.on('tap', onPaneTap);
+    cy.on('tap', 'node', onNodeTap);
+    cy.on('tap', 'edge', onEdgeTap);
+    cy.on('mouseover', 'edge', onEdgeMouseOver);
+    cy.on('mousemove', 'edge', onEdgeMouseMove);
+    cy.on('mouseout', 'edge', onEdgeMouseOut);
+    cy.on('mouseover', 'node', onNodeMouseOver);
+    cy.on('mousemove', 'node', onNodeMouseMove);
+    cy.on('mouseout', 'node', onNodeMouseOut);
+    cy.on('dragfree', 'node', onNodeDragFree);
+    cy.on('pan zoom', onViewportChanged);
+
+    cyRef.current = cy;
+    setCyReady(true);
+
+    return () => {
+      clearHoverTimer();
+      cy.off('tap', onPaneTap);
+      cy.off('tap', 'node', onNodeTap);
+      cy.off('tap', 'edge', onEdgeTap);
+      cy.off('mouseover', 'edge', onEdgeMouseOver);
+      cy.off('mousemove', 'edge', onEdgeMouseMove);
+      cy.off('mouseout', 'edge', onEdgeMouseOut);
+      cy.off('mouseover', 'node', onNodeMouseOver);
+      cy.off('mousemove', 'node', onNodeMouseMove);
+      cy.off('mouseout', 'node', onNodeMouseOut);
+      cy.off('dragfree', 'node', onNodeDragFree);
+      cy.off('pan zoom', onViewportChanged);
+      setCyReady(false);
+      cy.destroy();
+      cyRef.current = null;
+    };
+  }, [
+    clearHoverTimer,
+    cyStyles,
+    getAnchorFromElement,
+    getAnchorFromEvent,
+    setEdgeTooltipState,
+    schedulePersistLayoutSnapshot,
+    setSelected,
+    setNodes,
+  ]);
+
+  useEffect(() => {
+    const cy = cyRef.current;
+    if (!cy) return;
+    cy.style(cyStyles);
+    cy.style().update();
+  }, [cyStyles]);
+
+  useEffect(() => {
+    const cy = cyRef.current;
+    if (!cy) return;
+
+    const nextIds = new Set<string>([
+      ...nodes.map((n) => n.id),
+      ...edges.map((e) => e.id),
+    ]);
+
+    cy.batch(() => {
+      cy.elements().forEach((ele) => {
+        if (!nextIds.has(ele.id())) ele.remove();
+      });
+
+      nodes.forEach((n) => {
+        const data = (n.data ?? {}) as any;
+        const label = String(data.label ?? n.id);
+        const isStart = Boolean(data.isStart);
+        const isCurrent = Boolean(data.isCurrent);
+        const isLast = Boolean(data.isLast);
+
+        const roles = getNodeRoles(label, isStart, isCurrent, isLast);
+
+        const borderColor = isCurrent
+          ? normalizeColor(theme.palette.primary.main)
+          : isLast
+            ? normalizeColor(theme.palette.accent.light)
+            : normalizeColor(theme.palette.border.main);
+
+        const isAccepting = ['done', 'accept', 'accepted'].includes(label.toLowerCase());
+        const isRejecting = ['error', 'reject', 'rejected'].includes(label.toLowerCase());
+
+        const bgColor =
+          isCurrent || isLast
+            ? normalizeColor(theme.palette.background.paper)
+            : isAccepting
+              ? normalizeColor(theme.palette.success.light)
+              : isRejecting
+                ? normalizeColor(theme.palette.error.light)
+                : normalizeColor(theme.palette.background.paper);
+
+        const classes = ['node'];
+        if (isStart) classes.push('start');
+        if (isCurrent) classes.push('current');
+        if (isLast) classes.push('last');
+
+        const cyData = {
+          id: n.id,
+          label,
+          rolesText: roles.join(' · '),
+          bgColor,
+          borderColor,
+          borderWidth: 3,
+          width: n.width ?? STATE_NODE_DIAMETER,
+          height: n.height ?? STATE_NODE_DIAMETER,
+        };
+
+        const position = n.position ?? { x: 0, y: 0 };
+        const ele = cy.getElementById(n.id);
+
+        if (ele && ele.length > 0) {
+          ele.data(cyData);
+          ele.position(position);
+          ele.classes(classes.join(' '));
+        } else {
+          cy.add({
+            group: 'nodes',
+            data: cyData,
+            position,
+            classes: classes.join(' '),
+          });
+        }
+      });
+
+      edges.forEach((e) => {
+        const data = (e.data ?? {}) as any;
+        const isLoop = e.source === e.target;
+        const bended = data.bended === true;
+
+        const classes = ['edge'];
+        if (isLoop) classes.push('loop');
+        if (bended) classes.push('bended');
+
+        const cyData = {
+          id: e.id,
+          source: e.source,
+          target: e.target,
+          label: typeof e.label === 'string' ? e.label : '',
+          transitions: (data.transitions as Transition[] | undefined) ?? [],
+          // Use one positive distance for both directions: Cytoscape flips side for reverse direction.
+          curveDistance: bended ? 34 : 0,
+        };
+
+        const ele = cy.getElementById(e.id);
+
+        if (ele && ele.length > 0) {
+          ele.data(cyData);
+          ele.classes(classes.join(' '));
+        } else {
+          cy.add({
+            group: 'edges',
+            data: cyData,
+            classes: classes.join(' '),
+          });
+        }
+      });
+    });
+
+  }, [nodes, edges, theme]);
+
+  const currentNodeKey = useMemo(
+    () => nodes.map((n) => n.id).sort((a, b) => a.localeCompare(b)).join('|'),
+    [nodes]
+  );
+  const currentEdgeKey = useMemo(
+    () => edges.map((e) => e.id).sort((a, b) => a.localeCompare(b)).join('|'),
+    [edges]
+  );
+
+  const lastSelectedEdgeRef = useRef<string | null>(null);
+  useEffect(() => {
+    const cy = cyRef.current;
+    if (!cy) return;
+
+    const next = selected.type === 'edge' ? selected.id : null;
+    const prev = lastSelectedEdgeRef.current;
+    if (prev === next) return;
+
+    cy.batch(() => {
+      if (prev) cy.getElementById(prev).removeClass('ct-selected');
+      if (next) cy.getElementById(next).addClass('ct-selected');
+    });
+
+    lastSelectedEdgeRef.current = next;
+  }, [selected]);
+
+  const lastHighlightedSetRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    const cy = cyRef.current;
+    if (!cy) return;
+
+    const nextSet = new Set<string>(runChoiceHighlightedTMEdges);
+    if (highlightedEdgeId) nextSet.add(highlightedEdgeId);
+
+    const prevSet = lastHighlightedSetRef.current;
+
+    cy.batch(() => {
+      prevSet.forEach((id) => {
+        if (!nextSet.has(id)) cy.getElementById(id).removeClass('tm-highlighted');
+      });
+
+      nextSet.forEach((id) => {
+        if (!prevSet.has(id)) cy.getElementById(id).addClass('tm-highlighted');
+      });
+    });
+
+    lastHighlightedSetRef.current = nextSet;
+  }, [highlightedEdgeId, runChoiceHighlightedTMEdges]);
+
+  const didInitialLayoutRef = useRef(false);
+  const lastTopoKeyRef = useRef<string | null>(null);
+  const lastHandledMachineLoadRef = useRef<number>(machineLoadVersion);
+  const fitAfterLayoutRef = useRef(false);
+  const prevRunningRef = useRef(layout.running);
+  const restoredViewportAppliedRef = useRef(false);
+  const structureReadyForLayout =
+    nodes.length > 0 &&
+    expectedNodeKey.length > 0 &&
+    currentNodeKey === expectedNodeKey &&
+    currentEdgeKey === expectedEdgeKey;
+
+  useEffect(() => {
+    if (nodes.length === 0) {
+      setViewportReady(true);
+      return;
+    }
+    if (!structureReadyForLayout) {
+      setViewportReady(false);
+      return;
+    }
+
+    if (!didInitialLayoutRef.current) {
+      didInitialLayoutRef.current = true;
+      lastTopoKeyRef.current = topoKey;
+
+      if (restoredSnapshot) {
+        setViewportReady(false);
+        return;
+      }
+
+      setViewportReady(false);
+      scheduleLayoutRestart();
+      fitAfterLayoutRef.current = true;
+      return;
+    }
+
+    if (lastTopoKeyRef.current === topoKey) return;
+
+    lastTopoKeyRef.current = topoKey;
+    restoredViewportAppliedRef.current = false;
+    setViewportReady(false);
+    scheduleLayoutRestart();
+    fitAfterLayoutRef.current = true;
+  }, [nodes.length, topoKey, restoredSnapshot, scheduleLayoutRestart, structureReadyForLayout]);
+
+  useEffect(() => {
+    if (nodes.length === 0) return;
+    if (!structureReadyForLayout) return;
+    if (lastHandledMachineLoadRef.current === machineLoadVersion) return;
+
+    lastHandledMachineLoadRef.current = machineLoadVersion;
+    restoredViewportAppliedRef.current = false;
+    setViewportReady(false);
+    scheduleLayoutRestart();
+    fitAfterLayoutRef.current = true;
+  }, [machineLoadVersion, nodes.length, scheduleLayoutRestart, structureReadyForLayout]);
+
+  useEffect(() => {
+    const justFinished = prevRunningRef.current && !layout.running;
+    if (justFinished) {
+      if (fitAfterLayoutRef.current && nodes.length > 0) {
+        fitAfterLayoutRef.current = false;
+        runFitView(() => {
+          setViewportReady(true);
+        });
+      }
+
+      schedulePersistLayoutSnapshot();
+    }
+
+    prevRunningRef.current = layout.running;
+  }, [layout.running, nodes.length, runFitView, schedulePersistLayoutSnapshot]);
+
   useEffect(() => {
     if (restoredViewportAppliedRef.current) return;
+
     const viewport = restoredSnapshot?.viewport;
-    if (!viewport) return;
-    if (!nodesReady || nodes.length === 0) return;
+    const cy = cyRef.current;
+
+    if (!viewport || !cy || !cyReady || nodes.length === 0) return;
+
     restoredViewportAppliedRef.current = true;
 
     requestAnimationFrame(() => {
-      rf.setViewport(viewport, { duration: 0 });
+      cy.viewport({
+        zoom: viewport.zoom,
+        pan: { x: viewport.x, y: viewport.y },
+      });
+
+      setViewportReady(true);
     });
-  }, [nodes.length, nodesReady, restoredSnapshot, rf]);
+  }, [restoredSnapshot, nodes.length, cyReady]);
 
-  const handleNodeDragStop = useCallback(() => {
-    persistLayoutSnapshot();
-  }, [persistLayoutSnapshot]);
+  useEffect(() => {
+    const cy = cyRef.current;
+    const el = containerRef.current;
+    if (!cy || !el || typeof ResizeObserver === 'undefined') return;
 
-  const handleMoveEnd = useCallback(() => {
-    persistLayoutSnapshot();
-  }, [persistLayoutSnapshot]);
+    const ro = new ResizeObserver(() => {
+      const visible = isContainerVisible();
+      setContainerVisible(visible);
+      cy.resize();
+
+      if (visible) {
+        const current = edgeTooltipRef.current;
+        if (current.reason === 'select' && current.id) {
+          const anchor = getAnchorFromElement(current.id);
+          if (anchor) setEdgeTooltipState({ ...current, anchor });
+        }
+      }
+    });
+
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [getAnchorFromElement, isContainerVisible, setEdgeTooltipState]);
+
+  const refreshViewportAfterSwitch = useCallback(() => {
+    const cy = cyRef.current;
+    if (!cy) return;
+
+    requestAnimationFrame(() => {
+      cy.resize();
+      const current = edgeTooltipRef.current;
+      if (current.reason === 'select' && current.id) {
+        const anchor = getAnchorFromElement(current.id);
+        if (anchor) setEdgeTooltipState({ ...current, anchor });
+      }
+      schedulePersistLayoutSnapshot();
+    });
+  }, [getAnchorFromElement, schedulePersistLayoutSnapshot, setEdgeTooltipState]);
+
+  useEffect(() => {
+    const handler: EventListener = (event) => {
+      const detail = (event as CustomEvent<PortalBridgeSwitchDetail>).detail;
+      if (!detail || detail.id !== 'tmGraph') return;
+      refreshViewportAfterSwitch();
+    };
+
+    window.addEventListener(PORTAL_BRIDGE_SWITCH_EVENT, handler);
+    return () => {
+      window.removeEventListener(PORTAL_BRIDGE_SWITCH_EVENT, handler);
+    };
+  }, [refreshViewportAfterSwitch]);
+
+  const recalcLayout = useCallback(() => {
+    setViewportReady(false);
+    scheduleLayoutRestart();
+    fitAfterLayoutRef.current = true;
+  }, [scheduleLayoutRestart]);
 
   const resetToDefaults = useCallback(() => {
-    setTMGraphELKSettings({ ...DEFAULT_ELK_OPTS });
+    setTMGraphELKSettings({ ...DEFAULT_ELK_OPTS, direction: 'RIGHT' });
   }, [setTMGraphELKSettings]);
 
-  const handlePaneClick = useCallback(() => {
+  const edgeTransitions = edgeTooltip.id
+    ? ((edgeMapRef.current.get(edgeTooltip.id)?.data as any)?.transitions as
+        | Transition[]
+        | undefined) ?? []
+    : [];
+
+  const fallbackLines = useMemo(() => {
+    if (!edgeTooltip.id) return [] as string[];
+    if (edgeTransitions.length > 0) return [];
+    const label = edgeMapRef.current.get(edgeTooltip.id)?.label;
+    if (typeof label !== 'string' || !label.trim()) return [];
+    return label.split('\n').map((s) => s.trim());
+  }, [edgeTooltip.id, edgeTransitions]);
+
+  const sourceLabel = edgeTooltip.id
+    ? String(edgeMapRef.current.get(edgeTooltip.id)?.source ?? '')
+    : '';
+  const targetLabel = edgeTooltip.id
+    ? String(edgeMapRef.current.get(edgeTooltip.id)?.target ?? '')
+    : '';
+
+  const zoomBy = useCallback((factor: number) => {
+    const cy = cyRef.current;
+    if (!cy) return;
+
+    const next = Math.max(cy.minZoom(), Math.min(cy.maxZoom(), cy.zoom() * factor));
+    cy.zoom({
+      level: next,
+      renderedPosition: { x: cy.width() / 2, y: cy.height() / 2 },
+    });
+  }, []);
+
+  const handleEdgeTooltipClose = useCallback(() => {
+    if (edgeTooltipRef.current.reason === 'select') return;
+    if (Date.now() < suppressEdgeTooltipCloseUntilRef.current) return;
     setSelected({ type: null, id: null });
-    setSettingsOpen(false);
-  }, [setSelected, setSettingsOpen]);
+    setEdgeTooltipState({ id: null, anchor: null, reason: null });
+  }, [setSelected, setEdgeTooltipState]);
 
   return (
-    <ReactFlow
+    <Box
       id="TMGraph"
-      style={{
+      sx={{
+        position: 'relative',
         width: '100%',
         height: '100%',
-        opacity: viewportReady ? 1 : 0,
-        transition: 'opacity 120ms ease',
+        minHeight: 360,
+        overflow: 'hidden',
+        backgroundImage: (t) =>
+          `radial-gradient(circle, ${alpha(t.palette.common.black, 0.12)} 1px, transparent 1px)`,
+        backgroundSize: '10px 10px',
       }}
-      nodes={nodes}
-      edges={edges}
-      onNodesChange={onNodesChange}
-      onEdgesChange={onEdgesChange}
-      onNodeDragStop={handleNodeDragStop}
-      onMoveEnd={handleMoveEnd}
-      onPaneClick={handlePaneClick}
-      nodeTypes={nodeTypes}
-      edgeTypes={edgeTypes}
-      defaultEdgeOptions={defaultEdgeOptions}
-      proOptions={{ hideAttribution: true }}
-      minZoom={0.25}
-      defaultViewport={{ x: 0, y: 0, zoom: 1 }}
     >
+      <Box
+        ref={containerRef}
+        sx={{
+          position: 'absolute',
+          inset: 0,
+          opacity: viewportReady ? 1 : 0,
+          pointerEvents: viewportReady ? 'auto' : 'none',
+          transition: 'opacity 120ms ease',
+        }}
+      />
+
       <Box
         sx={{
           position: 'absolute',
@@ -526,7 +1309,10 @@ function TMGraph() {
             size="small"
             variant="extended"
             color="primary"
-            onClick={() => setSettingsOpen((v) => !v)}
+            onClick={(evt) => {
+              evt.stopPropagation();
+              setSettingsOpen((v) => !v);
+            }}
             sx={{
               textTransform: 'none',
               boxShadow: (t) => `0 4px 12px ${alpha(t.palette.common.black, 0.2)}`,
@@ -551,12 +1337,23 @@ function TMGraph() {
         running={layout.running}
       />
 
-      <Panel position="top-left">
+      <Box
+        sx={{
+          position: 'absolute',
+          top: 8,
+          left: 8,
+          zIndex: (t) => t.zIndex.appBar + 1,
+          pointerEvents: 'auto',
+        }}
+      >
         <Stack direction="row" spacing={1} alignItems="center">
           <Button
             size="small"
             variant="contained"
-            onClick={recalcLayout}
+            onClick={(evt) => {
+              evt.stopPropagation();
+              recalcLayout();
+            }}
             disabled={layout.running}
             startIcon={<Cached fontSize="small" />}
             sx={{
@@ -569,20 +1366,55 @@ function TMGraph() {
             Recalculate layout
           </Button>
         </Stack>
-      </Panel>
+      </Box>
 
-      <Controls />
-      <Background gap={10} size={1} />
-    </ReactFlow>
+      <Paper
+        elevation={3}
+        sx={{
+          position: 'absolute',
+          left: 8,
+          bottom: 8,
+          zIndex: (t) => t.zIndex.appBar + 1,
+          pointerEvents: 'auto',
+          display: 'flex',
+          flexDirection: 'column',
+          borderRadius: 1,
+          overflow: 'hidden',
+          border: (t) => `1px solid ${alpha(t.palette.divider, 0.55)}`,
+        }}
+        onClick={(evt) => evt.stopPropagation()}
+      >
+        <IconButton size="small" onClick={() => zoomBy(1.2)}>
+          <Add fontSize="small" />
+        </IconButton>
+        <IconButton size="small" onClick={() => zoomBy(1 / 1.2)}>
+          <Remove fontSize="small" />
+        </IconButton>
+        <IconButton size="small" onClick={() => runFitView()}>
+          <CenterFocusStrong fontSize="small" />
+        </IconButton>
+      </Paper>
+
+      <NodeHintPopper hint={nodeHint} open={containerVisible && !!nodeHint.text} />
+
+      <EdgeTooltip
+        open={containerVisible && !!edgeTooltip.id && !!edgeTooltip.anchor}
+        anchorEl={makeVirtualAnchor(edgeTooltip.anchor)}
+        edgeId={edgeTooltip.id ?? ''}
+        source={sourceLabel}
+        target={targetLabel}
+        transitions={edgeTransitions}
+        fallbackLines={fallbackLines}
+        onClose={handleEdgeTooltipClose}
+      />
+    </Box>
   );
 }
 
 export function TMGraphWrapper() {
   return (
-    <ReactFlowProvider>
-      <GraphUIProvider>
-        <TMGraph />
-      </GraphUIProvider>
-    </ReactFlowProvider>
+    <GraphUIProvider>
+      <TMGraph />
+    </GraphUIProvider>
   );
 }

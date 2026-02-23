@@ -195,22 +195,38 @@ function getCyStyles(theme: ReturnType<typeof useTheme>): Stylesheet[] {
       style: {
         width: 'data(width)',
         height: 'data(height)',
-        label: 'data(displayLabel)',
+        label: '',
         'text-valign': 'center',
         'text-halign': 'center',
         'font-size': 14,
         'font-weight': 600,
         color: theme.palette.text.primary,
         'text-outline-width': 2,
-        'text-outline-color': 'data(textOutline)',
-        'background-color': 'data(bgColor)',
+        'text-outline-color': normalizeColor(theme.palette.background.paper),
+        'background-color': normalizeColor(theme.palette.background.paper),
         'border-width': 'data(borderWidth)',
-        'border-color': 'data(borderColor)',
+        'border-color': normalizeColor(theme.palette.border?.main ?? theme.palette.divider),
         'border-style': 'solid',
         shape: 'ellipse',
         'z-index': 5,
         'overlay-opacity': 0,
       },
+    },
+    {
+      selector: 'node[displayLabel]',
+      style: { label: 'data(displayLabel)' },
+    },
+    {
+      selector: 'node[textOutline]',
+      style: { 'text-outline-color': 'data(textOutline)' },
+    },
+    {
+      selector: 'node[bgColor]',
+      style: { 'background-color': 'data(bgColor)' },
+    },
+    {
+      selector: 'node[borderColor]',
+      style: { 'border-color': 'data(borderColor)' },
     },
     {
       selector: 'node.card',
@@ -221,23 +237,24 @@ function getCyStyles(theme: ReturnType<typeof useTheme>): Stylesheet[] {
     {
       selector: 'node.start',
       style: {
-        'border-color': theme.palette.primary.main,
+        'border-color': normalizeColor(theme.palette.primary.main),
         'border-width': 8,
       },
     },
     {
       selector: 'node.hovered',
       style: {
-        'border-color': theme.palette.border?.dark ?? theme.palette.primary.dark,
+        'border-color':
+          normalizeColor(theme.palette.border?.dark) ??
+          normalizeColor(theme.palette.primary.dark),
         'border-width': 8,
       },
     },
     {
       selector: 'node.ct-selected',
       style: {
-        'border-color': theme.palette.primary.dark,
+        'border-color': normalizeColor(theme.palette.primary.dark),
         'border-width': 9,
-        'box-shadow': `0 0 0 6px ${alpha(theme.palette.primary.main, 0.25)}`,
       },
     },
     {
@@ -963,7 +980,6 @@ function ComputationTreeCircles({ targetNodes, compressing = false }: Props) {
       container,
       elements: [],
       style: cyStyles,
-      wheelSensitivity: 0.6,
       minZoom: 0.05,
       maxZoom: 2.5,
     });
@@ -1093,7 +1109,7 @@ function ComputationTreeCircles({ targetNodes, compressing = false }: Props) {
         const stateColor =
           data.stateColor ?? resolveColorForState((n.data as any)?.config?.state);
         const displayLabel = data.showLabel === false ? '' : data.label ?? n.id;
-        const bgColor = stateColor ?? theme.palette.background.paper;
+        const bgColor = stateColor ?? normalizeColor(theme.palette.background.paper);
         const classes = [
           computationTreeNodeMode === ConfigNodeMode.CARDS ? 'card' : 'circle',
         ];
@@ -1107,10 +1123,11 @@ function ComputationTreeCircles({ targetNodes, compressing = false }: Props) {
           displayLabel,
           bgColor,
           borderColor: data.isStart
-            ? theme.palette.primary.main
-            : theme.palette.border?.main ?? theme.palette.divider,
+            ? normalizeColor(theme.palette.primary.main)
+            : normalizeColor(theme.palette.border?.main) ??
+              normalizeColor(theme.palette.divider),
           borderWidth: data.isStart ? 8 : 0,
-          textOutline: theme.palette.background.paper,
+          textOutline: normalizeColor(theme.palette.background.paper),
           width: n.width ?? CONFIG_NODE_DIAMETER,
           height: n.height ?? CONFIG_NODE_DIAMETER,
         };
