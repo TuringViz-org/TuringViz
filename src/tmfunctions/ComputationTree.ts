@@ -258,8 +258,9 @@ function computeCompressedTreeFromInputs(
   const nodes: ComputationTreeNode[] = [];
   const edges: ComputationTreeEdge[] = [];
   let currentId = 0;
-  let totalNodes = 1;
   let truncated = false;
+
+  const hasNodeBudget = () => nodes.length < maxNodes;
 
   const addNode = (config: Configuration, end: End) => {
     const id = currentId++;
@@ -288,13 +289,20 @@ function computeCompressedTreeFromInputs(
     });
   };
 
-  const finalizeItem = (item: CompressedQueueItem, end: End) => {
+  const finalizeItem = (item: CompressedQueueItem, end: End): boolean => {
     if (item.nodeId != null) {
       updateEnd(item.nodeId, end);
-    } else {
-      const id = addNode(item.config, end);
-      addChainEdge(item.parentId, id, item.chainLength, item.firstTransitionIndex);
+      return true;
     }
+
+    if (!hasNodeBudget()) {
+      updateEnd(item.parentId, End.NotYetComputed);
+      return false;
+    }
+
+    const id = addNode(item.config, end);
+    addChainEdge(item.parentId, id, item.chainLength, item.firstTransitionIndex);
+    return true;
   };
 
   const rootId = addNode(startConfig, End.NotYetComputed);
@@ -312,22 +320,27 @@ function computeCompressedTreeFromInputs(
   let head = 0;
   const finalizeRemainingQueuedItems = () => {
     for (; head < queue.length; head++) {
-      finalizeItem(queue[head]!, End.NotYetComputed);
+      if (!finalizeItem(queue[head]!, End.NotYetComputed)) break;
     }
   };
 
   while (head < queue.length) {
     const item = queue[head++]!;
 
-    if (totalNodes >= maxNodes) {
+    if (!hasNodeBudget()) {
       truncated = true;
-      finalizeItem(item, End.NotYetComputed);
+      if (item.nodeId != null) updateEnd(item.nodeId, End.NotYetComputed);
+      else updateEnd(item.parentId, End.NotYetComputed);
       finalizeRemainingQueuedItems();
       break;
     }
 
     if (item.depthLeft <= 0) {
-      finalizeItem(item, End.NotYetComputed);
+      if (!finalizeItem(item, End.NotYetComputed)) {
+        truncated = true;
+        finalizeRemainingQueuedItems();
+        break;
+      }
       continue;
     }
 
@@ -339,21 +352,20 @@ function computeCompressedTreeFromInputs(
     }
 
     if (nexts.length === 0) {
-      if (item.nodeId == null) finalizeItem(item, End.Halt);
+      if (item.nodeId == null) {
+        if (!finalizeItem(item, End.Halt)) {
+          truncated = true;
+          finalizeRemainingQueuedItems();
+          break;
+        }
+      }
       continue;
     }
 
     const nextDepth = item.depthLeft - 1;
 
     if (nexts.length === 1) {
-      if (totalNodes >= maxNodes) {
-        truncated = true;
-        finalizeItem(item, End.NotYetComputed);
-        finalizeRemainingQueuedItems();
-        break;
-      }
       const [childConfig, transitionIndex] = nexts[0];
-      totalNodes += 1;
       if (item.nodeId != null) {
         queue.push({
           config: childConfig,
@@ -378,6 +390,12 @@ function computeCompressedTreeFromInputs(
 
     let currentNodeId = item.nodeId;
     if (currentNodeId == null) {
+      if (!hasNodeBudget()) {
+        truncated = true;
+        updateEnd(item.parentId, End.NotYetComputed);
+        finalizeRemainingQueuedItems();
+        break;
+      }
       currentNodeId = addNode(item.config, End.None);
       addChainEdge(item.parentId, currentNodeId, item.chainLength, item.firstTransitionIndex);
     } else {
@@ -385,13 +403,12 @@ function computeCompressedTreeFromInputs(
     }
 
     for (const [childConfig, transitionIndex] of nexts) {
-      if (totalNodes >= maxNodes) {
+      if (!hasNodeBudget()) {
         truncated = true;
         updateEnd(currentNodeId, End.NotYetComputed);
         finalizeRemainingQueuedItems();
         break;
       }
-      totalNodes += 1;
       const childId = addNode(childConfig, End.NotYetComputed);
       edges.push({
         from: currentNodeId,

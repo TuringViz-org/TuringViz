@@ -218,7 +218,7 @@ export default function App() {
       },
       {
         id: 'computationTree',
-        title: 'Configuration Tree — Fullscreen',
+        title: 'Computation Tree — Fullscreen',
         open: treeFullscreen.open,
         onClose: treeFullscreen.closeFullscreen,
         render: treeFullscreen.render,

@@ -68,6 +68,7 @@ import {
   ConfigNodeMode,
   DEFAULT_ELK_OPTS,
   HOVER_POPPER_DELAY_MS,
+  MAX_COMPUTATION_TREE_TARGET_NODES,
 } from '@utils/constants';
 import { useElkLayout } from './layout/useElkLayout';
 import { TreeLayoutSettingsPanel } from './layout/LayoutSettingsPanel';
@@ -400,9 +401,12 @@ function useComputationTreeData(
     const startConfig = getStartConfiguration();
     const reqId = requestRef.current + 1;
     requestRef.current = reqId;
+    const effectiveDepth = compressing
+      ? MAX_COMPUTATION_TREE_TARGET_NODES
+      : targetNodes;
 
     computeComputationTreeInWorker({
-      depth: targetNodes,
+      depth: effectiveDepth,
       targetNodes,
       compressing,
       transitions,
@@ -421,14 +425,22 @@ function useComputationTreeData(
           transitions,
           numberOfTapes,
           blank,
-          targetNodes,
+          effectiveDepth,
           compressing,
           (msg) => toast.warning(msg),
           targetNodes
         );
         setModel(tree);
       });
-  }, [targetNodes, compressing, transitions, blank, numberOfTapes, startState, input]);
+  }, [
+    targetNodes,
+    compressing,
+    transitions,
+    blank,
+    numberOfTapes,
+    startState,
+    input,
+  ]);
 
   useEffect(() => {
     if (!model) return;
@@ -2033,7 +2045,7 @@ export function ComputationTree(props: Props) {
 }
 
 export function ComputationTreeWrapper({
-  targetNodes = 10,
+  targetNodes = MAX_COMPUTATION_TREE_TARGET_NODES,
   compressing = false,
 }: {
   targetNodes?: number;
