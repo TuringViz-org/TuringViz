@@ -27,9 +27,8 @@ import {
   Paper,
   Popper,
   ClickAwayListener,
-  IconButton,
 } from '@mui/material';
-import { Cached, Adjust, ViewAgenda, Tune, CenterFocusStrong } from '@mui/icons-material';
+import { Adjust, ViewAgenda, Tune, CenterFocusStrong } from '@mui/icons-material';
 import { alpha, useTheme } from '@mui/material/styles';
 import type { VirtualElement } from '@popperjs/core';
 import { toast } from 'sonner';
@@ -1383,7 +1382,7 @@ function ComputationTreeCircles({ targetNodes, compressing = false }: Props) {
         running={layout.running}
       />
 
-      {/* Top-left controls panel (recalculate layout and node mode switch) */}
+      {/* Top-left controls panel (fit view and node mode switch) */}
       <Box
         sx={{
           position: 'absolute',
@@ -1397,8 +1396,8 @@ function ComputationTreeCircles({ targetNodes, compressing = false }: Props) {
           <Button
             size="small"
             variant="contained"
-            onClick={recalcLayout}
-            startIcon={<Cached fontSize="small" />}
+            onClick={() => runFitView()}
+            startIcon={<CenterFocusStrong fontSize="small" />}
             disabled={layout.running}
             sx={{
               height: CONTROL_HEIGHT,
@@ -1407,7 +1406,7 @@ function ComputationTreeCircles({ targetNodes, compressing = false }: Props) {
               px: 1.25,
             }}
           >
-            Recalculate layout
+            Fit view
           </Button>
 
           <ToggleButtonGroup
@@ -1501,15 +1500,6 @@ function ComputationTreeCircles({ targetNodes, compressing = false }: Props) {
         visible={showLegend}
         hoveredKey={hoveredState}
         contentClassName="ct-scrollable"
-        addon={
-          <Tooltip title="Fit view">
-            <span>
-              <IconButton size="small" onClick={runFitView}>
-                <CenterFocusStrong fontSize="small" />
-              </IconButton>
-            </span>
-          </Tooltip>
-        }
       />
 
       {/* Node detail popper */}
@@ -1941,7 +1931,7 @@ function ComputationTreeCards({ targetNodes, compressing = false }: Props) {
         running={layout.running}
       />
 
-      {/* Top-left controls panel (recalculate layout and node mode switch) */}
+      {/* Top-left controls panel (fit view and node mode switch) */}
       <Box
         sx={{
           position: 'absolute',
@@ -1955,8 +1945,8 @@ function ComputationTreeCards({ targetNodes, compressing = false }: Props) {
           <Button
             size="small"
             variant="contained"
-            onClick={recalcLayout}
-            startIcon={<Cached fontSize="small" />}
+            onClick={() => runFitView()}
+            startIcon={<CenterFocusStrong fontSize="small" />}
             disabled={layout.running}
             sx={{
               height: CONTROL_HEIGHT,
@@ -1965,7 +1955,7 @@ function ComputationTreeCards({ targetNodes, compressing = false }: Props) {
               px: 1.25,
             }}
           >
-            Recalculate layout
+            Fit view
           </Button>
 
           <ToggleButtonGroup
@@ -2059,15 +2049,6 @@ function ComputationTreeCards({ targetNodes, compressing = false }: Props) {
         visible={showLegend}
         hoveredKey={hoveredState}
         contentClassName="ct-scrollable"
-        addon={
-          <Tooltip title="Fit view">
-            <span>
-              <IconButton size="small" onClick={runFitView}>
-                <CenterFocusStrong fontSize="small" />
-              </IconButton>
-            </span>
-          </Tooltip>
-        }
       />
 
       <Background gap={10} size={1} />

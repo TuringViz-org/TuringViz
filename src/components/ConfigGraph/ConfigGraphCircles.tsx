@@ -17,10 +17,9 @@ import {
   Popper,
   ClickAwayListener,
   Stack,
-  IconButton,
 } from '@mui/material';
 import { alpha, useTheme } from '@mui/material/styles';
-import { Cached, Adjust, ViewAgenda, Tune, CenterFocusStrong } from '@mui/icons-material';
+import { Adjust, ViewAgenda, Tune, CenterFocusStrong } from '@mui/icons-material';
 import type { VirtualElement } from '@popperjs/core';
 import { toast } from 'sonner';
 import type { Edge as RFEdge, Node as RFNode } from '@xyflow/react';
@@ -1264,9 +1263,9 @@ export function ConfigGraphCircles() {
           <Button
             size="small"
             variant="contained"
-            onClick={recalcLayout}
+            onClick={() => runFitView()}
             disabled={layout.running}
-            startIcon={<Cached fontSize="small" />}
+            startIcon={<CenterFocusStrong fontSize="small" />}
             sx={{
               height: CONTROL_HEIGHT,
               borderRadius: 1.5,
@@ -1274,7 +1273,7 @@ export function ConfigGraphCircles() {
               px: 1.25,
             }}
           >
-            Recalculate layout
+            Fit view
           </Button>
 
           <ToggleButtonGroup
@@ -1364,15 +1363,6 @@ export function ConfigGraphCircles() {
         visible={showLegend}
         hoveredKey={hoveredState}
         contentClassName="ct-scrollable"
-        addon={
-          <Tooltip title="Fit view">
-            <span>
-              <IconButton size="small" onClick={() => runFitView()}>
-                <CenterFocusStrong fontSize="small" />
-              </IconButton>
-            </span>
-          </Tooltip>
-        }
       />
 
       {/* Node detail popper */}

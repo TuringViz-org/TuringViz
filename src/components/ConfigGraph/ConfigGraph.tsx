@@ -20,12 +20,10 @@ import {
   ToggleButton,
   Tooltip,
   Fab,
-  IconButton,
 } from '@mui/material';
 import {
   Adjust,
   ViewAgenda,
-  Cached,
   Tune,
   CenterFocusStrong,
 } from '@mui/icons-material';
@@ -476,7 +474,7 @@ function ConfigGraphCards() {
         onRecalc={recalcLayout}
         running={layout.running}
       />
-      {/* Top-left controls panel (recalculate layout and node mode switch) */}
+      {/* Top-left controls panel (fit view and node mode switch) */}
       <Box
         sx={{
           position: 'absolute',
@@ -487,13 +485,13 @@ function ConfigGraphCards() {
         }}
       >
         <Stack direction="row" spacing={1} alignItems="center">
-          {/* Button for recalculating layout */}
+          {/* Button for fitting the current graph into view */}
           <Button
             size="small"
             variant="contained"
-            onClick={recalcLayout}
+            onClick={() => runFitView()}
             disabled={layout.running}
-            startIcon={<Cached fontSize="small" />}
+            startIcon={<CenterFocusStrong fontSize="small" />}
             sx={{
               height: CONTROL_HEIGHT,
               borderRadius: 1.5,
@@ -501,7 +499,7 @@ function ConfigGraphCards() {
               px: 1.25,
             }}
           >
-            Recalculate layout
+            Fit view
           </Button>
 
           {/* Node rendering mode toggle */}
@@ -596,15 +594,6 @@ function ConfigGraphCards() {
         visible={showLegend}
         hoveredKey={hoveredState}
         contentClassName="ct-scrollable"
-        addon={
-          <Tooltip title="Fit view">
-            <span>
-              <IconButton size="small" onClick={runFitView}>
-                <CenterFocusStrong fontSize="small" />
-              </IconButton>
-            </span>
-          </Tooltip>
-        }
       />
 
       <Background gap={10} size={1} />
