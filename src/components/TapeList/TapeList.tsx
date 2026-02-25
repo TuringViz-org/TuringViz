@@ -94,7 +94,7 @@ function TapeList() {
         >
           <Slider
             size="medium"
-            min={100}
+            min={10}
             max={2000}
             step={10}
             value={runSpeedMs}
