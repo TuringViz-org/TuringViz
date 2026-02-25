@@ -67,8 +67,8 @@ interface GraphZustandActions {
 export type GraphZustand = GraphZustandState & GraphZustandActions;
 
 const initialState: GraphZustandState = {
-  configGraphNodeMode: ConfigNodeMode.CIRCLES,
-  computationTreeNodeMode: ConfigNodeMode.CIRCLES,
+  configGraphNodeMode: ConfigNodeMode.NODES,
+  computationTreeNodeMode: ConfigNodeMode.NODES,
 
   tmGraphELKSettings: { ...DEFAULT_ELK_OPTS, direction: 'RIGHT' },
   configGraphELKSettings: { ...DEFAULT_ELK_OPTS },

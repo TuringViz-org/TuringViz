@@ -2,7 +2,7 @@
 import type { ElkOptions } from '@mytypes/graphTypes';
 
 export enum ConfigNodeMode {
-  CIRCLES = 'circles',
+  NODES = 'nodes',
   CARDS = 'cards',
 }
 // Default settings for computation tree layout

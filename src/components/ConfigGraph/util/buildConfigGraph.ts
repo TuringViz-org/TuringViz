@@ -24,7 +24,7 @@ export function buildConfigGraph(
   cfgGraph: ConfigGraph,
   transitionsByState: Map<string, Transition[]>,
   currentConfig?: Configuration | null,
-  mode: ConfigNodeMode = ConfigNodeMode.CIRCLES
+  mode: ConfigNodeMode = ConfigNodeMode.NODES
 ): { nodes: Node[]; edges: Edge[]; topoKey: string } {
   const nodes: Node[] = [];
   const edges: Edge[] = [];

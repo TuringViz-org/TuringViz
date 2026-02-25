@@ -462,7 +462,7 @@ export function ConfigGraphCircles() {
       configGraph,
       transitions,
       undefined,
-      ConfigNodeMode.CIRCLES
+      ConfigNodeMode.NODES
     );
   }, [configGraph, transitions]);
 
@@ -529,7 +529,7 @@ export function ConfigGraphCircles() {
 
   useEffect(() => {
     if (configGraphNodeMode === ConfigNodeMode.CARDS && cardsDisabled) {
-      setConfigGraphNodeMode(ConfigNodeMode.CIRCLES);
+      setConfigGraphNodeMode(ConfigNodeMode.NODES);
       toast.warning(
         `Cards are disabled when there are more than ${CARDS_LIMIT} nodes (current: ${nodeCount}).`
       );
@@ -1323,10 +1323,10 @@ export function ConfigGraphCircles() {
               }),
             }}
           >
-            <ToggleButton value={ConfigNodeMode.CIRCLES} aria-label="circle nodes">
+            <ToggleButton value={ConfigNodeMode.NODES} aria-label="nodes">
               <Stack direction="row" spacing={0.75} alignItems="center">
                 <Adjust fontSize="small" />
-                <span>Circles</span>
+                <span>Nodes</span>
               </Stack>
             </ToggleButton>
 
