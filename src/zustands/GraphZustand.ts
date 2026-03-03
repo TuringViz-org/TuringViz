@@ -70,7 +70,7 @@ const initialState: GraphZustandState = {
   configGraphNodeMode: ConfigNodeMode.NODES,
   computationTreeNodeMode: ConfigNodeMode.NODES,
 
-  tmGraphELKSettings: { ...DEFAULT_ELK_OPTS, direction: 'RIGHT' },
+  tmGraphELKSettings: { ...DEFAULT_ELK_OPTS },
   configGraphELKSettings: { ...DEFAULT_ELK_OPTS },
   computationTreeELKSettings: { ...DEFAULT_ELK_OPTS },
 

@@ -5,11 +5,13 @@ export enum ConfigNodeMode {
   NODES = 'nodes',
   CARDS = 'cards',
 }
+const isLandscape = typeof window !== 'undefined' && window.innerWidth > window.innerHeight;
+
 // Default settings for computation tree layout
 export const DEFAULT_ELK_OPTS: ElkOptions = {
   algorithm: 'layered',
-  direction: 'DOWN',
-  nodeSep: 70,
+  direction: isLandscape ? 'RIGHT' : 'DOWN',
+  nodeSep: 120,
   rankSep: 100,
   edgeSep: 24,
   edgeNodeSep: 100,
