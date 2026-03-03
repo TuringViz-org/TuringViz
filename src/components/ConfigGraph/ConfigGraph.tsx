@@ -64,6 +64,7 @@ import {
   type PortalBridgeSwitchDetail,
 } from '@components/MainPage/PortalBridge';
 import { ConfigGraphCircles } from './ConfigGraphCircles';
+import { LoadingOverlay } from '@components/shared/LoadingOverlay';
 
 const acceptingStates = ['accept', 'accepted', 'done'];
 const rejectingStates = ['reject', 'rejected', 'error'];
@@ -595,6 +596,8 @@ function ConfigGraphCards() {
         hoveredKey={hoveredState}
         contentClassName="ct-scrollable"
       />
+
+      {!viewportReady && <LoadingOverlay />}
 
       <Background gap={10} size={1} />
     </ReactFlow>

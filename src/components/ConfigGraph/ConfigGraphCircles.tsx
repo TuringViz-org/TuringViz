@@ -4,7 +4,6 @@ import cytoscape, {
   type Core as CyCore,
   type EventObjectEdge,
   type EventObjectNode,
-  type Stylesheet,
 } from 'cytoscape';
 import {
   Box,
@@ -27,6 +26,7 @@ import type { Edge as RFEdge, Node as RFNode } from '@xyflow/react';
 import { LegendPanel } from '@components/shared/LegendPanel';
 import ConfigCard from '@components/ConfigGraph/ConfigVisualization/ConfigCard';
 import { EdgeTooltip } from '@components/ConfigGraph/edges/EdgeTooltip';
+import { LoadingOverlay } from '@components/shared/LoadingOverlay';
 
 import {
   CONFIG_CARD_HEIGHT_ESTIMATE,
@@ -142,7 +142,7 @@ const makeVirtualAnchor = (anchor: Anchor | null): VirtualElement => {
   };
 };
 
-const getCyStyles = (theme: ReturnType<typeof useTheme>): Stylesheet[] => [
+const getCyStyles = (theme: any): any[] => [
   {
     selector: 'core',
     style: {
@@ -1207,6 +1207,8 @@ export function ConfigGraphCircles() {
           transition: 'opacity 120ms ease',
         }}
       />
+
+      {!viewportReady && <LoadingOverlay />}
 
       {/* Layout settings panel trigger button */}
       <Box

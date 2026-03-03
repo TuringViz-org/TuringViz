@@ -4,7 +4,6 @@ import cytoscape, {
   type Core as CyCore,
   type EventObjectEdge,
   type EventObjectNode,
-  type Stylesheet,
 } from 'cytoscape';
 import {
   ReactFlow,
@@ -40,6 +39,7 @@ import { EdgeTooltip } from '@components/ConfigGraph/edges/EdgeTooltip';
 import { ConfigNode } from '@components/ConfigGraph/nodes/ConfigNode';
 import { ConfigCardNode } from '@components/ConfigGraph/nodes/ConfigCardNode';
 import { FloatingEdge } from '@components/ConfigGraph/edges/FloatingEdge';
+import { LoadingOverlay } from '@components/shared/LoadingOverlay';
 
 import {
   CONFIG_CARD_HEIGHT_ESTIMATE,
@@ -179,8 +179,7 @@ const resolveStateColor = (
   return undefined;
 };
 
-function getCyStyles(theme: ReturnType<typeof useTheme>): Stylesheet[] {
-  return [
+const getCyStyles = (theme: any): any[] => [
     {
       selector: 'core',
       style: {
@@ -309,7 +308,6 @@ function getCyStyles(theme: ReturnType<typeof useTheme>): Stylesheet[] {
       style: { label: '' },
     },
   ];
-}
 
 function NodeDetailPopper({
   node,
@@ -1341,6 +1339,8 @@ function ComputationTreeCircles({ targetNodes, compressing = false }: Props) {
         }}
       />
 
+      {!viewportReady && <LoadingOverlay />}
+
       {/* Layout settings panel trigger button */}
       <Box
         sx={{
@@ -1890,6 +1890,8 @@ function ComputationTreeCards({ targetNodes, compressing = false }: Props) {
       nodesDraggable={false}
       onlyRenderVisibleElements
     >
+      {!viewportReady && <LoadingOverlay />}
+
       {/* Layout settings panel trigger button */}
       <Box
         sx={{

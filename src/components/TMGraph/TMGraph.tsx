@@ -5,7 +5,6 @@ import cytoscape, {
   type EventObject,
   type EventObjectEdge,
   type EventObjectNode,
-  type Stylesheet,
 } from 'cytoscape';
 import {
   Box,
@@ -43,6 +42,7 @@ import {
 import { reconcileEdges, reconcileNodes } from '@utils/reactflow';
 import { useDebouncedLayoutRestart } from '@hooks/useDebouncedLayoutRestart';
 import { EdgeTooltip } from './edges/EdgeTooltip';
+import { LoadingOverlay } from '@components/shared/LoadingOverlay';
 import {
   GRAPH_EDGE_ACTIVE_WIDTH,
   GRAPH_EDGE_ARROW_SCALE,
@@ -117,7 +117,7 @@ function getNodeRoles(label: string, isStart: boolean, isCurrent: boolean, isLas
   return roles;
 }
 
-const getCyStyles = (theme: ReturnType<typeof useTheme>): Stylesheet[] => {
+const getCyStyles = (theme: any): any[] => {
   const baseEdge = theme.palette.grey[500];
   const hoverEdge = theme.palette.grey[700];
   const selectedEdge = theme.palette.primary.dark;
@@ -1317,6 +1317,8 @@ function TMGraph() {
           transition: 'opacity 120ms ease',
         }}
       />
+
+      {!viewportReady && <LoadingOverlay />}
 
       <Box
         sx={{
