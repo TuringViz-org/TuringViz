@@ -348,6 +348,7 @@ export function parseYaml(editorstring: string): LineParseError[] {
 
   // Kick off a background job to expand the configuration graph without blocking the UI
   const jobId = ++latestConfigGraphJobId;
+  useGlobalZustand.getState().beginConfigGraphCompute();
   computeConfigGraphInWorker({
     startConfig,
     transitions,
@@ -363,7 +364,10 @@ export function parseYaml(editorstring: string): LineParseError[] {
       global.setConfigGraph(graph);
       global.incrementConfigGraphVersion();
     })
-    .catch((err) => console.error('Config graph worker failed', err));
+    .catch((err) => console.error('Config graph worker failed', err))
+    .finally(() => {
+      useGlobalZustand.getState().endConfigGraphCompute();
+    });
 
   return errors;
 }

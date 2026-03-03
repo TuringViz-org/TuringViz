@@ -362,6 +362,7 @@ export function ConfigGraphCircles() {
   const transitions = useGlobalZustand((s) => s.transitions);
   const stateColorMatching = useGlobalZustand((s) => s.stateColorMatching);
   const machineLoadVersion = useGlobalZustand((s) => s.machineLoadVersion);
+  const configGraphComputing = useGlobalZustand((s) => s.configGraphComputing);
 
   // Graph Zustand state and setters
   const configGraphNodeMode = useConfigGraphNodeMode();
@@ -522,6 +523,11 @@ export function ConfigGraphCircles() {
   useEffect(() => {
     if (nodes.length === 0) setViewportReady(false);
   }, [nodes.length]);
+  useEffect(() => {
+    if (!configGraphComputing) return;
+    awaitingInitialRevealRef.current = true;
+    setViewportReady(false);
+  }, [configGraphComputing]);
 
   // Disable cards if too many nodes
   const nodeCount = model?.Graph?.size ?? 0;
@@ -569,6 +575,9 @@ export function ConfigGraphCircles() {
 
   // Topology key
   const topoKey = structureKey;
+  const structureSyncPending = base.topoKey !== structureKey;
+  const showLoadingOverlay =
+    !viewportReady || layout.running || configGraphComputing || structureSyncPending;
 
   // Layout triggers
   useEffect(() => {
@@ -1206,13 +1215,17 @@ export function ConfigGraphCircles() {
         sx={{
           position: 'absolute',
           inset: 0,
-          opacity: viewportReady ? 1 : 0,
-          pointerEvents: viewportReady ? 'auto' : 'none',
+          opacity: showLoadingOverlay ? 0 : 1,
+          pointerEvents: showLoadingOverlay ? 'none' : 'auto',
           transition: 'opacity 120ms ease',
         }}
       />
 
-      {!viewportReady && <LoadingOverlay />}
+      {showLoadingOverlay && (
+        <LoadingOverlay
+          label={configGraphComputing ? 'Computing graph...' : 'Calculating layout...'}
+        />
+      )}
 
       {/* Layout settings panel trigger button */}
       <Box
@@ -1270,7 +1283,7 @@ export function ConfigGraphCircles() {
             size="small"
             variant="contained"
             onClick={() => runFitView()}
-            disabled={layout.running}
+            disabled={showLoadingOverlay}
             startIcon={<CenterFocusStrong fontSize="small" />}
             sx={{
               height: CONTROL_HEIGHT,

@@ -122,6 +122,7 @@ function ConfigGraphCards() {
   const stateColorMatching = useGlobalZustand((s) => s.stateColorMatching);
   const configGraphVersion = useGlobalZustand((s) => s.configGraphVersion);
   const machineLoadVersion = useGlobalZustand((s) => s.machineLoadVersion);
+  const configGraphComputing = useGlobalZustand((s) => s.configGraphComputing);
 
   // Graph Zustand state and setters
   const configGraphNodeMode = useConfigGraphNodeMode();
@@ -200,6 +201,11 @@ function ConfigGraphCards() {
   useEffect(() => {
     if (nodes.length === 0) setViewportReady(false);
   }, [nodes.length]);
+  useEffect(() => {
+    if (!configGraphComputing) return;
+    awaitingInitialRevealRef.current = true;
+    setViewportReady(false);
+  }, [configGraphComputing]);
 
   // Sync builder output into RF state; keep previous size/data; ELK will set positions afterwards
   useEffect(() => {
@@ -233,6 +239,9 @@ function ConfigGraphCards() {
   // Initial/structural layout + fit handling (ELK)
   // Compute structural topology key locally (IDs + unique source→target pairs)
   const topoKey = structureKey;
+  const structureSyncPending = base.topoKey !== structureKey;
+  const showLoadingOverlay =
+    !viewportReady || layout.running || configGraphComputing || structureSyncPending;
 
   // Start ELK once when nodes are ready
   useEffect(() => {
@@ -416,8 +425,8 @@ function ConfigGraphCards() {
         width: '100%',
         height: '100%',
         minHeight: 360,
-        opacity: viewportReady ? 1 : 0,
-        pointerEvents: viewportReady ? 'auto' : 'none',
+        opacity: showLoadingOverlay ? 0 : 1,
+        pointerEvents: showLoadingOverlay ? 'none' : 'auto',
         transition: 'opacity 120ms ease',
       }}
       nodes={nodes}
@@ -495,7 +504,7 @@ function ConfigGraphCards() {
             size="small"
             variant="contained"
             onClick={() => runFitView()}
-            disabled={layout.running}
+            disabled={showLoadingOverlay}
             startIcon={<CenterFocusStrong fontSize="small" />}
             sx={{
               height: CONTROL_HEIGHT,
@@ -601,7 +610,11 @@ function ConfigGraphCards() {
         contentClassName="ct-scrollable"
       />
 
-      {!viewportReady && <LoadingOverlay />}
+      {showLoadingOverlay && (
+        <LoadingOverlay
+          label={configGraphComputing ? 'Computing graph...' : 'Calculating layout...'}
+        />
+      )}
 
       <Background gap={10} size={1} />
     </ReactFlow>

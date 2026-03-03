@@ -1402,7 +1402,7 @@ function ComputationTreeCircles({ targetNodes, compressing = false }: Props) {
             variant="contained"
             onClick={() => runFitView()}
             startIcon={<CenterFocusStrong fontSize="small" />}
-            disabled={layout.running}
+            disabled={!viewportReady || layout.running}
             sx={{
               height: CONTROL_HEIGHT,
               borderRadius: 1.5,
@@ -1957,7 +1957,7 @@ function ComputationTreeCards({ targetNodes, compressing = false }: Props) {
             variant="contained"
             onClick={() => runFitView()}
             startIcon={<CenterFocusStrong fontSize="small" />}
-            disabled={layout.running}
+            disabled={!viewportReady || layout.running}
             sx={{
               height: CONTROL_HEIGHT,
               borderRadius: 1.5,
