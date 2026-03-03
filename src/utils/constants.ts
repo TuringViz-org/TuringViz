@@ -35,4 +35,4 @@ export const DEFAULT_CONFIG_GRAPH_TARGET_NODES = 15000;
 export const HOVER_POPPER_DELAY_MS = 500;
 
 // Threshold where switching to card view should be confirmed
-export const CARDS_CONFIRM_THRESHOLD = 30;
+export const CARDS_CONFIRM_THRESHOLD = 100;

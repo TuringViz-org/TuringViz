@@ -16,6 +16,10 @@ import {
   Popper,
   ClickAwayListener,
   Stack,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
 } from '@mui/material';
 import { alpha, useTheme } from '@mui/material/styles';
 import { Adjust, ViewAgenda, Tune, CenterFocusStrong } from '@mui/icons-material';
@@ -413,6 +417,7 @@ export function ConfigGraphCircles() {
     reason: null,
   });
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [confirmCardsOpen, setConfirmCardsOpen] = useState(false);
   const [containerVisible, setContainerVisible] = useState(true);
   const [viewportReady, setViewportReady] = useState(false);
 
@@ -1184,6 +1189,26 @@ export function ConfigGraphCircles() {
 
   const showLegend = legendItems.length > 0 && (model?.Graph?.size ?? 0) > 0;
 
+  const requestNodeModeChange = useCallback(
+    (nextMode: ConfigNodeMode) => {
+      if (nextMode === ConfigNodeMode.CARDS && cardsDisabled) {
+        toast.info(
+          `Cards are disabled when there are more than ${CARDS_LIMIT} nodes (current: ${nodeCount}).`
+        );
+        return;
+      }
+      if (
+        nextMode === ConfigNodeMode.CARDS &&
+        nodeCount > CARDS_CONFIRM_THRESHOLD
+      ) {
+        setConfirmCardsOpen(true);
+        return;
+      }
+      setConfigGraphNodeMode(nextMode);
+    },
+    [cardsDisabled, nodeCount, setConfigGraphNodeMode]
+  );
+
   const recalcLayout = useCallback(() => {
     scheduleLayoutRestart();
     fitAfterLayoutRef.current = true;
@@ -1267,6 +1292,25 @@ export function ConfigGraphCircles() {
         onRecalc={recalcLayout}
         running={layout.running}
       />
+      <Dialog open={confirmCardsOpen} onClose={() => setConfirmCardsOpen(false)}>
+        <DialogTitle>Switch to card view?</DialogTitle>
+        <DialogContent>
+          Card view can be slow for graphs above {CARDS_CONFIRM_THRESHOLD} nodes
+          (current: {nodeCount}). Continue?
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setConfirmCardsOpen(false)}>Cancel</Button>
+          <Button
+            variant="contained"
+            onClick={() => {
+              setConfirmCardsOpen(false);
+              setConfigGraphNodeMode(ConfigNodeMode.CARDS);
+            }}
+          >
+            Continue
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       {/* Top-left controls */}
       <Box
@@ -1301,22 +1345,7 @@ export function ConfigGraphCircles() {
             value={configGraphNodeMode}
             onChange={(_, v) => {
               if (!v) return;
-              if (v === ConfigNodeMode.CARDS && cardsDisabled) {
-                toast.info(
-                  `Cards are disabled when there are more than ${CARDS_LIMIT} nodes (current: ${nodeCount}).`
-                );
-                return;
-              }
-              if (
-                v === ConfigNodeMode.CARDS &&
-                nodeCount > CARDS_CONFIRM_THRESHOLD &&
-                !window.confirm(
-                  'Switching to card view can be very slow with many nodes. Continue?'
-                )
-              ) {
-                return;
-              }
-              setConfigGraphNodeMode(v);
+              requestNodeModeChange(v);
             }}
             aria-label="node rendering mode"
             sx={{

@@ -26,6 +26,10 @@ import {
   Paper,
   Popper,
   ClickAwayListener,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
 } from '@mui/material';
 import { Adjust, ViewAgenda, Tune, CenterFocusStrong } from '@mui/icons-material';
 import { alpha, useTheme } from '@mui/material/styles';
@@ -734,6 +738,7 @@ function ComputationTreeCircles({ targetNodes, compressing = false }: Props) {
     reason: null,
   });
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [confirmCardsOpen, setConfirmCardsOpen] = useState(false);
 
   const clearHoverTimer = useCallback(() => {
     if (hoverTimerRef.current != null) {
@@ -1306,6 +1311,26 @@ function ComputationTreeCircles({ targetNodes, compressing = false }: Props) {
 
   const showLegend = legendItems.length > 0 && (model?.nodes?.length ?? 0) > 0;
 
+  const requestNodeModeChange = useCallback(
+    (nextMode: ConfigNodeMode) => {
+      if (nextMode === ConfigNodeMode.CARDS && cardsDisabled) {
+        toast.info(
+          `Cards are disabled when there are more than ${CARDS_LIMIT} nodes (current: ${nodeCount}).`
+        );
+        return;
+      }
+      if (
+        nextMode === ConfigNodeMode.CARDS &&
+        nodeCount > CARDS_CONFIRM_THRESHOLD
+      ) {
+        setConfirmCardsOpen(true);
+        return;
+      }
+      setComputationTreeNodeMode(nextMode);
+    },
+    [cardsDisabled, nodeCount, setComputationTreeNodeMode]
+  );
+
   const recalcLayout = useCallback(() => {
     scheduleLayoutRestart();
     fitAfterLayoutRef.current = true;
@@ -1385,6 +1410,25 @@ function ComputationTreeCircles({ targetNodes, compressing = false }: Props) {
         onRecalc={recalcLayout}
         running={layout.running}
       />
+      <Dialog open={confirmCardsOpen} onClose={() => setConfirmCardsOpen(false)}>
+        <DialogTitle>Switch to card view?</DialogTitle>
+        <DialogContent>
+          Card view can be slow for trees above {CARDS_CONFIRM_THRESHOLD} nodes
+          (current: {nodeCount}). Continue?
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setConfirmCardsOpen(false)}>Cancel</Button>
+          <Button
+            variant="contained"
+            onClick={() => {
+              setConfirmCardsOpen(false);
+              setComputationTreeNodeMode(ConfigNodeMode.CARDS);
+            }}
+          >
+            Continue
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       {/* Top-left controls panel (fit view and node mode switch) */}
       <Box
@@ -1419,22 +1463,7 @@ function ComputationTreeCircles({ targetNodes, compressing = false }: Props) {
             value={computationTreeNodeMode}
             onChange={(_, v) => {
               if (!v) return;
-              if (v === ConfigNodeMode.CARDS && cardsDisabled) {
-                toast.info(
-                  `Cards are disabled when there are more than ${CARDS_LIMIT} nodes (current: ${nodeCount}).`
-                );
-                return;
-              }
-              if (
-                v === ConfigNodeMode.CARDS &&
-                nodeCount > CARDS_CONFIRM_THRESHOLD &&
-                !window.confirm(
-                  'Switching to card view can be very slow with many nodes. Continue?'
-                )
-              ) {
-                return;
-              }
-              setComputationTreeNodeMode(v);
+              requestNodeModeChange(v);
             }}
             aria-label="node rendering mode"
             sx={{
@@ -1792,6 +1821,7 @@ function ComputationTreeCards({ targetNodes, compressing = false }: Props) {
 
   // Handlers
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [confirmCardsOpen, setConfirmCardsOpen] = useState(false);
 
   const handlePaneClick = useCallback(() => {
     setSelected({ type: null, id: null });
@@ -1858,6 +1888,26 @@ function ComputationTreeCards({ targetNodes, compressing = false }: Props) {
   }, [stateColorMatching]);
 
   const showLegend = legendItems.length > 0 && (model?.nodes?.length ?? 0) > 0;
+
+  const requestNodeModeChange = useCallback(
+    (nextMode: ConfigNodeMode) => {
+      if (nextMode === ConfigNodeMode.CARDS && cardsDisabled) {
+        toast.info(
+          `Cards are disabled when there are more than ${CARDS_LIMIT} nodes (current: ${nodeCount}).`
+        );
+        return;
+      }
+      if (
+        nextMode === ConfigNodeMode.CARDS &&
+        nodeCount > CARDS_CONFIRM_THRESHOLD
+      ) {
+        setConfirmCardsOpen(true);
+        return;
+      }
+      setComputationTreeNodeMode(nextMode);
+    },
+    [cardsDisabled, nodeCount, setComputationTreeNodeMode]
+  );
 
   const recalcLayout = useCallback(() => {
     scheduleLayoutRestart();
@@ -1940,6 +1990,25 @@ function ComputationTreeCards({ targetNodes, compressing = false }: Props) {
         onRecalc={recalcLayout}
         running={layout.running}
       />
+      <Dialog open={confirmCardsOpen} onClose={() => setConfirmCardsOpen(false)}>
+        <DialogTitle>Switch to card view?</DialogTitle>
+        <DialogContent>
+          Card view can be slow for trees above {CARDS_CONFIRM_THRESHOLD} nodes
+          (current: {nodeCount}). Continue?
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setConfirmCardsOpen(false)}>Cancel</Button>
+          <Button
+            variant="contained"
+            onClick={() => {
+              setConfirmCardsOpen(false);
+              setComputationTreeNodeMode(ConfigNodeMode.CARDS);
+            }}
+          >
+            Continue
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       {/* Top-left controls panel (fit view and node mode switch) */}
       <Box
@@ -1974,22 +2043,7 @@ function ComputationTreeCards({ targetNodes, compressing = false }: Props) {
             value={computationTreeNodeMode}
             onChange={(_, v) => {
               if (!v) return;
-              if (v === ConfigNodeMode.CARDS && cardsDisabled) {
-                toast.info(
-                  `Cards are disabled when there are more than ${CARDS_LIMIT} nodes (current: ${nodeCount}).`
-                );
-                return;
-              }
-              if (
-                v === ConfigNodeMode.CARDS &&
-                nodeCount > CARDS_CONFIRM_THRESHOLD &&
-                !window.confirm(
-                  'Switching to card view can be very slow with many nodes. Continue?'
-                )
-              ) {
-                return;
-              }
-              setComputationTreeNodeMode(v);
+              requestNodeModeChange(v);
             }}
             aria-label="node rendering mode"
             sx={{
