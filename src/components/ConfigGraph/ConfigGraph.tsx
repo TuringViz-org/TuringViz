@@ -255,6 +255,8 @@ function ConfigGraphCards() {
     if (lastTopoKeyRef.current === topoKey) return;
     lastTopoKeyRef.current = topoKey;
 
+    awaitingInitialRevealRef.current = true;
+    setViewportReady(false);
     layout.restart();
     fitAfterLayoutRef.current = true;
   }, [topoKey, nodesReady, nodes.length, layout]);
@@ -262,6 +264,8 @@ function ConfigGraphCards() {
   // Start ELK when nodeMode changes
   useEffect(() => {
     if (nodes.length === 0) return;
+    awaitingInitialRevealRef.current = true;
+    setViewportReady(false);
     layout.restart();
     fitAfterLayoutRef.current = true;
   }, [configGraphNodeMode]);

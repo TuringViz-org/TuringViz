@@ -619,6 +619,8 @@ function ComputationTreeCircles({ targetNodes, compressing = false }: Props) {
     if (lastTopoKeyRef.current === structureKey) return;
     lastTopoKeyRef.current = structureKey;
 
+    awaitingInitialRevealRef.current = true;
+    setViewportReady(false);
     scheduleLayoutRestart();
     fitAfterLayoutRef.current = true;
   }, [structureKey, nodes.length, scheduleLayoutRestart]);
@@ -626,6 +628,8 @@ function ComputationTreeCircles({ targetNodes, compressing = false }: Props) {
   // Start ELK when nodeMode changes
   useEffect(() => {
     if (nodes.length === 0) return;
+    awaitingInitialRevealRef.current = true;
+    setViewportReady(false);
     scheduleLayoutRestart();
     fitAfterLayoutRef.current = true;
   }, [computationTreeNodeMode, scheduleLayoutRestart, nodes.length]);
@@ -1730,6 +1734,8 @@ function ComputationTreeCards({ targetNodes, compressing = false }: Props) {
     if (lastTopoKeyRef.current === structureKey) return;
     lastTopoKeyRef.current = structureKey;
 
+    awaitingInitialRevealRef.current = true;
+    setViewportReady(false);
     scheduleLayoutRestart();
     fitAfterLayoutRef.current = true;
   }, [structureKey, nodesReady, nodes.length, scheduleLayoutRestart]);
@@ -1737,6 +1743,8 @@ function ComputationTreeCards({ targetNodes, compressing = false }: Props) {
   // Start ELK when nodeMode changes
   useEffect(() => {
     if (nodes.length === 0) return;
+    awaitingInitialRevealRef.current = true;
+    setViewportReady(false);
     scheduleLayoutRestart();
     fitAfterLayoutRef.current = true;
   }, [computationTreeNodeMode, scheduleLayoutRestart, nodes.length]);

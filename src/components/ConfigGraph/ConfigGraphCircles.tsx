@@ -590,12 +590,16 @@ export function ConfigGraphCircles() {
     if (lastTopoKeyRef.current === topoKey) return;
     lastTopoKeyRef.current = topoKey;
 
+    awaitingInitialRevealRef.current = true;
+    setViewportReady(false);
     scheduleLayoutRestart();
     fitAfterLayoutRef.current = true;
   }, [topoKey, nodes.length, scheduleLayoutRestart]);
 
   useEffect(() => {
     if (nodes.length === 0) return;
+    awaitingInitialRevealRef.current = true;
+    setViewportReady(false);
     scheduleLayoutRestart();
     fitAfterLayoutRef.current = true;
   }, [configGraphNodeMode, scheduleLayoutRestart, nodes.length]);
