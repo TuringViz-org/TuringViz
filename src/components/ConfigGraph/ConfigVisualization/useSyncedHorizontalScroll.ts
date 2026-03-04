@@ -1,7 +1,16 @@
 // src/components/ConfigGraph/ConfigVisualization/useSyncedHorizontalScroll.ts
-import { useRef, useState, useEffect, useCallback, type MouseEventHandler } from 'react';
+import { useRef, useState, useEffect, useCallback } from 'react';
 
 const INTERACTIVE_ATTR = 'ctInteractive';
+
+type Options = {
+  getBaseScrollLeft?: (index: number, viewport: HTMLDivElement) => number;
+  onPanChange?: (pan: number) => void;
+};
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(value, max));
+}
 
 function stopPropagation(event: Event) {
   event.stopPropagation();
@@ -28,294 +37,260 @@ function addViewportGuards(viewport: HTMLDivElement): () => void {
 }
 
 /**
- * Manages synchronized horizontal scrolling across multiple tape rows.
+ * Synchronizes horizontal scrolling across tape rows by sharing one pan value
+ * on top of per-row head-centered base offsets.
  */
-export function useSyncedHorizontalScroll(options?: { thumbMinWidth?: number }) {
-  const { thumbMinWidth = 24 } = options ?? {};
+export function useSyncedHorizontalScroll(options?: Options) {
+  const { getBaseScrollLeft, onPanChange } = options ?? {};
 
-  // Viewports (one per tape)
+  const resolveBaseScrollLeft = useCallback(
+    (index: number, viewport: HTMLDivElement) => {
+      if (!getBaseScrollLeft) return 0;
+      const raw = getBaseScrollLeft(index, viewport);
+      const maxLeft = Math.max(0, viewport.scrollWidth - viewport.clientWidth);
+      if (!Number.isFinite(raw)) return 0;
+      return clamp(raw, 0, maxLeft);
+    },
+    [getBaseScrollLeft]
+  );
+
   const tapeViewportRefs = useRef<Array<HTMLDivElement | null>>([]);
   const viewportRefCallbacksRef = useRef(
     new Map<number, (nextViewport: HTMLDivElement | null) => void>()
   );
   const viewportCleanupRef = useRef(new Map<HTMLDivElement, () => void>());
   const [viewportVersion, setViewportVersion] = useState(0);
-
-  const setViewportRef = useCallback(
-    (index: number) => {
-      const existing = viewportRefCallbacksRef.current.get(index);
-      if (existing) return existing;
-
-      const callback = (nextViewport: HTMLDivElement | null) => {
-        const prevViewport = tapeViewportRefs.current[index];
-        if (prevViewport === nextViewport) return;
-
-        if (prevViewport) {
-          viewportCleanupRef.current.get(prevViewport)?.();
-          viewportCleanupRef.current.delete(prevViewport);
-        }
-
-        tapeViewportRefs.current[index] = nextViewport;
-        if (nextViewport && !viewportCleanupRef.current.has(nextViewport)) {
-          viewportCleanupRef.current.set(nextViewport, addViewportGuards(nextViewport));
-        }
-
-        setViewportVersion((prev) => prev + 1);
-      };
-
-      viewportRefCallbacksRef.current.set(index, callback);
-      return callback;
-    },
-    []
-  );
-
-  // Custom scrollbar pieces
-  const trackRef = useRef<HTMLDivElement>(null);
-  const thumbRef = useRef<HTMLDivElement>(null);
-
-  // Visual state
   const [hasOverflow, setHasOverflow] = useState(false);
-  const [hovered, setHovered] = useState(false);
-  const [thumb, setThumb] = useState({ width: 0, left: 0 });
-  const [dragging, setDragging] = useState(false);
 
-  // Internal guards & drag state
   const isSyncingRef = useRef(false);
-  const draggingRef = useRef(false);
-  const dragStartRef = useRef<{ x: number; left: number }>({ x: 0, left: 0 });
-  const thumbRafRef = useRef<number | null>(null);
+  const panRef = useRef(0);
+  const suppressedScrollLeftRef = useRef(new Map<HTMLDivElement, number>());
 
-  // Keep latest thumb state in a ref so drag handlers never capture stale values.
-  const thumbStateRef = useRef(thumb);
-  useEffect(() => {
-    thumbStateRef.current = thumb;
-  }, [thumb]);
-
-  // Helper: first available viewport is the "master"
-  const getMaster = useCallback(
-    () => tapeViewportRefs.current.find((el) => Boolean(el)) ?? null,
-    []
+  const setPanValue = useCallback(
+    (value: number) => {
+      if (!Number.isFinite(value)) return;
+      panRef.current = value;
+      onPanChange?.(value);
+    },
+    [onPanChange]
   );
 
-  // Recompute thumb (size/position) from master viewport
-  const updateThumb = useCallback(() => {
-    const viewport = getMaster();
-    const track = trackRef.current;
-    if (!viewport || !track) return;
+  const setViewportRef = useCallback((index: number) => {
+    const existing = viewportRefCallbacksRef.current.get(index);
+    if (existing) return existing;
 
-    const trackWidth = Math.max(0, track.clientWidth);
-    const scrollWidth = viewport.scrollWidth;
-    const clientWidth = viewport.clientWidth;
+    const callback = (nextViewport: HTMLDivElement | null) => {
+      const prevViewport = tapeViewportRefs.current[index];
+      if (prevViewport === nextViewport) return;
 
-    const overflow = scrollWidth > clientWidth + 1;
-    setHasOverflow((prev) => (prev === overflow ? prev : overflow));
-
-    if (!overflow) {
-      setThumb((prev) => (prev.width === 0 && prev.left === 0 ? prev : { width: 0, left: 0 }));
-      return;
-    }
-
-    const ratio = clientWidth / scrollWidth;
-    const width = Math.max(thumbMinWidth, Math.round(trackWidth * ratio));
-    const maxLeft = Math.max(0, trackWidth - width);
-    const left = Math.round(
-      maxLeft * (viewport.scrollLeft / Math.max(1, scrollWidth - clientWidth))
-    );
-
-    setThumb((prev) => (prev.width === width && prev.left === left ? prev : { width, left }));
-  }, [getMaster, thumbMinWidth]);
-
-  // Coalesce thumb updates during scroll/drag into one frame.
-  const scheduleThumbUpdate = useCallback(() => {
-    if (thumbRafRef.current !== null) return;
-
-    thumbRafRef.current = requestAnimationFrame(() => {
-      thumbRafRef.current = null;
-      updateThumb();
-    });
-  }, [updateThumb]);
-
-  // Sync all viewports to a given scrollLeft
-  const syncAllScrollLeft = useCallback((left: number) => {
-    isSyncingRef.current = true;
-    for (const viewport of tapeViewportRefs.current) {
-      if (viewport) {
-        viewport.scrollLeft = left;
+      if (prevViewport) {
+        viewportCleanupRef.current.get(prevViewport)?.();
+        viewportCleanupRef.current.delete(prevViewport);
       }
-    }
-    isSyncingRef.current = false;
+
+      tapeViewportRefs.current[index] = nextViewport;
+      if (nextViewport && !viewportCleanupRef.current.has(nextViewport)) {
+        viewportCleanupRef.current.set(nextViewport, addViewportGuards(nextViewport));
+      }
+
+      setViewportVersion((prev) => prev + 1);
+    };
+
+    viewportRefCallbacksRef.current.set(index, callback);
+    return callback;
   }, []);
 
-  // Scroll handler for each viewport; pass source to avoid ping-pong
+  const getMaster = useCallback(() => {
+    for (let i = 0; i < tapeViewportRefs.current.length; i++) {
+      const viewport = tapeViewportRefs.current[i];
+      if (viewport) return viewport;
+    }
+    return null;
+  }, []);
+
+  const getMasterWithIndex = useCallback(() => {
+    for (let i = 0; i < tapeViewportRefs.current.length; i++) {
+      const viewport = tapeViewportRefs.current[i];
+      if (viewport) return { index: i, viewport };
+    }
+    return null;
+  }, []);
+
+  const getViewportIndex = useCallback((source: HTMLDivElement) => {
+    for (let i = 0; i < tapeViewportRefs.current.length; i++) {
+      if (tapeViewportRefs.current[i] === source) return i;
+    }
+    return -1;
+  }, []);
+
+  const recomputeOverflow = useCallback(() => {
+    let overflow = false;
+
+    for (const viewport of tapeViewportRefs.current) {
+      if (!viewport) continue;
+      if (viewport.scrollWidth > viewport.clientWidth + 1) {
+        overflow = true;
+        break;
+      }
+    }
+
+    setHasOverflow((prev) => (prev === overflow ? prev : overflow));
+  }, []);
+
+  const getPanLimits = useCallback(() => {
+    let minPan = Number.NEGATIVE_INFINITY;
+    let maxPan = Number.POSITIVE_INFINITY;
+    let foundAny = false;
+
+    for (let i = 0; i < tapeViewportRefs.current.length; i++) {
+      const viewport = tapeViewportRefs.current[i];
+      if (!viewport) continue;
+      foundAny = true;
+
+      const base = resolveBaseScrollLeft(i, viewport);
+      const maxLeft = Math.max(0, viewport.scrollWidth - viewport.clientWidth);
+      minPan = Math.max(minPan, -base);
+      maxPan = Math.min(maxPan, maxLeft - base);
+    }
+
+    if (!foundAny || !Number.isFinite(minPan) || !Number.isFinite(maxPan)) {
+      return { minPan: 0, maxPan: 0 };
+    }
+
+    if (minPan > maxPan) {
+      const fallback = (minPan + maxPan) / 2;
+      return { minPan: fallback, maxPan: fallback };
+    }
+
+    return { minPan, maxPan };
+  }, [resolveBaseScrollLeft]);
+
+  const syncAllByPan = useCallback(
+    (rawPan: number, skipViewportIndex?: number) => {
+      const { minPan, maxPan } = getPanLimits();
+      const clampedPan = clamp(rawPan, minPan, maxPan);
+
+      isSyncingRef.current = true;
+      for (let i = 0; i < tapeViewportRefs.current.length; i++) {
+        if (skipViewportIndex !== undefined && i === skipViewportIndex) continue;
+        const viewport = tapeViewportRefs.current[i];
+        if (!viewport) continue;
+
+        const base = resolveBaseScrollLeft(i, viewport);
+        const maxLeft = Math.max(0, viewport.scrollWidth - viewport.clientWidth);
+        const target = clamp(base + clampedPan, 0, maxLeft);
+        if (Math.abs(viewport.scrollLeft - target) > 0.25) {
+          suppressedScrollLeftRef.current.set(viewport, target);
+          viewport.scrollLeft = target;
+        }
+      }
+      isSyncingRef.current = false;
+      setPanValue(clampedPan);
+      return clampedPan;
+    },
+    [getPanLimits, resolveBaseScrollLeft, setPanValue]
+  );
+
+  const syncAllScrollLeft = useCallback(
+    (left: number) => {
+      const master = getMasterWithIndex();
+      if (!master) return;
+      const base = resolveBaseScrollLeft(master.index, master.viewport);
+      syncAllByPan(left - base);
+    },
+    [getMasterWithIndex, resolveBaseScrollLeft, syncAllByPan]
+  );
+
   const onViewportScroll = useCallback(
     (sourceViewport: HTMLDivElement | null) => {
       if (!sourceViewport || isSyncingRef.current) return;
 
-      const left = sourceViewport.scrollLeft;
-      isSyncingRef.current = true;
+      const sourceIndex = getViewportIndex(sourceViewport);
+      if (sourceIndex < 0) return;
 
-      for (const viewport of tapeViewportRefs.current) {
-        if (viewport && viewport !== sourceViewport) {
-          viewport.scrollLeft = left;
+      const suppressedLeft = suppressedScrollLeftRef.current.get(sourceViewport);
+      if (suppressedLeft !== undefined) {
+        if (Math.abs(sourceViewport.scrollLeft - suppressedLeft) <= 0.5) {
+          suppressedScrollLeftRef.current.delete(sourceViewport);
+          return;
+        }
+        suppressedScrollLeftRef.current.delete(sourceViewport);
+      }
+
+      const base = resolveBaseScrollLeft(sourceIndex, sourceViewport);
+      const rawPan = sourceViewport.scrollLeft - base;
+      const clampedPan = syncAllByPan(rawPan, sourceIndex);
+
+      // Correct the active viewport only if clamping was necessary.
+      if (Math.abs(clampedPan - rawPan) > 0.25) {
+        const maxLeft = Math.max(0, sourceViewport.scrollWidth - sourceViewport.clientWidth);
+        const correctedLeft = clamp(base + clampedPan, 0, maxLeft);
+        if (Math.abs(sourceViewport.scrollLeft - correctedLeft) > 0.25) {
+          isSyncingRef.current = true;
+          suppressedScrollLeftRef.current.set(sourceViewport, correctedLeft);
+          sourceViewport.scrollLeft = correctedLeft;
+          isSyncingRef.current = false;
         }
       }
-
-      isSyncingRef.current = false;
-      scheduleThumbUpdate();
     },
-    [scheduleThumbUpdate]
+    [getViewportIndex, resolveBaseScrollLeft, syncAllByPan]
   );
 
-  // Clicking the track jumps proportionally.
-  const handleTrackMouseDown = useCallback<MouseEventHandler<HTMLDivElement>>(
-    (event) => {
-      event.stopPropagation();
-      if (event.target === thumbRef.current) return;
-
-      const master = getMaster();
-      const track = trackRef.current;
-      if (!master || !track) return;
-
-      const rect = track.getBoundingClientRect();
-      const clickX = event.clientX - rect.left;
-      const width = thumb.width;
-      const maxLeft = Math.max(0, track.clientWidth - width);
-      const newLeft = Math.min(maxLeft, Math.max(0, clickX - width / 2));
-
-      const scrollMax = Math.max(1, master.scrollWidth - master.clientWidth);
-      const scrollLeft = (newLeft / Math.max(1, maxLeft)) * scrollMax;
-
-      syncAllScrollLeft(scrollLeft);
-      scheduleThumbUpdate();
+  const centerAllTo = useCallback(
+    (left: number) => {
+      syncAllScrollLeft(left);
     },
-    [getMaster, scheduleThumbUpdate, syncAllScrollLeft, thumb.width]
+    [syncAllScrollLeft]
   );
 
-  // Drag the thumb to scroll
-  useEffect(() => {
-    const onMove = (event: MouseEvent) => {
-      if (!draggingRef.current) return;
+  const scrollByDelta = useCallback(
+    (delta: number) => {
+      if (!Number.isFinite(delta) || delta === 0) return;
+      syncAllByPan(panRef.current + delta);
+    },
+    [syncAllByPan]
+  );
 
-      const master = getMaster();
-      const track = trackRef.current;
-      if (!master || !track) return;
-
-      const dx = event.clientX - dragStartRef.current.x;
-      const trackWidth = track.clientWidth;
-      const width = thumbStateRef.current.width;
-      const maxLeft = Math.max(0, trackWidth - width);
-      const newLeft = Math.min(maxLeft, Math.max(0, dragStartRef.current.left + dx));
-
-      const scrollMax = Math.max(1, master.scrollWidth - master.clientWidth);
-      const scrollLeft = (newLeft / Math.max(1, maxLeft)) * scrollMax;
-      syncAllScrollLeft(scrollLeft);
-      scheduleThumbUpdate();
-    };
-
-    const onUp = () => {
-      if (!draggingRef.current) return;
-
-      draggingRef.current = false;
-      setDragging(false);
-      document.body.style.userSelect = '';
-      document.removeEventListener('mousemove', onMove);
-      document.removeEventListener('mouseup', onUp);
-    };
-
-    const onDown = (event: MouseEvent) => {
-      event.stopPropagation();
-      event.preventDefault();
-
-      draggingRef.current = true;
-      setDragging(true);
-      dragStartRef.current = { x: event.clientX, left: thumbStateRef.current.left };
-      document.body.style.userSelect = 'none';
-      document.addEventListener('mousemove', onMove);
-      document.addEventListener('mouseup', onUp);
-    };
-
-    const thumbElement = thumbRef.current;
-    if (thumbElement) {
-      thumbElement.addEventListener('mousedown', onDown);
-    }
-
-    return () => {
-      if (thumbElement) {
-        thumbElement.removeEventListener('mousedown', onDown);
-      }
-      document.removeEventListener('mousemove', onMove);
-      document.removeEventListener('mouseup', onUp);
-    };
-  }, [getMaster, scheduleThumbUpdate, syncAllScrollLeft]);
-
-  // Observe viewport/track size changes to keep thumb geometry in sync.
   useEffect(() => {
     const observer = new ResizeObserver(() => {
-      scheduleThumbUpdate();
+      syncAllByPan(panRef.current);
+      recomputeOverflow();
     });
 
     for (const viewport of tapeViewportRefs.current) {
-      if (viewport) {
-        observer.observe(viewport);
-      }
+      if (viewport) observer.observe(viewport);
     }
 
-    if (trackRef.current) {
-      observer.observe(trackRef.current);
-    }
-
-    scheduleThumbUpdate();
+    syncAllByPan(panRef.current);
+    recomputeOverflow();
 
     return () => {
       observer.disconnect();
     };
-  }, [scheduleThumbUpdate, viewportVersion]);
+  }, [recomputeOverflow, syncAllByPan, viewportVersion]);
+
+  useEffect(() => {
+    syncAllByPan(panRef.current);
+    recomputeOverflow();
+  }, [resolveBaseScrollLeft, syncAllByPan, recomputeOverflow]);
 
   useEffect(() => {
     return () => {
-      if (thumbRafRef.current !== null) {
-        cancelAnimationFrame(thumbRafRef.current);
-      }
-
       for (const cleanup of viewportCleanupRef.current.values()) {
         cleanup();
       }
+      suppressedScrollLeftRef.current.clear();
       viewportCleanupRef.current.clear();
       viewportRefCallbacksRef.current.clear();
     };
   }, []);
 
-  // Public helper: center all viewports to a specific scrollLeft.
-  const centerAllTo = useCallback(
-    (left: number) => {
-      syncAllScrollLeft(left);
-      scheduleThumbUpdate();
-    },
-    [scheduleThumbUpdate, syncAllScrollLeft]
-  );
-
   return {
-    // Refs
-    tapeViewportRefs,
     setViewportRef,
-    trackRef,
-    thumbRef,
-
-    // Visual state
     hasOverflow,
-    hovered,
-    setHovered,
-    thumb,
-    dragging,
-
-    // Handlers
     onViewportScroll,
-    handleTrackMouseDown,
-
-    // Helpers
     getMaster,
-    updateThumb,
-    syncAllScrollLeft,
     centerAllTo,
+    scrollByDelta,
   };
 }

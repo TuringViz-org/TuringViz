@@ -1,96 +1,81 @@
 // src/components/ConfigGraph/ConfigVisualization/TapeCells.tsx
 import { useMemo } from 'react';
-import { Box, Tooltip, useTheme } from '@mui/material';
-import { alpha } from '@mui/material/styles';
+import { Box } from '@mui/material';
 
 import type { TapeContentSingleTape } from '@mytypes/TMTypes';
-import { fmtSym, valueAtAbsolutePos, getLocalBounds } from './tapeUtils';
+import {
+  valueAtAbsolutePos,
+  hasCellAtAbsolutePos,
+} from './tapeUtils';
 import { CELL_HEIGHT, CELL_WIDTH } from './constants';
+import runTapeStyles from '@components/TapeList/TapeList.module.css';
 
 type Props = {
   tape: TapeContentSingleTape;
-  head: number;
   blank: string;
+  minPos: number;
+  maxPos: number;
 };
 
 type Cell = {
   key: number;
   val: string;
-  isHead: boolean;
-  pos: number;
+  leftPx: number;
+  isPresent: boolean;
 };
 
 /**
- * Renders the cells for a tape.
+ * Renders a shared tape range. Positions missing in this local tape stay plain white.
  */
-export default function TapeCells({ tape, head, blank }: Props) {
-  const theme = useTheme();
+export default function TapeCells({ tape, blank, minPos, maxPos }: Props) {
+  const cells = useMemo<Cell[]>(() => {
+    const out: Cell[] = [];
+    const start = Math.min(minPos, maxPos);
+    const end = Math.max(minPos, maxPos);
 
-  const cells = useMemo(() => {
-    const out: { key: number; val: string; isHead: boolean; pos: number }[] = [];
-    const { minPosLocal, maxPosLocal } = getLocalBounds(tape);
-    for (let pos = minPosLocal; pos <= maxPosLocal; pos++) {
+    for (let pos = start; pos <= end; pos++) {
+      const isPresent = hasCellAtAbsolutePos(tape, pos);
       out.push({
         key: pos,
-        val: valueAtAbsolutePos(tape, pos, blank),
-        isHead: pos === head,
-        pos,
+        val: isPresent ? valueAtAbsolutePos(tape, pos, blank) : '',
+        leftPx: (pos - start) * CELL_WIDTH,
+        isPresent,
       });
     }
+
     return out;
-  }, [tape, head, blank]);
+  }, [tape, blank, minPos, maxPos]);
+
+  const start = Math.min(minPos, maxPos);
+  const end = Math.max(minPos, maxPos);
+  const trackWidth = Math.max(0, end - start + 1) * CELL_WIDTH;
 
   return (
-    <Box sx={{ display: 'flex', gap: 0.5, width: 'max-content' }}>
+    <Box
+      className={runTapeStyles.scrollableTapeTrack}
+      sx={{
+        width: `${trackWidth}px`,
+        minWidth: trackWidth > 0 ? `${trackWidth}px` : 0,
+        height: CELL_HEIGHT + 10,
+      }}
+    >
       {cells.map((c: Cell) => (
-        <Tooltip
+        <Box
           key={c.key}
-          title={c.isHead ? 'Head position' : ''}
-          disableHoverListener={!c.isHead}
-          arrow
-          placement="top"
+          className={runTapeStyles.scrollableTapeCell}
+          sx={{
+            left: `${c.leftPx}px`,
+            width: CELL_WIDTH,
+            height: CELL_HEIGHT,
+            boxSizing: 'border-box',
+            borderColor: c.isPresent ? '#9ca3af' : 'transparent',
+            fontFamily:
+              "'Source Code Pro', 'Consolas', 'Menlo', 'DejaVu Sans Mono', 'Courier', monospace",
+            fontSize: 25,
+          }}
         >
-          <Box
-            sx={{
-              minWidth: CELL_WIDTH,
-              height: CELL_HEIGHT,
-              borderRadius: 1,
-              border: `1px solid ${alpha(theme.palette.divider, 0.8)}`,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontFamily: theme.typography.fontFamily,
-              fontSize: 14,
-              fontWeight: 600,
-              letterSpacing: 0.2,
-              position: 'relative',
-              bgcolor: c.isHead
-                ? alpha(theme.palette.primary.main, 0.08)
-                : theme.palette.background.paper,
-              boxShadow: c.isHead
-                ? `inset 0 0 0 9999px ${alpha(theme.palette.primary.main, 0.06)}`
-                : undefined,
-              userSelect: 'none',
-            }}
-          >
-            {fmtSym(c.val, blank)}
-            {c.isHead && (
-              <Box
-                sx={{
-                  position: 'absolute',
-                  left: '50%',
-                  transform: 'translateX(-50%)',
-                  bottom: -10,
-                  width: 0,
-                  height: 0,
-                  borderLeft: '6px solid transparent',
-                  borderRight: '6px solid transparent',
-                  borderTop: `8px solid ${theme.palette.primary.main}`,
-                }}
-              />
-            )}
-          </Box>
-        </Tooltip>
+          {c.val}
+        </Box>
       ))}
     </Box>
   );
