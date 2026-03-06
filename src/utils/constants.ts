@@ -11,6 +11,7 @@ const isLandscape = typeof window !== 'undefined' && window.innerWidth > window.
 export const DEFAULT_ELK_OPTS: ElkOptions = {
   algorithm: 'layered',
   direction: isLandscape ? 'RIGHT' : 'DOWN',
+  autoDirection: true,
   nodeSep: 120,
   rankSep: 100,
   edgeSep: 24,

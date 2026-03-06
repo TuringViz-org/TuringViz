@@ -1,8 +1,7 @@
 // src/components/ConfigGraph/layout/useElkLayout.ts
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Elk, { ElkNode, ElkExtendedEdge } from 'elkjs/lib/elk.bundled.js';
 import {
-  type Node as RFNode,
   useNodesInitialized,
   useReactFlow,
   useStore,
@@ -15,6 +14,7 @@ import {
   resolveElkAlgorithm,
   type ElkAlgo,
 } from '@components/shared/layout/elkUtils';
+import { resolveAutoDirection } from '@components/shared/layout/autoDirection';
 
 export type Options = {
   algorithm?: ElkAlgo;
@@ -24,6 +24,7 @@ export type Options = {
   edgeNodeSep?: number; // spacing between edges and nodes
   padding?: number; // graph padding
   direction?: 'RIGHT' | 'LEFT' | 'UP' | 'DOWN';
+  autoDirection?: boolean;
 };
 
 export type LayoutAPI = {
@@ -32,6 +33,8 @@ export type LayoutAPI = {
 };
 
 const elementCountSelector = (s: ReactFlowState) => s.nodes.length + s.edges.length;
+const viewportWidthSelector = (s: ReactFlowState) => s.width;
+const viewportHeightSelector = (s: ReactFlowState) => s.height;
 
 export function useElkLayout({
   algorithm = 'layered',
@@ -41,15 +44,20 @@ export function useElkLayout({
   edgeNodeSep = 100,
   padding = 24,
   direction = 'DOWN',
+  autoDirection = true,
 }: Options = {}): LayoutAPI {
   const nodesInitialized = useNodesInitialized();
   const elementCount = useStore(elementCountSelector);
+  const viewportWidth = useStore(viewportWidthSelector);
+  const viewportHeight = useStore(viewportHeightSelector);
   const { getNodes, getEdges, setNodes } = useReactFlow();
 
   const elkRef = useRef<InstanceType<typeof Elk> | null>(null);
   const [running, setRunning] = useState(false);
   const lastTopoKeyRef = useRef<string>('');
   const workerGraphKeyRef = useRef<string>('');
+  const lastDirectionRef = useRef<NonNullable<Options['direction']>>(direction);
+  const lastSizeKeyRef = useRef<string>('');
 
   // Create ELK instance once (kept across renders)
   if (!elkRef.current) elkRef.current = createElkWithWorker('config-graph-elk-layout-worker');
@@ -86,7 +94,7 @@ export function useElkLayout({
     return `${nIds}__${ePairs}`;
   }, [elementCount]);
 
-  const runLayout = async () => {
+  const runLayout = useCallback(async () => {
     if (workerGraphKeyRef.current !== topoKey) {
       elkRef.current?.terminateWorker();
       elkRef.current = createElkWithWorker('config-graph-elk-layout-worker');
@@ -98,6 +106,30 @@ export function useElkLayout({
     const rfEdges = getEdges();
 
     if (!rfNodes.length) return;
+
+    const containerWidth =
+      viewportWidth > 0
+        ? viewportWidth
+        : typeof window !== 'undefined'
+          ? window.innerWidth
+          : 1;
+    const containerHeight =
+      viewportHeight > 0
+        ? viewportHeight
+        : typeof window !== 'undefined'
+          ? window.innerHeight
+          : 1;
+    const effectiveDirection = autoDirection
+      ? resolveAutoDirection({
+          nodes: rfNodes,
+          edges: rfEdges,
+          containerWidth,
+          containerHeight,
+          preferredDirection: direction,
+          previousDirection: lastDirectionRef.current,
+        })
+      : direction;
+    lastDirectionRef.current = effectiveDirection;
 
     setRunning(true);
 
@@ -127,8 +159,8 @@ export function useElkLayout({
         'elk.spacing.edgeEdge': String(edgeSep),
         'elk.spacing.edgeNode': String(edgeNodeSep),
         'elk.padding': String(padding),
-        // Place layers in a fixed direction to match the UI mental model
-        'elk.direction': direction,
+        // Dynamically swap orientation to better use viewport space.
+        'elk.direction': effectiveDirection,
         // Balanced node placement to reduce long sweeps
         'elk.layered.nodePlacement.bk.fixedAlignment': 'BALANCED',
       },
@@ -157,7 +189,22 @@ export function useElkLayout({
     } finally {
       setRunning(false);
     }
-  };
+  }, [
+    topoKey,
+    getNodes,
+    getEdges,
+    setNodes,
+    viewportWidth,
+    viewportHeight,
+    direction,
+    autoDirection,
+    algorithm,
+    nodeSep,
+    rankSep,
+    edgeSep,
+    edgeNodeSep,
+    padding,
+  ]);
 
   // Fit view after layout if requested
   const restart = () => {
@@ -171,7 +218,29 @@ export function useElkLayout({
     if (lastTopoKeyRef.current === topoKey) return;
     lastTopoKeyRef.current = topoKey;
     void runLayout();
-  }, [nodesInitialized, topoKey]);
+  }, [nodesInitialized, topoKey, runLayout]);
+
+  const sizeKey = useMemo(
+    () => `${Math.max(1, Math.round(viewportWidth / 80))}x${Math.max(1, Math.round(viewportHeight / 80))}`,
+    [viewportWidth, viewportHeight]
+  );
+
+  useEffect(() => {
+    if (!autoDirection) return;
+    if (!nodesInitialized) return;
+    if (getNodes().length === 0) return;
+
+    if (lastSizeKeyRef.current === sizeKey) return;
+    const hadPreviousSize = lastSizeKeyRef.current !== '';
+    lastSizeKeyRef.current = sizeKey;
+    if (!hadPreviousSize) return;
+
+    void runLayout();
+  }, [autoDirection, nodesInitialized, sizeKey, getNodes, runLayout]);
+
+  useEffect(() => {
+    lastDirectionRef.current = direction;
+  }, [direction]);
 
   return { restart, running };
 }

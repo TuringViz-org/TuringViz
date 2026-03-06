@@ -12,8 +12,10 @@ import {
   useNodesInitialized,
   useNodesState,
   useReactFlow,
+  useStore,
   MarkerType,
   Background,
+  type ReactFlowState,
 } from '@xyflow/react';
 import {
   Stack,
@@ -516,6 +518,8 @@ function ComputationTreeCircles({ targetNodes, compressing = false, paused = fal
     edgeNodeSep: computationTreeELKSettings.edgeNodeSep,
     padding: computationTreeELKSettings.padding,
     direction: computationTreeELKSettings.direction,
+    autoDirection: computationTreeELKSettings.autoDirection ?? true,
+    containerRef,
     topoKeyOverride: structureKey,
     autoRun: false,
     onLayout: (positions) => {
@@ -1634,6 +1638,8 @@ function ComputationTreeCards({ targetNodes, compressing = false, paused = false
 
   const rf = useReactFlow();
   const nodesReady = useNodesInitialized();
+  const viewportWidth = useStore((s: ReactFlowState) => s.width);
+  const viewportHeight = useStore((s: ReactFlowState) => s.height);
 
   // ELK layout
   const layout = useElkLayout({
@@ -1646,6 +1652,9 @@ function ComputationTreeCards({ targetNodes, compressing = false, paused = false
     edgeNodeSep: computationTreeELKSettings.edgeNodeSep,
     padding: computationTreeELKSettings.padding,
     direction: computationTreeELKSettings.direction,
+    autoDirection: computationTreeELKSettings.autoDirection ?? true,
+    viewportWidth,
+    viewportHeight,
     topoKeyOverride: structureKey,
     autoRun: false,
     onLayout: (positions) => {

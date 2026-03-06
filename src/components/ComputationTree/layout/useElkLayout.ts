@@ -12,6 +12,7 @@ import {
   resolveElkAlgorithm,
   type ElkAlgo,
 } from '@components/shared/layout/elkUtils';
+import { resolveAutoDirection } from '@components/shared/layout/autoDirection';
 
 type FallbackLayoutParams = {
   nodeSep: number;
@@ -129,6 +130,10 @@ export type Options = {
   edgeNodeSep?: number; // spacing between edges and nodes
   padding?: number; // graph padding
   direction?: 'RIGHT' | 'LEFT' | 'UP' | 'DOWN';
+  containerRef?: { current: Element | null };
+  viewportWidth?: number;
+  viewportHeight?: number;
+  autoDirection?: boolean;
   topoKeyOverride?: string;
   autoRun?: boolean;
 };
@@ -148,6 +153,10 @@ export function useElkLayout({
   edgeNodeSep = 100,
   padding = 24,
   direction = 'DOWN',
+  containerRef,
+  viewportWidth,
+  viewportHeight,
+  autoDirection = true,
   topoKeyOverride,
   autoRun = true,
   onLayout,
@@ -165,6 +174,12 @@ export function useElkLayout({
   const lastTopoKeyRef = useRef<string>('');
   const workerGraphKeyRef = useRef<string>('');
   const lastFailureToastTopoKeyRef = useRef<string>('');
+  const [observedContainerSize, setObservedContainerSize] = useState({
+    width: 0,
+    height: 0,
+  });
+  const lastDirectionRef = useRef(direction);
+  const lastSizeKeyRef = useRef<string>('');
 
   // Create ELK instance once (kept across renders)
   if (!elkRef.current) elkRef.current = createElkWithWorker('computation-tree-elk-layout-worker');
@@ -183,6 +198,27 @@ export function useElkLayout({
     edgesRef.current = edges;
     onLayoutRef.current = onLayout;
   }, [nodes, edges, onLayout]);
+
+  useEffect(() => {
+    const element = containerRef?.current;
+    if (!element || typeof ResizeObserver === 'undefined') return;
+
+    const update = () => {
+      setObservedContainerSize({
+        width: element.clientWidth,
+        height: element.clientHeight,
+      });
+    };
+
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [containerRef]);
+
+  useEffect(() => {
+    lastDirectionRef.current = direction;
+  }, [direction]);
 
   // Topology key: only node IDs + (unique) source→target pairs
   // This keeps layout re-runs limited to actual structure changes.
@@ -207,6 +243,31 @@ export function useElkLayout({
     return `${nIds}__${ePairs}`;
   }, [nodes, edges, topoKeyOverride]);
 
+  const effectiveViewportWidth =
+    viewportWidth && viewportWidth > 0
+      ? viewportWidth
+      : observedContainerSize.width > 0
+        ? observedContainerSize.width
+        : typeof window !== 'undefined'
+          ? window.innerWidth
+          : 1;
+  const effectiveViewportHeight =
+    viewportHeight && viewportHeight > 0
+      ? viewportHeight
+      : observedContainerSize.height > 0
+        ? observedContainerSize.height
+        : typeof window !== 'undefined'
+          ? window.innerHeight
+          : 1;
+  const viewportSizeKey = useMemo(
+    () =>
+      `${Math.max(1, Math.round(effectiveViewportWidth / 80))}x${Math.max(
+        1,
+        Math.round(effectiveViewportHeight / 80)
+      )}`,
+    [effectiveViewportWidth, effectiveViewportHeight]
+  );
+
   const runLayout = useCallback(async () => {
     if (workerGraphKeyRef.current !== topoKey) {
       elkRef.current?.terminateWorker();
@@ -219,6 +280,18 @@ export function useElkLayout({
     const rfEdges = edgesRef.current;
 
     if (!rfNodes.length) return;
+
+    const effectiveDirection = autoDirection
+      ? resolveAutoDirection({
+          nodes: rfNodes,
+          edges: rfEdges,
+          containerWidth: effectiveViewportWidth,
+          containerHeight: effectiveViewportHeight,
+          preferredDirection: direction,
+          previousDirection: lastDirectionRef.current,
+        })
+      : direction;
+    lastDirectionRef.current = effectiveDirection;
 
     setRunning(true);
 
@@ -261,8 +334,8 @@ export function useElkLayout({
         'elk.spacing.edgeEdge': String(edgeSep),
         'elk.spacing.edgeNode': String(edgeNodeSep),
         'elk.padding': String(padding),
-        // Place layers in a fixed direction to match the UI mental model
-        'elk.direction': direction,
+        // Dynamically swap orientation to better use viewport space.
+        'elk.direction': effectiveDirection,
         // Balanced node placement to reduce long sweeps
         'elk.layered.nodePlacement.bk.fixedAlignment': 'BALANCED',
       },
@@ -293,7 +366,7 @@ export function useElkLayout({
           nodeSep,
           rankSep,
           padding,
-          direction,
+          direction: effectiveDirection,
         });
         onLayoutRef.current?.(fallbackPositions);
       } catch {
@@ -322,6 +395,9 @@ export function useElkLayout({
     edgeNodeSep,
     padding,
     direction,
+    autoDirection,
+    effectiveViewportWidth,
+    effectiveViewportHeight,
     topoKey,
   ]);
 
@@ -338,6 +414,18 @@ export function useElkLayout({
     lastTopoKeyRef.current = topoKey;
     void runLayout();
   }, [topoKey, runLayout, autoRun]);
+
+  useEffect(() => {
+    if (!autoDirection) return;
+    if (nodesRef.current.length === 0) return;
+
+    if (lastSizeKeyRef.current === viewportSizeKey) return;
+    const hadPreviousSize = lastSizeKeyRef.current !== '';
+    lastSizeKeyRef.current = viewportSizeKey;
+    if (!hadPreviousSize) return;
+
+    void runLayout();
+  }, [autoDirection, viewportSizeKey, runLayout]);
 
   return { restart, running };
 }

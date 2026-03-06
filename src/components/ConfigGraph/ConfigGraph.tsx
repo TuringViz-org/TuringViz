@@ -169,6 +169,7 @@ function ConfigGraphCards() {
     edgeNodeSep: configGraphELKSettings.edgeNodeSep,
     padding: configGraphELKSettings.padding,
     direction: configGraphELKSettings.direction,
+    autoDirection: configGraphELKSettings.autoDirection ?? true,
   });
 
   // Adjust edgeNodeSep when nodeMode changes (Cards need more space)

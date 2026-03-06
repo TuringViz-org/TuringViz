@@ -53,6 +53,7 @@ export function TreeLayoutSettingsPanel({
 
   const handleNumber = (k: keyof ElkOptions) => (_: any, val: number | number[]) =>
     onChange({ ...value, [k]: Array.isArray(val) ? val[0] : val });
+  const directionMode = value.autoDirection ? 'AUTO' : value.direction;
 
   return (
     <Paper
@@ -102,38 +103,68 @@ export function TreeLayoutSettingsPanel({
         {/* Direction */}
         <Stack direction="row" spacing={1} alignItems="center">
           <RowLabel>Direction</RowLabel>
-          <ToggleButtonGroup
-            size="small"
-            exclusive
-            value={value.direction}
-            onChange={(_, v) => v && onChange({ ...value, direction: v })}
+          <Box
             sx={{
-              height: CONTROL_HEIGHT,
-              borderRadius: 1.5,
-              overflow: 'hidden',
-              border: (theme) => `1px solid ${theme.palette.divider}`,
-              '& .MuiToggleButton-root': {
-                height: CONTROL_HEIGHT,
-                border: 'none',
-                borderRadius: 0,
-                textTransform: 'none',
-                fontWeight: 500,
-                px: 1.25,
-                py: 0,
-                boxShadow: (theme) => `inset 1px 0 0 ${theme.palette.divider}`,
-                '&:first-of-type': { boxShadow: 'none' },
-              },
-              '& .Mui-selected': (theme) => ({
-                backgroundColor: theme.palette.primary.main,
-                color: theme.palette.primary.contrastText,
-                '&:hover': { backgroundColor: theme.palette.primary.dark },
+              flex: 1,
+              minWidth: 0,
+              overflowX: 'auto',
+              overflowY: 'hidden',
+              pr: 0.5,
+              scrollbarWidth: 'thin',
+              '&::-webkit-scrollbar': { height: 6 },
+              '&::-webkit-scrollbar-thumb': (theme) => ({
+                backgroundColor: alpha(theme.palette.divider, 0.8),
+                borderRadius: 999,
               }),
+              '&::-webkit-scrollbar-track': { background: 'transparent' },
             }}
           >
-            <ToggleButton value="DOWN">Down</ToggleButton>
-            <ToggleButton value="RIGHT">Right</ToggleButton>
-          </ToggleButtonGroup>
-          <Box sx={{ flex: 1 }} />
+            <ToggleButtonGroup
+              size="small"
+              exclusive
+              value={directionMode}
+              onChange={(_, v) => {
+                if (!v) return;
+                if (v === 'AUTO') {
+                  onChange({ ...value, autoDirection: true });
+                  return;
+                }
+                onChange({
+                  ...value,
+                  direction: v,
+                  autoDirection: false,
+                });
+              }}
+              sx={{
+                width: 'max-content',
+                minWidth: '100%',
+                height: CONTROL_HEIGHT,
+                borderRadius: 1.5,
+                overflow: 'hidden',
+                border: (theme) => `1px solid ${theme.palette.divider}`,
+                '& .MuiToggleButton-root': {
+                  height: CONTROL_HEIGHT,
+                  border: 'none',
+                  borderRadius: 0,
+                  textTransform: 'none',
+                  fontWeight: 500,
+                  px: 1.25,
+                  py: 0,
+                  boxShadow: (theme) => `inset 1px 0 0 ${theme.palette.divider}`,
+                  '&:first-of-type': { boxShadow: 'none' },
+                },
+                '& .Mui-selected': (theme) => ({
+                  backgroundColor: theme.palette.primary.main,
+                  color: theme.palette.primary.contrastText,
+                  '&:hover': { backgroundColor: theme.palette.primary.dark },
+                }),
+              }}
+            >
+              <ToggleButton value="AUTO">Auto</ToggleButton>
+              <ToggleButton value="DOWN">Down</ToggleButton>
+              <ToggleButton value="RIGHT">Right</ToggleButton>
+            </ToggleButtonGroup>
+          </Box>
           <span>
             <Button
               size="small"

@@ -497,6 +497,8 @@ export function ConfigGraphCircles() {
     edgeNodeSep: configGraphELKSettings.edgeNodeSep,
     padding: configGraphELKSettings.padding,
     direction: configGraphELKSettings.direction,
+    autoDirection: configGraphELKSettings.autoDirection ?? true,
+    containerRef,
     topoKeyOverride: structureKey,
     autoRun: false,
     onLayout: (positions) => {
