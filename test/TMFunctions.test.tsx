@@ -12,7 +12,7 @@ import {
   getStartConfiguration,
 } from '@tmfunctions/Configurations';
 import { createTapeContentFromStrings } from '@mytypes/TMTypes';
-import { Circle, DAG, SelfLoops } from '@utils/ExampleTMs';
+import { Circle, DAG } from '@utils/ExampleTMs';
 import { computeConfigGraph } from '@tmfunctions/ConfigGraph';
 
 describe('TMFunctions tests', () => {
@@ -183,11 +183,6 @@ table:
 
   it("DAG ConfigGraph", () => {
     const errors = parseYaml(DAG.code);
-    expect(errors).toEqual([]);
-  })
-
-  it("SelfLoops ConfigGraph", () => {
-    const errors = parseYaml(SelfLoops.code);
     expect(errors).toEqual([]);
   })
 

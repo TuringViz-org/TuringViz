@@ -113,7 +113,6 @@ The following examples are currently available in the "Load Examples" menu:
 - `CheckEven`: Accepts iff the number of `1` symbols in a binary input is even.
 - `GCD`: Computes the greatest common divisor of two unary numbers.
 - `AllStrings`: Nondeterministically generates all binary strings of a fixed input length.
-- `Self Loops`: Small machine that creates a configuration graph with self-loops.
 - `DAG`: Example whose configuration graph is acyclic (a directed acyclic graph).
 - `Circle`: Produces a cyclic configuration graph (a simple loop/circle structure).
 - `NonDetSAT`: Nondeterministic SAT solver for CNF formulas (accepts iff satisfiable).
