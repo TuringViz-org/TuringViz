@@ -380,7 +380,8 @@ function NodeDetailPopper({
 function useComputationTreeData(
   targetNodes: number,
   compressing: boolean,
-  nodeMode: ConfigNodeMode
+  nodeMode: ConfigNodeMode,
+  paused: boolean
 ): {
   model: ComputationTreeModel | null;
   base: ReturnType<typeof buildComputationTreeGraph>;
@@ -400,6 +401,7 @@ function useComputationTreeData(
   const requestRef = useRef(0);
 
   useEffect(() => {
+    if (paused) return;
     const startConfig = getStartConfiguration();
     const reqId = requestRef.current + 1;
     requestRef.current = reqId;
@@ -442,6 +444,7 @@ function useComputationTreeData(
     numberOfTapes,
     startState,
     input,
+    paused,
   ]);
 
   useEffect(() => {
@@ -452,9 +455,9 @@ function useComputationTreeData(
   return { model, base };
 }
 
-type Props = { targetNodes: number; compressing?: boolean };
+type Props = { targetNodes: number; compressing?: boolean; paused?: boolean };
 
-function ComputationTreeCircles({ targetNodes, compressing = false }: Props) {
+function ComputationTreeCircles({ targetNodes, compressing = false, paused = false }: Props) {
   const theme = useTheme();
   const cyRef = useRef<CyCore | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -481,7 +484,8 @@ function ComputationTreeCircles({ targetNodes, compressing = false }: Props) {
   const { model, base } = useComputationTreeData(
     targetNodes,
     !!compressing,
-    computationTreeNodeMode
+    computationTreeNodeMode,
+    paused
   );
 
   const [nodes, setNodes] = useState<RFNode[]>(base.nodes);
@@ -604,6 +608,7 @@ function ComputationTreeCircles({ targetNodes, compressing = false }: Props) {
 
   // Start ELK once when nodes are ready
   useEffect(() => {
+    if (paused) return;
     if (!didInitialLayoutRef.current && nodes.length > 0) {
       didInitialLayoutRef.current = true;
       awaitingInitialRevealRef.current = true;
@@ -611,10 +616,11 @@ function ComputationTreeCircles({ targetNodes, compressing = false }: Props) {
       scheduleLayoutRestart();
       fitAfterLayoutRef.current = true;
     }
-  }, [nodes.length, scheduleLayoutRestart]);
+  }, [nodes.length, scheduleLayoutRestart, paused]);
 
   // Start ELK on structural changes
   useEffect(() => {
+    if (paused) return;
     if (nodes.length === 0) return;
     if (lastTopoKeyRef.current === null) {
       lastTopoKeyRef.current = structureKey;
@@ -627,16 +633,17 @@ function ComputationTreeCircles({ targetNodes, compressing = false }: Props) {
     setViewportReady(false);
     scheduleLayoutRestart();
     fitAfterLayoutRef.current = true;
-  }, [structureKey, nodes.length, scheduleLayoutRestart]);
+  }, [structureKey, nodes.length, scheduleLayoutRestart, paused]);
 
   // Start ELK when nodeMode changes
   useEffect(() => {
+    if (paused) return;
     if (nodes.length === 0) return;
     awaitingInitialRevealRef.current = true;
     setViewportReady(false);
     scheduleLayoutRestart();
     fitAfterLayoutRef.current = true;
-  }, [computationTreeNodeMode, scheduleLayoutRestart, nodes.length]);
+  }, [computationTreeNodeMode, scheduleLayoutRestart, nodes.length, paused]);
 
   // Fit helper for Cytoscape
   const runFitView = useCallback((onDone?: () => void) => {
@@ -661,6 +668,7 @@ function ComputationTreeCircles({ targetNodes, compressing = false }: Props) {
 
   // Re-center on every successful "Load Machine".
   useEffect(() => {
+    if (paused) return;
     if (lastHandledMachineLoadRef.current === machineLoadVersion) return;
     pendingMachineLoadFitRef.current = !isContainerVisible();
     awaitingInitialRevealRef.current = true;
@@ -669,7 +677,7 @@ function ComputationTreeCircles({ targetNodes, compressing = false }: Props) {
     lastHandledMachineLoadRef.current = machineLoadVersion;
     scheduleLayoutRestart();
     fitAfterLayoutRef.current = true;
-  }, [machineLoadVersion, nodes.length, isContainerVisible]);
+  }, [machineLoadVersion, nodes.length, isContainerVisible, paused]);
 
   const restoreViewport = useCallback(() => {
     const cy = cyRef.current;
@@ -1584,7 +1592,7 @@ function ComputationTreeCircles({ targetNodes, compressing = false }: Props) {
   );
 }
 
-function ComputationTreeCards({ targetNodes, compressing = false }: Props) {
+function ComputationTreeCards({ targetNodes, compressing = false, paused = false }: Props) {
   const theme = useTheme();
   // Global Zustand state
   const transitions = useGlobalZustand((s) => s.transitions);
@@ -1616,7 +1624,8 @@ function ComputationTreeCards({ targetNodes, compressing = false }: Props) {
   const { model, base } = useComputationTreeData(
     targetNodes,
     !!compressing,
-    computationTreeNodeMode
+    computationTreeNodeMode,
+    paused
   );
 
   const [nodes, setNodes, onNodesChange] = useNodesState<RFNode>(base.nodes);
@@ -1744,6 +1753,7 @@ function ComputationTreeCards({ targetNodes, compressing = false }: Props) {
 
   // Start ELK once when nodes are ready
   useEffect(() => {
+    if (paused) return;
     if (!didInitialLayoutRef.current && nodesReady && nodes.length > 0) {
       didInitialLayoutRef.current = true;
       awaitingInitialRevealRef.current = true;
@@ -1751,10 +1761,11 @@ function ComputationTreeCards({ targetNodes, compressing = false }: Props) {
       scheduleLayoutRestart();
       fitAfterLayoutRef.current = true;
     }
-  }, [nodesReady, nodes.length, scheduleLayoutRestart]);
+  }, [nodesReady, nodes.length, scheduleLayoutRestart, paused]);
 
   // Start ELK on structural changes
   useEffect(() => {
+    if (paused) return;
     if (!nodesReady || nodes.length === 0) return;
     if (lastTopoKeyRef.current === null) {
       lastTopoKeyRef.current = structureKey;
@@ -1767,19 +1778,21 @@ function ComputationTreeCards({ targetNodes, compressing = false }: Props) {
     setViewportReady(false);
     scheduleLayoutRestart();
     fitAfterLayoutRef.current = true;
-  }, [structureKey, nodesReady, nodes.length, scheduleLayoutRestart]);
+  }, [structureKey, nodesReady, nodes.length, scheduleLayoutRestart, paused]);
 
   // Start ELK when nodeMode changes
   useEffect(() => {
+    if (paused) return;
     if (nodes.length === 0) return;
     awaitingInitialRevealRef.current = true;
     setViewportReady(false);
     scheduleLayoutRestart();
     fitAfterLayoutRef.current = true;
-  }, [computationTreeNodeMode, scheduleLayoutRestart, nodes.length]);
+  }, [computationTreeNodeMode, scheduleLayoutRestart, nodes.length, paused]);
 
   // Re-center on every successful "Load Machine".
   useEffect(() => {
+    if (paused) return;
     if (!nodesReady || nodes.length === 0) return;
     if (lastHandledMachineLoadRef.current === machineLoadVersion) return;
     lastHandledMachineLoadRef.current = machineLoadVersion;
@@ -1787,7 +1800,7 @@ function ComputationTreeCards({ targetNodes, compressing = false }: Props) {
     setViewportReady(false);
     scheduleLayoutRestart();
     fitAfterLayoutRef.current = true;
-  }, [machineLoadVersion, nodesReady, nodes.length]);
+  }, [machineLoadVersion, nodesReady, nodes.length, paused]);
 
   const runFitView = useCallback((onDone?: () => void) => {
     requestAnimationFrame(() => {
@@ -2131,15 +2144,17 @@ export function ComputationTree(props: Props) {
 export function ComputationTreeWrapper({
   targetNodes = DEFAULT_TREE_DEPTH,
   compressing = false,
+  paused = false,
 }: {
   targetNodes?: number;
   compressing?: boolean;
+  paused?: boolean;
 }) {
   const machineLoadVersion = useGlobalZustand((s) => s.machineLoadVersion);
   return (
     <ReactFlowProvider>
       <GraphUIProvider key={machineLoadVersion}>
-        <ComputationTree targetNodes={targetNodes} compressing={compressing} />
+        <ComputationTree targetNodes={targetNodes} compressing={compressing} paused={paused} />
       </GraphUIProvider>
     </ReactFlowProvider>
   );
