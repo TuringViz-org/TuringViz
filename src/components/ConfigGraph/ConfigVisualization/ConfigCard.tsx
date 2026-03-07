@@ -21,12 +21,13 @@ import { HourglassEmpty, AltRoute } from '@mui/icons-material';
 import { alpha } from '@mui/material/styles';
 
 import { Configuration } from '@mytypes/TMTypes';
-import { useGlobalZustand } from '@zustands/GlobalZustand';
-import TapeRow from './TapeRow';
-import { useSyncedHorizontalScroll } from './useSyncedHorizontalScroll';
-import { CELL_STRIDE, CELL_WIDTH } from './constants';
+import { CELL_WIDTH } from './constants';
 import { CONFIG_CARD_WIDTH } from '../util/constants';
 import { computeDeeperGraphFromState } from '@tmfunctions/ConfigGraph';
+import runTapeStyles from '@components/TapeList/TapeList.module.css';
+
+import { useGlobalZustand } from '@zustands/GlobalZustand';
+import TapeRow from './TapeRow';
 
 type Props = {
   config: Configuration;
@@ -78,18 +79,13 @@ export default function ConfigCard(data: Props) {
     setPendingOpen(false);
   }, [config, pendingAmount]);
 
-  const tapeRowsRef = useRef<HTMLDivElement | null>(null);
-  const setOverlayPan = useCallback((panPx: number) => {
-    const root = tapeRowsRef.current;
-    if (!root) return;
-    root.style.setProperty('--tv-shared-pan-px', `${panPx}px`);
-  }, []);
+  const tapeContainerRef = useRef<HTMLDivElement | null>(null);
 
   const HEAD_CONTEXT_RADIUS = 5;
 
   const sharedBounds = useMemo(() => {
-    let minPos = Number.POSITIVE_INFINITY;
-    let maxPos = Number.NEGATIVE_INFINITY;
+    let minR = Number.POSITIVE_INFINITY;
+    let maxR = Number.NEGATIVE_INFINITY;
 
     for (let i = 0; i < config.tapes.length; i++) {
       const tape = config.tapes[i];
@@ -98,104 +94,35 @@ export default function ConfigCard(data: Props) {
       const rightLen = tape[1]?.length ?? 0;
       const localMin = -leftLen;
       const localMax = rightLen - 1;
-      const requiredMin = Math.min(head - HEAD_CONTEXT_RADIUS, localMin);
-      const requiredMax = Math.max(head + HEAD_CONTEXT_RADIUS, localMax);
+      
+      const relMin = Math.min(localMin - head, -HEAD_CONTEXT_RADIUS);
+      const relMax = Math.max(localMax - head, HEAD_CONTEXT_RADIUS);
 
-      minPos = Math.min(minPos, requiredMin);
-      maxPos = Math.max(maxPos, requiredMax);
+      minR = Math.min(minR, relMin);
+      maxR = Math.max(maxR, relMax);
     }
 
-    if (!Number.isFinite(minPos) || !Number.isFinite(maxPos)) {
-      return {
-        minPos: -HEAD_CONTEXT_RADIUS,
-        maxPos: HEAD_CONTEXT_RADIUS,
-      };
+    if (!Number.isFinite(minR) || !Number.isFinite(maxR)) {
+      return { minR: -HEAD_CONTEXT_RADIUS, maxR: HEAD_CONTEXT_RADIUS };
     }
 
-    return { minPos, maxPos };
+    return { minR, maxR };
   }, [config.tapes, config.heads]);
 
-  const getHeadCenteredScrollLeft = useCallback(
-    (head: number, viewport: HTMLDivElement) => {
-      const totalWidth = viewport.scrollWidth;
-      const clientWidth = viewport.clientWidth;
-      const maxLeft = Math.max(0, totalWidth - clientWidth);
-      const headCenter = (head - sharedBounds.minPos) * CELL_STRIDE + CELL_WIDTH / 2;
-      return Math.max(0, Math.min(headCenter - clientWidth / 2, maxLeft));
-    },
-    [sharedBounds.minPos]
-  );
+  const { minR, maxR } = sharedBounds;
+  
+  // Unlike the main UI, we don't have dots on the side, so we don't need padding. Head aligns exactly at -minR cells.
+  const headX = -minR * CELL_WIDTH;
 
-  // Synced horizontal scrolling across all tape viewports
-  const {
-    setViewportRef,
-    hasOverflow,
-    onViewportScroll,
-    getMaster,
-    centerAllTo,
-    scrollByDelta,
-  } = useSyncedHorizontalScroll({
-    getBaseScrollLeft: (index, viewport) =>
-      getHeadCenteredScrollLeft(config.heads[index] ?? 0, viewport),
-    onPanChange: setOverlayPan,
-  });
-
-  const handleCardWheel = useCallback(
-    (event: React.WheelEvent) => {
-      if (!hasOverflow) return;
-
-      const dominantDelta =
-        Math.abs(event.deltaX) >= Math.abs(event.deltaY) ? event.deltaX : event.deltaY;
-      if (dominantDelta === 0) return;
-
-      let deltaPx = dominantDelta;
-      if (event.deltaMode === 1) deltaPx *= 16; // line-based wheel
-      else if (event.deltaMode === 2) deltaPx *= window.innerHeight; // page-based wheel
-
-      event.preventDefault();
-      event.stopPropagation();
-      scrollByDelta(deltaPx);
-    },
-    [hasOverflow, scrollByDelta]
-  );
-
-  // Initial centering: center all rows so that the head of the top tape is in the middle
-  const didInitialCenter = useRef(false);
+  // Initial centering
   useEffect(() => {
-    setOverlayPan(0);
-  }, [setOverlayPan]);
+    if (!tapeContainerRef.current) return;
+    const viewWidth = tapeContainerRef.current.clientWidth;
+    const targetScrollLeft = headX - viewWidth / 2 + CELL_WIDTH / 2;
+    tapeContainerRef.current.scrollTo({ left: targetScrollLeft, behavior: 'auto' });
+  }, [headX]);
 
-  useEffect(() => {
-    if (didInitialCenter.current) return;
 
-    const tryCenter = () => {
-      const master = getMaster();
-      if (!master) return;
-
-      const scrollW = master.scrollWidth;
-      const clientW = master.clientWidth;
-      const overflow = scrollW > clientW + 1;
-      if (!overflow) return;
-
-      const heads = config.heads ?? [];
-      if (heads.length === 0) return;
-
-      const refIdx = 0;
-      const headRef = heads[refIdx];
-      const clamped = getHeadCenteredScrollLeft(headRef, master);
-
-      // Double rAF ensures layout is fully settled before scrolling
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          centerAllTo(clamped);
-          didInitialCenter.current = true;
-        });
-      });
-    };
-
-    const id = setTimeout(tryCenter, 0);
-    return () => clearTimeout(id);
-  }, [config.heads, getMaster, centerAllTo, getHeadCenteredScrollLeft]);
 
   return (
     <>
@@ -222,7 +149,6 @@ export default function ConfigCard(data: Props) {
             position: 'relative',
             '&:last-child': { pb: 1 },
           }}
-          onWheelCapture={handleCardWheel}
         >
           {/* Header */}
           <Stack
@@ -371,20 +297,28 @@ export default function ConfigCard(data: Props) {
 
           {/* Tape rows + overlayed shared custom scrollbar */}
           <Box
-            ref={tapeRowsRef}
-            sx={{ position: 'relative' }}
+            ref={tapeContainerRef}
+            className={runTapeStyles.hiddenScrollbar}
+            sx={{
+              overflowX: 'auto',
+              overflowY: 'hidden',
+              width: '100%',
+              backgroundColor: '#ffffff',
+              scrollbarWidth: 'none',
+              mt: 1,
+            }}
           >
-            <Stack spacing={1}>
+            <Stack spacing={0}>
               {config.tapes.map((tape, i) => (
                 <TapeRow
                   key={i}
                   tapeIndex={i}
                   tape={tape}
+                  head={config.heads[i] ?? 0}
                   blank={blank}
-                  minPos={sharedBounds.minPos}
-                  maxPos={sharedBounds.maxPos}
-                  setViewportRef={setViewportRef}
-                  onViewportScroll={onViewportScroll}
+                  minR={minR}
+                  maxR={maxR}
+                  headX={headX}
                 />
               ))}
             </Stack>

@@ -12,9 +12,10 @@ import runTapeStyles from '@components/TapeList/TapeList.module.css';
 
 type Props = {
   tape: TapeContentSingleTape;
+  head: number;
   blank: string;
-  minPos: number;
-  maxPos: number;
+  minR: number;
+  maxR: number;
 };
 
 type Cell = {
@@ -24,41 +25,27 @@ type Cell = {
   isPresent: boolean;
 };
 
-/**
- * Renders a shared tape range. Positions missing in this local tape stay plain white.
- */
-export default function TapeCells({ tape, blank, minPos, maxPos }: Props) {
+export default function TapeCells({ tape, head, blank, minR, maxR }: Props) {
   const cells = useMemo<Cell[]>(() => {
     const out: Cell[] = [];
-    const start = Math.min(minPos, maxPos);
-    const end = Math.max(minPos, maxPos);
+    const start = minR + head;
+    const end = maxR + head;
 
     for (let pos = start; pos <= end; pos++) {
       const isPresent = hasCellAtAbsolutePos(tape, pos);
       out.push({
         key: pos,
         val: isPresent ? valueAtAbsolutePos(tape, pos, blank) : '',
-        leftPx: (pos - start) * CELL_WIDTH,
+        leftPx: pos * CELL_WIDTH,
         isPresent,
       });
     }
 
     return out;
-  }, [tape, blank, minPos, maxPos]);
-
-  const start = Math.min(minPos, maxPos);
-  const end = Math.max(minPos, maxPos);
-  const trackWidth = Math.max(0, end - start + 1) * CELL_WIDTH;
+  }, [tape, head, blank, minR, maxR]);
 
   return (
-    <Box
-      className={runTapeStyles.scrollableTapeTrack}
-      sx={{
-        width: `${trackWidth}px`,
-        minWidth: trackWidth > 0 ? `${trackWidth}px` : 0,
-        height: CELL_HEIGHT + 10,
-      }}
-    >
+    <>
       {cells.map((c: Cell) => (
         <Box
           key={c.key}
@@ -67,16 +54,18 @@ export default function TapeCells({ tape, blank, minPos, maxPos }: Props) {
             left: `${c.leftPx}px`,
             width: CELL_WIDTH,
             height: CELL_HEIGHT,
+            top: 0,
             boxSizing: 'border-box',
             borderColor: c.isPresent ? '#9ca3af' : 'transparent',
+            backgroundColor: c.isPresent ? '#ffffff' : 'transparent',
             fontFamily:
               "'Source Code Pro', 'Consolas', 'Menlo', 'DejaVu Sans Mono', 'Courier', monospace",
-            fontSize: 25,
+            fontSize: 20,
           }}
         >
           {c.val}
         </Box>
       ))}
-    </Box>
+    </>
   );
 }

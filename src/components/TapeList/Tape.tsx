@@ -20,17 +20,11 @@ export type TapeProps = {
   index: number; //This is the index of the tape, used to identify the tape
   configuration?: Configuration;
   scrollable?: boolean;
-  sharedMinPos?: number;
-  sharedMaxPos?: number;
-  registerScrollableViewport?: (index: number, viewport: HTMLDivElement | null) => void;
-  onScrollableViewportScroll?: (index: number) => void;
-  onScrollableViewportHoverChange?: (index: number | null) => void;
-  showHorizontalScrollbar?: boolean;
-  disableManualScroll?: boolean;
+  sharedMinR?: number;
+  sharedMaxR?: number;
 };
 
 const CELL_SIZE = 50;
-const EXTRA_SCROLL_CELLS = 32;
 
 type CommonTapeViewProps = {
   head: number;
@@ -135,38 +129,22 @@ function StaticTapeView({ head, tape, blank, running }: StaticTapeViewProps) {
 }
 
 type ScrollableTapeViewProps = CommonTapeViewProps & {
-  index: number;
-  sharedMinPos?: number;
-  sharedMaxPos?: number;
-  registerScrollableViewport?: (index: number, viewport: HTMLDivElement | null) => void;
-  onScrollableViewportScroll?: (index: number) => void;
-  onScrollableViewportHoverChange?: (index: number | null) => void;
-  showHorizontalScrollbar: boolean;
-  disableManualScroll: boolean;
+  running: boolean;
+  sharedMinR: number;
+  sharedMaxR: number;
 };
 
 function ScrollableTapeView({
-  index,
   head,
   tape,
   blank,
-  sharedMinPos,
-  sharedMaxPos,
-  registerScrollableViewport,
-  onScrollableViewportScroll,
-  onScrollableViewportHoverChange,
-  showHorizontalScrollbar,
-  disableManualScroll,
+  running,
+  sharedMinR,
+  sharedMaxR,
 }: ScrollableTapeViewProps) {
-  const viewportRef = useRef<HTMLDivElement | null>(null);
-
-  const { minPos, maxPos, cells } = useMemo(() => {
-    const leftLen = tape[0]?.length ?? 0;
-    const rightLen = tape[1]?.length ?? 0;
-    const min =
-      sharedMinPos ?? Math.min(head, -leftLen) - EXTRA_SCROLL_CELLS;
-    const max =
-      sharedMaxPos ?? Math.max(head, rightLen - 1) + EXTRA_SCROLL_CELLS;
+  const { cells } = useMemo(() => {
+    const min = sharedMinR + head;
+    const max = sharedMaxR + head;
     const list = [];
 
     for (let pos = min; pos <= max; pos++) {
@@ -176,65 +154,52 @@ function ScrollableTapeView({
       });
     }
 
-    return {
-      minPos: min,
-      maxPos: max,
-      cells: list,
-    };
-  }, [tape, head, blank, sharedMinPos, sharedMaxPos]);
+    return { cells: list };
+  }, [tape, head, blank, sharedMinR, sharedMaxR]);
 
-  useEffect(() => {
-    const viewport = viewportRef.current;
-    registerScrollableViewport?.(index, viewport ?? null);
-    return () => {
-      registerScrollableViewport?.(index, null);
-    };
-  }, [index, registerScrollableViewport]);
-
-  useEffect(() => {
-    const viewport = viewportRef.current;
-    if (!viewport) return;
-    const totalWidth = (maxPos - minPos + 1) * CELL_SIZE;
-    const maxLeft = Math.max(0, totalWidth - viewport.clientWidth);
-    if (viewport.scrollLeft > maxLeft) {
-      viewport.scrollLeft = maxLeft;
-    }
-  }, [minPos, maxPos]);
-
-  const handleScroll = () => {
-    onScrollableViewportScroll?.(index);
-  };
+  // Shift by exactly 1 cell to the left. The dots natively sit at cell -1. This brings them securely to X=0. No further buffer needed.
+  const headX = -(sharedMinR - 1) * CELL_SIZE;
 
   return (
-    <div className={styles.scrollableTapeContainer}>
-      <div className={styles.scrollableTapeFrame}>
-        <div
-          ref={viewportRef}
-          className={`${styles.scrollableTapeViewport} ${
-            showHorizontalScrollbar ? '' : styles.scrollableTapeViewportNoScrollbar
-          }`}
-          onScroll={handleScroll}
-          onMouseEnter={() => onScrollableViewportHoverChange?.(index)}
-          onMouseLeave={() => onScrollableViewportHoverChange?.(null)}
-          style={{ overflowX: disableManualScroll ? 'hidden' : 'auto' }}
-        >
+    <div className={styles.scrollableTapeRow} style={{ width: `${(sharedMaxR - sharedMinR + 2) * CELL_SIZE}px` }}>
+      <div 
+        className={styles.tapeTrackWrapper} 
+        style={{ 
+          transform: `translateX(${(headX - head * CELL_SIZE)}px)`,
+          transition: running ? 'transform 0.2s ease-in-out' : 'none',
+        }}
+      >
+        {cells.map((cell) => (
           <div
-            className={styles.scrollableTapeTrack}
-            style={{ width: `${(maxPos - minPos + 1) * CELL_SIZE}px` }}
+            key={cell.pos}
+            className={styles.scrollableTapeCell}
+            style={{ left: `${cell.pos * CELL_SIZE}px` }}
           >
-            {cells.map((cell) => (
-              <div
-                key={cell.pos}
-                className={styles.scrollableTapeCell}
-                style={{ left: `${(cell.pos - minPos) * CELL_SIZE}px` }}
-              >
-                {cell.value}
-              </div>
-            ))}
+            {cell.value}
           </div>
+        ))}
+
+        {/* Left infinite dots */}
+        <div
+          className={styles.scrollableTapeDots}
+          style={{ left: `${(sharedMinR + head - 1) * CELL_SIZE}px`, justifyContent: 'center' }}
+        >
+          ...
         </div>
-        <div className={styles.scrollableTapeHeadOverlay} />
+
+        {/* Right infinite dots */}
+        <div
+          className={styles.scrollableTapeDots}
+          style={{ left: `${(sharedMaxR + head + 1) * CELL_SIZE}px`, justifyContent: 'center' }}
+        >
+          ...
+        </div>
       </div>
+      {/* Tape Head Overlay */}
+      <div 
+        className={styles.scrollableTapeHeadOverlayNative}
+        style={{ left: `${headX}px` }}
+      />
     </div>
   );
 }
@@ -243,13 +208,8 @@ export function Tape({
   index,
   configuration,
   scrollable = false,
-  sharedMinPos,
-  sharedMaxPos,
-  registerScrollableViewport,
-  onScrollableViewportScroll,
-  onScrollableViewportHoverChange,
-  showHorizontalScrollbar = true,
-  disableManualScroll = false,
+  sharedMinR,
+  sharedMaxR,
 }: TapeProps) {
   // Heads and tapes need to be set at the same time, otherwise maybe problems occur with the animation.
   // Keep store subscriptions for normal run view, but allow explicit configuration override for previews.
@@ -265,17 +225,12 @@ export function Tape({
   if (scrollable) {
     return (
       <ScrollableTapeView
-        index={index}
         head={head}
         tape={tape}
         blank={blank}
-        sharedMinPos={sharedMinPos}
-        sharedMaxPos={sharedMaxPos}
-        registerScrollableViewport={registerScrollableViewport}
-        onScrollableViewportScroll={onScrollableViewportScroll}
-        onScrollableViewportHoverChange={onScrollableViewportHoverChange}
-        showHorizontalScrollbar={showHorizontalScrollbar}
-        disableManualScroll={disableManualScroll}
+        running={running}
+        sharedMinR={sharedMinR ?? -50}
+        sharedMaxR={sharedMaxR ?? 50}
       />
     );
   }
