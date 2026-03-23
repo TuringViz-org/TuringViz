@@ -420,6 +420,14 @@ export function ConfigGraphCircles() {
   const [confirmCardsOpen, setConfirmCardsOpen] = useState(false);
   const [containerVisible, setContainerVisible] = useState(true);
   const [viewportReady, setViewportReady] = useState(false);
+  const [autoResizeLayoutEnabled, setAutoResizeLayoutEnabled] = useState(true);
+  const fitAfterLayoutRef = useRef(false);
+  const pendingMachineLoadFitRef = useRef(false);
+  const awaitingInitialRevealRef = useRef(false);
+  const lastHandledMachineLoadRef = useRef<number>(-1);
+  const handleAutoResizeLayout = useCallback(() => {
+    fitAfterLayoutRef.current = true;
+  }, []);
 
   const clearHoverTimer = useCallback(() => {
     if (hoverTimerRef.current != null) {
@@ -498,9 +506,12 @@ export function ConfigGraphCircles() {
     padding: configGraphELKSettings.padding,
     direction: configGraphELKSettings.direction,
     autoDirection: configGraphELKSettings.autoDirection ?? true,
+    scaleToFit: true,
     containerRef,
     topoKeyOverride: structureKey,
     autoRun: false,
+    autoResizeLayoutEnabled,
+    onAutoResizeLayout: handleAutoResizeLayout,
     onLayout: (positions) => {
       setNodes((prev) =>
         prev.map((n) => {
@@ -522,11 +533,7 @@ export function ConfigGraphCircles() {
 
   const didInitialLayoutRef = useRef(false);
   const lastTopoKeyRef = useRef<string | null>(null);
-  const fitAfterLayoutRef = useRef(false);
   const prevRunningRef = useRef(layout.running);
-  const pendingMachineLoadFitRef = useRef(false);
-  const awaitingInitialRevealRef = useRef(false);
-  const lastHandledMachineLoadRef = useRef<number>(-1);
   useEffect(() => {
     if (nodes.length === 0) setViewportReady(false);
   }, [nodes.length]);
@@ -1155,6 +1162,7 @@ export function ConfigGraphCircles() {
     const handler: EventListener = (event) => {
       const detail = (event as CustomEvent<PortalBridgeSwitchDetail>).detail;
       if (!detail || detail.id !== 'configGraph') return;
+      setAutoResizeLayoutEnabled(detail.location !== 'target');
       scheduleFitAfterSwitch();
     };
     window.addEventListener(PORTAL_BRIDGE_SWITCH_EVENT, handler);

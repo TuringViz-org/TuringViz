@@ -13,6 +13,7 @@ import {
   type ElkAlgo,
 } from '@components/shared/layout/elkUtils';
 import { resolveAutoDirection } from '@components/shared/layout/autoDirection';
+import { scaleToContainer } from '@components/shared/layout/scaleToContainer';
 
 type FallbackLayoutParams = {
   nodeSep: number;
@@ -134,8 +135,11 @@ export type Options = {
   viewportWidth?: number;
   viewportHeight?: number;
   autoDirection?: boolean;
+  scaleToFit?: boolean;
   topoKeyOverride?: string;
   autoRun?: boolean;
+  autoResizeLayoutEnabled?: boolean;
+  onAutoResizeLayout?: () => void;
 };
 
 export type LayoutAPI = {
@@ -157,8 +161,11 @@ export function useElkLayout({
   viewportWidth,
   viewportHeight,
   autoDirection = true,
+  scaleToFit = false,
   topoKeyOverride,
   autoRun = true,
+  autoResizeLayoutEnabled = true,
+  onAutoResizeLayout,
   onLayout,
 }: Options & {
   nodes: RFNode[];
@@ -168,6 +175,7 @@ export function useElkLayout({
   const nodesRef = useRef(nodes);
   const edgesRef = useRef(edges);
   const onLayoutRef = useRef(onLayout);
+  const onAutoResizeLayoutRef = useRef(onAutoResizeLayout);
 
   const elkRef = useRef<InstanceType<typeof Elk> | null>(null);
   const [running, setRunning] = useState(false);
@@ -197,13 +205,15 @@ export function useElkLayout({
     nodesRef.current = nodes;
     edgesRef.current = edges;
     onLayoutRef.current = onLayout;
-  }, [nodes, edges, onLayout]);
+    onAutoResizeLayoutRef.current = onAutoResizeLayout;
+  }, [nodes, edges, onLayout, onAutoResizeLayout]);
 
   useEffect(() => {
     const element = containerRef?.current;
     if (!element || typeof ResizeObserver === 'undefined') return;
 
     const update = () => {
+      if (element.clientWidth <= 0 || element.clientHeight <= 0) return;
       setObservedContainerSize({
         width: element.clientWidth,
         height: element.clientHeight,
@@ -280,6 +290,10 @@ export function useElkLayout({
     const rfEdges = edgesRef.current;
 
     if (!rfNodes.length) return;
+    if (containerRef?.current) {
+      const { clientWidth, clientHeight } = containerRef.current;
+      if (clientWidth <= 0 || clientHeight <= 0) return;
+    }
 
     const effectiveDirection = autoDirection
       ? resolveAutoDirection({
@@ -352,8 +366,15 @@ export function useElkLayout({
         if (!c.id) continue;
         posById.set(c.id, { x: c.x ?? 0, y: c.y ?? 0 });
       }
-
-      onLayoutRef.current?.(posById);
+      const nextPositions =
+        autoDirection && scaleToFit
+          ? scaleToContainer({
+              positions: posById,
+              containerWidth: effectiveViewportWidth,
+              containerHeight: effectiveViewportHeight,
+            })
+          : posById;
+      onLayoutRef.current?.(nextPositions);
     } catch {
       if (lastFailureToastTopoKeyRef.current !== topoKey) {
         lastFailureToastTopoKeyRef.current = topoKey;
@@ -396,6 +417,7 @@ export function useElkLayout({
     padding,
     direction,
     autoDirection,
+    scaleToFit,
     effectiveViewportWidth,
     effectiveViewportHeight,
     topoKey,
@@ -417,6 +439,7 @@ export function useElkLayout({
 
   useEffect(() => {
     if (!autoDirection) return;
+    if (!autoResizeLayoutEnabled) return;
     if (nodesRef.current.length === 0) return;
 
     if (lastSizeKeyRef.current === viewportSizeKey) return;
@@ -424,8 +447,9 @@ export function useElkLayout({
     lastSizeKeyRef.current = viewportSizeKey;
     if (!hadPreviousSize) return;
 
+    onAutoResizeLayoutRef.current?.();
     void runLayout();
-  }, [autoDirection, viewportSizeKey, runLayout]);
+  }, [autoDirection, autoResizeLayoutEnabled, viewportSizeKey, runLayout]);
 
   return { restart, running };
 }

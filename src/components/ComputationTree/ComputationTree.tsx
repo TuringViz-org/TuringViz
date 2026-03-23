@@ -495,6 +495,14 @@ function ComputationTreeCircles({ targetNodes, compressing = false, paused = fal
   const [structureKey, setStructureKey] = useState('');
   const [containerVisible, setContainerVisible] = useState(true);
   const [viewportReady, setViewportReady] = useState(false);
+  const [autoResizeLayoutEnabled, setAutoResizeLayoutEnabled] = useState(true);
+  const fitAfterLayoutRef = useRef(false);
+  const pendingLayoutViewportFitRef = useRef(false);
+  const layoutPositionsAppliedRef = useRef(false);
+  const handleAutoResizeLayout = useCallback(() => {
+    if (nodes.length === 0) return;
+    fitAfterLayoutRef.current = true;
+  }, [nodes.length]);
 
   // Keep node/edge lookup maps for quick access in event handlers
   const nodeMapRef = useRef<Map<string, RFNode>>(new Map());
@@ -519,10 +527,17 @@ function ComputationTreeCircles({ targetNodes, compressing = false, paused = fal
     padding: computationTreeELKSettings.padding,
     direction: computationTreeELKSettings.direction,
     autoDirection: computationTreeELKSettings.autoDirection ?? true,
+    scaleToFit: true,
     containerRef,
     topoKeyOverride: structureKey,
     autoRun: false,
+    autoResizeLayoutEnabled: !paused && autoResizeLayoutEnabled,
+    onAutoResizeLayout: handleAutoResizeLayout,
     onLayout: (positions) => {
+      if (fitAfterLayoutRef.current) {
+        pendingLayoutViewportFitRef.current = true;
+        layoutPositionsAppliedRef.current = false;
+      }
       setNodes((prev) =>
         prev.map((n) => {
           const p = positions.get(n.id);
@@ -550,7 +565,6 @@ function ComputationTreeCircles({ targetNodes, compressing = false, paused = fal
   // Performance + layout tracking
   const didInitialLayoutRef = useRef(false);
   const lastTopoKeyRef = useRef<string | null>(null);
-  const fitAfterLayoutRef = useRef(false);
   const prevRunningRef = useRef(layout.running);
   const pendingMachineLoadFitRef = useRef(false);
   const awaitingInitialRevealRef = useRef(false);
@@ -657,6 +671,10 @@ function ComputationTreeCircles({ targetNodes, compressing = false, paused = fal
     requestAnimationFrame(() => {
       cy.resize();
       cy.fit(cy.elements(), 30);
+      viewportRef.current = {
+        zoom: cy.zoom(),
+        pan: { ...cy.pan() },
+      };
       onDone?.();
     });
   }, []);
@@ -690,26 +708,36 @@ function ComputationTreeCircles({ targetNodes, compressing = false, paused = fal
     cy.viewport(viewport);
   }, []);
 
+  const completePendingLayoutFit = useCallback(() => {
+    if (!pendingLayoutViewportFitRef.current) return;
+    if (!layoutPositionsAppliedRef.current) return;
+    if (layout.running) return;
+
+    pendingLayoutViewportFitRef.current = false;
+    layoutPositionsAppliedRef.current = false;
+    runFitView(() => {
+      const visibleNow = isContainerVisible();
+      if (visibleNow) {
+        pendingMachineLoadFitRef.current = false;
+      }
+      if (visibleNow && awaitingInitialRevealRef.current) {
+        awaitingInitialRevealRef.current = false;
+        setViewportReady(true);
+      }
+    });
+  }, [layout.running, runFitView, isContainerVisible]);
+
   useEffect(() => {
     const justFinished = prevRunningRef.current && !layout.running;
     if (justFinished) {
       if (fitAfterLayoutRef.current && nodes.length > 0) {
         fitAfterLayoutRef.current = false;
-        runFitView(() => {
-          const visibleNow = isContainerVisible();
-          if (visibleNow) {
-            pendingMachineLoadFitRef.current = false;
-          }
-          if (visibleNow && awaitingInitialRevealRef.current) {
-            awaitingInitialRevealRef.current = false;
-            setViewportReady(true);
-          }
-        });
+        completePendingLayoutFit();
       }
     }
 
     prevRunningRef.current = layout.running;
-  }, [layout.running, nodes.length, runFitView, isContainerVisible]);
+  }, [layout.running, nodes.length, completePendingLayoutFit]);
 
   // Event helpers ------------------------------------------------------------
   const hoverTimerRef = useRef<number | null>(null);
@@ -1221,7 +1249,18 @@ function ComputationTreeCircles({ targetNodes, compressing = false, paused = fal
     });
 
     cy.nodes().ungrabify();
-  }, [nodes, edges, computationTreeNodeMode, theme, resolveColorForState]);
+    if (pendingLayoutViewportFitRef.current) {
+      layoutPositionsAppliedRef.current = true;
+      completePendingLayoutFit();
+    }
+  }, [
+    nodes,
+    edges,
+    computationTreeNodeMode,
+    theme,
+    resolveColorForState,
+    completePendingLayoutFit,
+  ]);
 
   const lastSelectedRef = useRef<string | null>(null);
 
@@ -1264,12 +1303,23 @@ function ComputationTreeCircles({ targetNodes, compressing = false, paused = fal
         });
         return;
       }
+      if (layout.running || fitAfterLayoutRef.current || pendingLayoutViewportFitRef.current) {
+        refreshSelectedAnchors();
+        return;
+      }
       restoreViewport();
       refreshSelectedAnchors();
     });
     ro.observe(el);
     return () => ro.disconnect();
-  }, [restoreViewport, runFitView, nodes.length, isContainerVisible, refreshSelectedAnchors]);
+  }, [
+    layout.running,
+    restoreViewport,
+    runFitView,
+    nodes.length,
+    isContainerVisible,
+    refreshSelectedAnchors,
+  ]);
 
   // Portal switch fit handling
   const scheduleFitAfterSwitch = useCallback(() => {
@@ -1287,6 +1337,7 @@ function ComputationTreeCircles({ targetNodes, compressing = false, paused = fal
     const handler: EventListener = (event) => {
       const detail = (event as CustomEvent<PortalBridgeSwitchDetail>).detail;
       if (!detail || detail.id !== 'computationTree') return;
+      setAutoResizeLayoutEnabled(detail.location !== 'target');
       scheduleFitAfterSwitch();
     };
     window.addEventListener(PORTAL_BRIDGE_SWITCH_EVENT, handler);
@@ -1635,6 +1686,12 @@ function ComputationTreeCards({ targetNodes, compressing = false, paused = false
   const [nodes, setNodes, onNodesChange] = useNodesState<RFNode>(base.nodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState<RFEdge>(base.edges);
   const [structureKey, setStructureKey] = useState('');
+  const [autoResizeLayoutEnabled, setAutoResizeLayoutEnabled] = useState(true);
+  const fitAfterLayoutRef = useRef(false);
+  const handleAutoResizeLayout = useCallback(() => {
+    if (nodes.length === 0) return;
+    fitAfterLayoutRef.current = true;
+  }, [nodes.length]);
 
   const rf = useReactFlow();
   const nodesReady = useNodesInitialized();
@@ -1653,10 +1710,13 @@ function ComputationTreeCards({ targetNodes, compressing = false, paused = false
     padding: computationTreeELKSettings.padding,
     direction: computationTreeELKSettings.direction,
     autoDirection: computationTreeELKSettings.autoDirection ?? true,
+    scaleToFit: true,
     viewportWidth,
     viewportHeight,
     topoKeyOverride: structureKey,
     autoRun: false,
+    autoResizeLayoutEnabled: !paused && autoResizeLayoutEnabled,
+    onAutoResizeLayout: handleAutoResizeLayout,
     onLayout: (positions) => {
       setNodes((prev) =>
         prev.map((n) => {
@@ -1686,7 +1746,6 @@ function ComputationTreeCards({ targetNodes, compressing = false, paused = false
   const nodesCountRef = useRef(0);
   const didInitialLayoutRef = useRef(false);
   const lastTopoKeyRef = useRef<string | null>(null);
-  const fitAfterLayoutRef = useRef(false);
   const prevRunningRef = useRef(layout.running);
   const layoutRunningRef = useRef(layout.running);
   const nodesReadyRef = useRef(nodesReady);
@@ -1894,6 +1953,7 @@ function ComputationTreeCards({ targetNodes, compressing = false, paused = false
     const handler: EventListener = (event) => {
       const detail = (event as CustomEvent<PortalBridgeSwitchDetail>).detail;
       if (!detail || detail.id !== 'computationTree') return;
+      setAutoResizeLayoutEnabled(detail.location !== 'target');
       scheduleFitAfterSwitch();
     };
     window.addEventListener(PORTAL_BRIDGE_SWITCH_EVENT, handler);

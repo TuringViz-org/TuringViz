@@ -15,6 +15,7 @@ import {
   type ElkAlgo,
 } from '@components/shared/layout/elkUtils';
 import { resolveAutoDirection } from '@components/shared/layout/autoDirection';
+import { scaleToContainer } from '@components/shared/layout/scaleToContainer';
 
 export type Options = {
   algorithm?: ElkAlgo;
@@ -25,6 +26,8 @@ export type Options = {
   padding?: number; // graph padding
   direction?: 'RIGHT' | 'LEFT' | 'UP' | 'DOWN';
   autoDirection?: boolean;
+  scaleToFit?: boolean;
+  autoResizeLayoutEnabled?: boolean;
 };
 
 export type LayoutAPI = {
@@ -45,6 +48,8 @@ export function useElkLayout({
   padding = 24,
   direction = 'DOWN',
   autoDirection = true,
+  scaleToFit = false,
+  autoResizeLayoutEnabled = true,
 }: Options = {}): LayoutAPI {
   const nodesInitialized = useNodesInitialized();
   const elementCount = useStore(elementCountSelector);
@@ -177,10 +182,18 @@ export function useElkLayout({
         if (!c.id) continue;
         posById.set(c.id, { x: c.x ?? 0, y: c.y ?? 0 });
       }
+      const nextPositions =
+        autoDirection && scaleToFit
+          ? scaleToContainer({
+              positions: posById,
+              containerWidth,
+              containerHeight,
+            })
+          : posById;
 
       setNodes((prev) =>
         prev.map((n) => {
-          const p = posById.get(n.id);
+          const p = nextPositions.get(n.id);
           if (!p) return n;
           const same = n.position?.x === p.x && n.position?.y === p.y;
           return same ? n : { ...n, position: p };
@@ -198,6 +211,7 @@ export function useElkLayout({
     viewportHeight,
     direction,
     autoDirection,
+    scaleToFit,
     algorithm,
     nodeSep,
     rankSep,
@@ -227,6 +241,7 @@ export function useElkLayout({
 
   useEffect(() => {
     if (!autoDirection) return;
+    if (!autoResizeLayoutEnabled) return;
     if (!nodesInitialized) return;
     if (getNodes().length === 0) return;
 
@@ -236,7 +251,7 @@ export function useElkLayout({
     if (!hadPreviousSize) return;
 
     void runLayout();
-  }, [autoDirection, nodesInitialized, sizeKey, getNodes, runLayout]);
+  }, [autoDirection, autoResizeLayoutEnabled, nodesInitialized, sizeKey, getNodes, runLayout]);
 
   useEffect(() => {
     lastDirectionRef.current = direction;

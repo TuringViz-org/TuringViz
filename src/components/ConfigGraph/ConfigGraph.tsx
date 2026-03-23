@@ -157,6 +157,7 @@ function ConfigGraphCards() {
   const [nodes, setNodes, onNodesChangeRF] = useNodesState(base.nodes);
   const [edges, setEdges, onEdgesChangeRF] = useEdgesState(base.edges);
   const [structureKey, setStructureKey] = useState('');
+  const [autoResizeLayoutEnabled, setAutoResizeLayoutEnabled] = useState(true);
 
   const { hoveredState, setHoveredState, selected, setSelected } = useGraphUI();
 
@@ -170,6 +171,8 @@ function ConfigGraphCards() {
     padding: configGraphELKSettings.padding,
     direction: configGraphELKSettings.direction,
     autoDirection: configGraphELKSettings.autoDirection ?? true,
+    scaleToFit: true,
+    autoResizeLayoutEnabled,
   });
 
   // Adjust edgeNodeSep when nodeMode changes (Cards need more space)
@@ -381,6 +384,7 @@ function ConfigGraphCards() {
     const handler: EventListener = (event) => {
       const detail = (event as CustomEvent<PortalBridgeSwitchDetail>).detail;
       if (!detail || detail.id !== 'configGraph') return;
+      setAutoResizeLayoutEnabled(detail.location !== 'target');
       scheduleFitAfterSwitch();
     };
     window.addEventListener(PORTAL_BRIDGE_SWITCH_EVENT, handler);

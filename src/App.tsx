@@ -183,8 +183,6 @@ export default function App() {
 
   const treeEnabled =
     treeTabActive || hasMountedTree || treeFullscreen.open || treeFullscreen.render;
-  const treeVisible =
-    treeTabActive || treeFullscreen.open || treeFullscreen.render;
 
   const fullscreenConfigs: FullscreenPortalConfig[] = useMemo(
     () => [
@@ -246,7 +244,6 @@ export default function App() {
             <LazyComputationTreeWrapper
               targetNodes={computationTreeTargetNodes}
               compressing={compressed}
-              paused={!treeVisible}
             />
           </Suspense>
         ) : null,
@@ -268,7 +265,6 @@ export default function App() {
       treeFullscreen.render,
       treeFullscreen.setRender,
       treeEnabled,
-      treeVisible,
       computationTreeTargetNodes,
       compressed,
       openCompute,
