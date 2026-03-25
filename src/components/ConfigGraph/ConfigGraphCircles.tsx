@@ -424,6 +424,7 @@ export function ConfigGraphCircles() {
   const fitAfterLayoutRef = useRef(false);
   const pendingMachineLoadFitRef = useRef(false);
   const awaitingInitialRevealRef = useRef(false);
+  const pendingRevealFitRef = useRef(false);
   const lastHandledMachineLoadRef = useRef<number>(-1);
   const handleAutoResizeLayout = useCallback(() => {
     fitAfterLayoutRef.current = true;
@@ -682,16 +683,19 @@ export function ConfigGraphCircles() {
     if (justFinished) {
       if (fitAfterLayoutRef.current && nodes.length > 0) {
         fitAfterLayoutRef.current = false;
-        runFitView(undefined, () => {
-          const visibleNow = isContainerVisible();
-          if (visibleNow) {
+        const visibleNow = isContainerVisible();
+        if (visibleNow) {
+          runFitView(undefined, () => {
             pendingMachineLoadFitRef.current = false;
-          }
-          if (visibleNow && awaitingInitialRevealRef.current) {
-            awaitingInitialRevealRef.current = false;
-            setViewportReady(true);
-          }
-        });
+            if (awaitingInitialRevealRef.current) {
+              awaitingInitialRevealRef.current = false;
+              setViewportReady(true);
+            }
+          });
+        } else {
+          // Layout finished while tab is hidden — defer reveal until visible
+          pendingRevealFitRef.current = true;
+        }
       }
     }
     prevRunningRef.current = layout.running;
@@ -1120,8 +1124,11 @@ export function ConfigGraphCircles() {
     const cy = cyRef.current;
     const el = containerRef.current;
     if (!cy || !el || typeof ResizeObserver === 'undefined') return;
+    let wasVisible = isContainerVisible();
     const ro = new ResizeObserver(() => {
       const visibleNow = isContainerVisible();
+      const justBecameVisible = !wasVisible && visibleNow;
+      wasVisible = visibleNow;
       setContainerVisible(visibleNow);
       cy.resize();
       if (
@@ -1135,8 +1142,31 @@ export function ConfigGraphCircles() {
             awaitingInitialRevealRef.current = false;
             setViewportReady(true);
           }
+          pendingRevealFitRef.current = false;
           refreshSelectedAnchors();
         });
+        return;
+      }
+      // Layout finished while hidden — now visible, so perform deferred reveal
+      if (pendingRevealFitRef.current && visibleNow && nodes.length > 0) {
+        pendingRevealFitRef.current = false;
+        runFitView(undefined, () => {
+          pendingMachineLoadFitRef.current = false;
+          if (awaitingInitialRevealRef.current) {
+            awaitingInitialRevealRef.current = false;
+            setViewportReady(true);
+          }
+          refreshSelectedAnchors();
+        });
+        return;
+      }
+      // Container just became visible while still in loading state — layout
+      // was never run because runLayout early-returned on zero dimensions.
+      // Re-trigger the full layout + fit cycle now.
+      if (justBecameVisible && !viewportReady && !layout.running && nodes.length > 0) {
+        awaitingInitialRevealRef.current = true;
+        fitAfterLayoutRef.current = true;
+        scheduleLayoutRestart();
         return;
       }
       restoreViewport();
@@ -1144,7 +1174,7 @@ export function ConfigGraphCircles() {
     });
     ro.observe(el);
     return () => ro.disconnect();
-  }, [restoreViewport, runFitView, nodes.length, isContainerVisible, refreshSelectedAnchors]);
+  }, [restoreViewport, runFitView, nodes.length, isContainerVisible, refreshSelectedAnchors, viewportReady, layout.running, scheduleLayoutRestart]);
 
   // Portal switch fit
   const scheduleFitAfterSwitch = useCallback(() => {

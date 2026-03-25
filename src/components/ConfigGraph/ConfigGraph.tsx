@@ -6,10 +6,12 @@ import {
   useEdgesState,
   useReactFlow,
   useNodesInitialized,
+  useStore,
   MarkerType,
   Background,
   type Node as RFNode,
   type Edge as RFEdge,
+  type ReactFlowState,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import {
@@ -196,6 +198,9 @@ function ConfigGraphCards() {
   const awaitingInitialRevealRef = useRef(false);
   const lastHandledMachineLoadRef = useRef<number>(-1);
   const [viewportReady, setViewportReady] = useState(false);
+  const pendingReFitRef = useRef(false);
+  const viewportWidth = useStore((s: ReactFlowState) => s.width);
+  const viewportHeight = useStore((s: ReactFlowState) => s.height);
 
   useEffect(() => {
     nodesCountRef.current = nodes.length;
@@ -313,12 +318,22 @@ function ConfigGraphCards() {
     if (justFinished) {
       if (fitAfterLayoutRef.current && nodes.length > 0) {
         fitAfterLayoutRef.current = false;
-        runFitView(() => {
+        const isHidden = viewportWidth <= 0 || viewportHeight <= 0;
+        if (isHidden) {
+          // Layout finished while tab is hidden — defer reveal until visible
+          pendingReFitRef.current = true;
+          // Still set viewportReady so the loading state tracks correctly
           if (awaitingInitialRevealRef.current) {
             awaitingInitialRevealRef.current = false;
-            setViewportReady(true);
           }
-        });
+        } else {
+          runFitView(() => {
+            if (awaitingInitialRevealRef.current) {
+              awaitingInitialRevealRef.current = false;
+              setViewportReady(true);
+            }
+          });
+        }
       }
 
       if (manualFitPendingRef.current && nodesCountRef.current > 0) {
@@ -327,7 +342,17 @@ function ConfigGraphCards() {
       }
     }
     prevRunningRef.current = layout.running;
-  }, [layout.running, nodes.length, runFitView]);
+  }, [layout.running, nodes.length, runFitView, viewportWidth, viewportHeight]);
+
+  // Re-fit when viewport becomes visible after layout completed while hidden
+  useEffect(() => {
+    if (!pendingReFitRef.current) return;
+    if (viewportWidth <= 0 || viewportHeight <= 0) return;
+    pendingReFitRef.current = false;
+    runFitView(() => {
+      setViewportReady(true);
+    });
+  }, [viewportWidth, viewportHeight, runFitView]);
 
   // --- Handlers ---
   const handleNodeClick = useCallback(

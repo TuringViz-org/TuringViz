@@ -499,6 +499,7 @@ function ComputationTreeCircles({ targetNodes, compressing = false, paused = fal
   const fitAfterLayoutRef = useRef(false);
   const pendingLayoutViewportFitRef = useRef(false);
   const layoutPositionsAppliedRef = useRef(false);
+  const pendingRevealFitRef = useRef(false);
   const handleAutoResizeLayout = useCallback(() => {
     if (nodes.length === 0) return;
     fitAfterLayoutRef.current = true;
@@ -715,16 +716,19 @@ function ComputationTreeCircles({ targetNodes, compressing = false, paused = fal
 
     pendingLayoutViewportFitRef.current = false;
     layoutPositionsAppliedRef.current = false;
-    runFitView(() => {
-      const visibleNow = isContainerVisible();
-      if (visibleNow) {
+    const visibleNow = isContainerVisible();
+    if (visibleNow) {
+      runFitView(() => {
         pendingMachineLoadFitRef.current = false;
-      }
-      if (visibleNow && awaitingInitialRevealRef.current) {
-        awaitingInitialRevealRef.current = false;
-        setViewportReady(true);
-      }
-    });
+        if (awaitingInitialRevealRef.current) {
+          awaitingInitialRevealRef.current = false;
+          setViewportReady(true);
+        }
+      });
+    } else {
+      // Layout finished while tab is hidden — defer reveal until visible
+      pendingRevealFitRef.current = true;
+    }
   }, [layout.running, runFitView, isContainerVisible]);
 
   useEffect(() => {
@@ -1284,8 +1288,11 @@ function ComputationTreeCircles({ targetNodes, compressing = false, paused = fal
     const cy = cyRef.current;
     const el = containerRef.current;
     if (!cy || !el || typeof ResizeObserver === 'undefined') return;
+    let wasVisible = isContainerVisible();
     const ro = new ResizeObserver(() => {
       const visibleNow = isContainerVisible();
+      const justBecameVisible = !wasVisible && visibleNow;
+      wasVisible = visibleNow;
       setContainerVisible(visibleNow);
       cy.resize();
       if (
@@ -1299,8 +1306,32 @@ function ComputationTreeCircles({ targetNodes, compressing = false, paused = fal
             awaitingInitialRevealRef.current = false;
             setViewportReady(true);
           }
+          pendingRevealFitRef.current = false;
           refreshSelectedAnchors();
         });
+        return;
+      }
+      // Layout finished while hidden — now visible, so perform deferred reveal
+      if (pendingRevealFitRef.current && visibleNow && nodes.length > 0) {
+        pendingRevealFitRef.current = false;
+        runFitView(() => {
+          pendingMachineLoadFitRef.current = false;
+          if (awaitingInitialRevealRef.current) {
+            awaitingInitialRevealRef.current = false;
+            setViewportReady(true);
+          }
+          refreshSelectedAnchors();
+        });
+        return;
+      }
+      // Container just became visible while still in loading state — layout
+      // was never run because runLayout early-returned on zero dimensions.
+      // Re-trigger the full layout + fit cycle now.
+      if (justBecameVisible && !viewportReady && !layout.running && nodes.length > 0) {
+        awaitingInitialRevealRef.current = true;
+        fitAfterLayoutRef.current = true;
+        pendingLayoutViewportFitRef.current = true;
+        scheduleLayoutRestart();
         return;
       }
       if (layout.running || fitAfterLayoutRef.current || pendingLayoutViewportFitRef.current) {
@@ -1319,6 +1350,8 @@ function ComputationTreeCircles({ targetNodes, compressing = false, paused = fal
     nodes.length,
     isContainerVisible,
     refreshSelectedAnchors,
+    viewportReady,
+    scheduleLayoutRestart,
   ]);
 
   // Portal switch fit handling
@@ -1753,6 +1786,7 @@ function ComputationTreeCards({ targetNodes, compressing = false, paused = false
   const awaitingInitialRevealRef = useRef(false);
   const lastHandledMachineLoadRef = useRef<number>(-1);
   const [viewportReady, setViewportReady] = useState(false);
+  const pendingReFitRef = useRef(false);
 
   useEffect(() => {
     nodesCountRef.current = nodes.length;
@@ -1884,12 +1918,21 @@ function ComputationTreeCards({ targetNodes, compressing = false, paused = false
     if (justFinished) {
       if (fitAfterLayoutRef.current && nodes.length > 0) {
         fitAfterLayoutRef.current = false;
-        runFitView(() => {
+        const isHidden = viewportWidth <= 0 || viewportHeight <= 0;
+        if (isHidden) {
+          // Layout finished while tab is hidden — defer reveal until visible
+          pendingReFitRef.current = true;
           if (awaitingInitialRevealRef.current) {
             awaitingInitialRevealRef.current = false;
-            setViewportReady(true);
           }
-        });
+        } else {
+          runFitView(() => {
+            if (awaitingInitialRevealRef.current) {
+              awaitingInitialRevealRef.current = false;
+              setViewportReady(true);
+            }
+          });
+        }
       }
       if (manualFitPendingRef.current && nodesCountRef.current > 0) {
         manualFitPendingRef.current = false;
@@ -1898,7 +1941,17 @@ function ComputationTreeCards({ targetNodes, compressing = false, paused = false
     }
 
     prevRunningRef.current = layout.running;
-  }, [layout.running, nodes.length, runFitView]);
+  }, [layout.running, nodes.length, runFitView, viewportWidth, viewportHeight]);
+
+  // Re-fit when viewport becomes visible after layout completed while hidden
+  useEffect(() => {
+    if (!pendingReFitRef.current) return;
+    if (viewportWidth <= 0 || viewportHeight <= 0) return;
+    pendingReFitRef.current = false;
+    runFitView(() => {
+      setViewportReady(true);
+    });
+  }, [viewportWidth, viewportHeight, runFitView]);
 
   // Handlers
   const [settingsOpen, setSettingsOpen] = useState(false);
