@@ -60,10 +60,14 @@ import {
 } from './util/constants';
 import { useElkLayout } from './layout/useElkLayout';
 import { buildConfigGraph } from './util/buildConfigGraph';
-import { CARDS_CONFIRM_THRESHOLD, ConfigNodeMode } from '@utils/constants';
+import {
+  CARDS_CONFIRM_THRESHOLD,
+  ConfigNodeMode,
+  DEFAULT_GRAPH_CARDS_ELK_OPTS,
+  DEFAULT_GRAPH_ELK_OPTS,
+  DEFAULT_GRAPH_NODES_ELK_OPTS,
+} from '@utils/constants';
 import { LayoutSettingsPanel } from './layout/LayoutSettingsPanel';
-
-import { DEFAULT_ELK_OPTS } from '@utils/constants';
 import { reconcileNodes, reconcileEdges } from '@utils/reactflow';
 import { GraphUIProvider, useGraphUI } from '@components/shared/GraphUIContext';
 import {
@@ -176,15 +180,31 @@ function ConfigGraphCards() {
     direction: configGraphELKSettings.direction,
     autoDirection: configGraphELKSettings.autoDirection ?? true,
     scaleToFit: true,
+    maxAxisScale: configGraphNodeMode === ConfigNodeMode.CARDS ? undefined : 1.45,
     autoResizeLayoutEnabled,
   });
 
-  // Adjust edgeNodeSep when nodeMode changes (Cards need more space)
+  // Apply mode-specific layout defaults when node mode changes
   useEffect(() => {
-    const edgeNodeSepTarget = configGraphNodeMode === ConfigNodeMode.CARDS ? 300 : 100;
-    if (configGraphELKSettings.edgeNodeSep === edgeNodeSepTarget) return;
-    setConfigGraphELKSettings({ edgeNodeSep: edgeNodeSepTarget });
-  }, [configGraphNodeMode, configGraphELKSettings.edgeNodeSep, setConfigGraphELKSettings]);
+    const target =
+      configGraphNodeMode === ConfigNodeMode.CARDS
+        ? DEFAULT_GRAPH_CARDS_ELK_OPTS
+        : DEFAULT_GRAPH_NODES_ELK_OPTS;
+    const same =
+      configGraphELKSettings.nodeSep === target.nodeSep &&
+      configGraphELKSettings.rankSep === target.rankSep &&
+      configGraphELKSettings.edgeSep === target.edgeSep &&
+      configGraphELKSettings.edgeNodeSep === target.edgeNodeSep &&
+      configGraphELKSettings.padding === target.padding;
+    if (same) return;
+    setConfigGraphELKSettings({
+      nodeSep: target.nodeSep,
+      rankSep: target.rankSep,
+      edgeSep: target.edgeSep,
+      edgeNodeSep: target.edgeNodeSep,
+      padding: target.padding,
+    });
+  }, [configGraphNodeMode, configGraphELKSettings, setConfigGraphELKSettings]);
 
   // Performance measurement
   const nodesCountRef = useRef(0);
@@ -355,15 +375,64 @@ function ConfigGraphCards() {
     [rf]
   );
 
+  const ensureStartNodeVisibleInRF = useCallback((): Viewport | null => {
+    if (!(viewportWidth > 0) || !(viewportHeight > 0)) return null;
+    const startNode = rf.getNodes().find((n) => (n.data as any)?.isStart === true);
+    if (!startNode) return null;
+
+    const viewport = rf.getViewport();
+    if (!(viewport.zoom > 0)) return null;
+    let nextViewport = viewport;
+
+    const origin = Array.isArray(startNode.origin) ? startNode.origin : [0, 0];
+    const ox = origin[0] ?? 0;
+    const oy = origin[1] ?? 0;
+    const width = startNode.measured?.width ?? startNode.width ?? 0;
+    const height = startNode.measured?.height ?? startNode.height ?? 0;
+    const pos = (startNode as any).positionAbsolute ?? startNode.position;
+    if (!pos || !Number.isFinite(pos.x) || !Number.isFinite(pos.y)) return null;
+
+    const centerX = pos.x + (0.5 - ox) * width;
+    const centerY = pos.y + (0.5 - oy) * height;
+    const renderedX = centerX * nextViewport.zoom + nextViewport.x;
+    const renderedY = centerY * nextViewport.zoom + nextViewport.y;
+
+    const margin = 24;
+    let dx = 0;
+    let dy = 0;
+
+    if (renderedX < margin) dx = margin - renderedX;
+    else if (renderedX > viewportWidth - margin) dx = viewportWidth - margin - renderedX;
+
+    if (renderedY < margin) dy = margin - renderedY;
+    else if (renderedY > viewportHeight - margin) dy = viewportHeight - margin - renderedY;
+
+    if (dx !== 0 || dy !== 0) {
+      nextViewport = {
+        x: nextViewport.x + dx,
+        y: nextViewport.y + dy,
+        zoom: nextViewport.zoom,
+      };
+    }
+
+    const changed =
+      nextViewport.x !== viewport.x ||
+      nextViewport.y !== viewport.y ||
+      nextViewport.zoom !== viewport.zoom;
+    if (changed) void rf.setViewport(nextViewport, { duration: 0 });
+    return nextViewport;
+  }, [rf, viewportWidth, viewportHeight]);
+
   const runFitView = useCallback((onDone?: () => void) => {
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
         rf.fitView({ padding: 0.2, duration: 0 });
-        storeViewport();
+        const correctedViewport = ensureStartNodeVisibleInRF();
+        storeViewport(correctedViewport ?? undefined);
         onDone?.();
       });
     });
-  }, [rf, storeViewport]);
+  }, [rf, storeViewport, ensureStartNodeVisibleInRF]);
 
   const restoreViewport = useCallback((onDone?: () => void) => {
     const viewport = viewportRef.current;
@@ -537,8 +606,9 @@ function ConfigGraphCards() {
 
   const resetToDefaults = useCallback(() => {
     setConfigGraphELKSettings({
-      ...DEFAULT_ELK_OPTS,
-      edgeNodeSep: configGraphNodeMode === ConfigNodeMode.CARDS ? 300 : 100,
+      ...(configGraphNodeMode === ConfigNodeMode.CARDS
+        ? DEFAULT_GRAPH_CARDS_ELK_OPTS
+        : DEFAULT_GRAPH_ELK_OPTS),
     });
   }, [configGraphNodeMode, setConfigGraphELKSettings]);
 
@@ -661,6 +731,7 @@ function ConfigGraphCards() {
         onReset={resetToDefaults}
         onRecalc={recalcLayout}
         running={layout.running}
+        mode={configGraphNodeMode}
       />
       <Dialog open={confirmCardsOpen} onClose={() => setConfirmCardsOpen(false)}>
         <DialogTitle>Switch to card view?</DialogTitle>

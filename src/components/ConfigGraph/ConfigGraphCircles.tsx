@@ -76,7 +76,9 @@ import { buildConfigGraph } from './util/buildConfigGraph';
 import {
   CARDS_CONFIRM_THRESHOLD,
   ConfigNodeMode,
-  DEFAULT_ELK_OPTS,
+  DEFAULT_GRAPH_CARDS_ELK_OPTS,
+  DEFAULT_GRAPH_ELK_OPTS,
+  DEFAULT_GRAPH_NODES_ELK_OPTS,
   HOVER_POPPER_DELAY_MS,
 } from '@utils/constants';
 import { useElkLayout } from '@components/ComputationTree/layout/useElkLayout';
@@ -126,6 +128,7 @@ type ViewportSnapshot = {
   zoom: number;
   pan: { x: number; y: number };
 };
+const NODES_MIN_FIT_ZOOM = 0.02;
 
 const makeVirtualAnchor = (anchor: Anchor | null): VirtualElement => {
   const top = anchor?.top ?? 0;
@@ -508,6 +511,7 @@ export function ConfigGraphCircles() {
     direction: configGraphELKSettings.direction,
     autoDirection: configGraphELKSettings.autoDirection ?? true,
     scaleToFit: true,
+    maxAxisScale: configGraphNodeMode === ConfigNodeMode.CARDS ? undefined : 1.45,
     containerRef,
     topoKeyOverride: structureKey,
     autoRun: false,
@@ -527,10 +531,25 @@ export function ConfigGraphCircles() {
   const scheduleLayoutRestart = useDebouncedLayoutRestart(layout);
 
   useEffect(() => {
-    const edgeNodeSepTarget = configGraphNodeMode === ConfigNodeMode.CARDS ? 300 : 100;
-    if (configGraphELKSettings.edgeNodeSep === edgeNodeSepTarget) return;
-    setConfigGraphELKSettings({ edgeNodeSep: edgeNodeSepTarget });
-  }, [configGraphNodeMode, configGraphELKSettings.edgeNodeSep, setConfigGraphELKSettings]);
+    const target =
+      configGraphNodeMode === ConfigNodeMode.CARDS
+        ? DEFAULT_GRAPH_CARDS_ELK_OPTS
+        : DEFAULT_GRAPH_NODES_ELK_OPTS;
+    const same =
+      configGraphELKSettings.nodeSep === target.nodeSep &&
+      configGraphELKSettings.rankSep === target.rankSep &&
+      configGraphELKSettings.edgeSep === target.edgeSep &&
+      configGraphELKSettings.edgeNodeSep === target.edgeNodeSep &&
+      configGraphELKSettings.padding === target.padding;
+    if (same) return;
+    setConfigGraphELKSettings({
+      nodeSep: target.nodeSep,
+      rankSep: target.rankSep,
+      edgeSep: target.edgeSep,
+      edgeNodeSep: target.edgeNodeSep,
+      padding: target.padding,
+    });
+  }, [configGraphNodeMode, configGraphELKSettings, setConfigGraphELKSettings]);
 
   const didInitialLayoutRef = useRef(false);
   const lastTopoKeyRef = useRef<string | null>(null);
@@ -629,6 +648,32 @@ export function ConfigGraphCircles() {
   }, [configGraphNodeMode, scheduleLayoutRestart, nodes.length]);
 
   // Fit view
+  const ensureStartNodeVisibleInCy = useCallback((cy: CyCore) => {
+    const startNode = cy.$('node.start').first();
+    if (!startNode || startNode.empty()) return;
+    const rendered = startNode.renderedPosition();
+    if (!rendered || !Number.isFinite(rendered.x) || !Number.isFinite(rendered.y)) return;
+
+    const width = cy.width();
+    const height = cy.height();
+    if (!(width > 0) || !(height > 0)) return;
+
+    const margin = 24;
+    let dx = 0;
+    let dy = 0;
+
+    if (rendered.x < margin) dx = margin - rendered.x;
+    else if (rendered.x > width - margin) dx = width - margin - rendered.x;
+
+    if (rendered.y < margin) dy = margin - rendered.y;
+    else if (rendered.y > height - margin) dy = height - margin - rendered.y;
+
+    if (dx === 0 && dy === 0) return;
+
+    const pan = cy.pan();
+    cy.pan({ x: pan.x + dx, y: pan.y + dy });
+  }, []);
+
   const runFitView = useCallback(
     (focusId?: string, onDone?: () => void) => {
       const cy = cyRef.current;
@@ -644,10 +689,17 @@ export function ConfigGraphCircles() {
           }
         }
         cy.fit(cy.elements(), 30);
+        if (cy.zoom() < NODES_MIN_FIT_ZOOM) {
+          cy.zoom({
+            level: NODES_MIN_FIT_ZOOM,
+            renderedPosition: { x: cy.width() / 2, y: cy.height() / 2 },
+          });
+        }
+        ensureStartNodeVisibleInCy(cy);
         onDone?.();
       });
     },
-    []
+    [ensureStartNodeVisibleInCy]
   );
 
   const isContainerVisible = useCallback(() => {
@@ -891,6 +943,7 @@ export function ConfigGraphCircles() {
 
     const cy = cytoscape({
       container,
+      webgl: true,
       elements: [],
       style: cyStyles,
       minZoom: 0.01,
@@ -1256,10 +1309,11 @@ export function ConfigGraphCircles() {
 
   const resetLayoutSettings = useCallback(() => {
     setConfigGraphELKSettings({
-      ...DEFAULT_ELK_OPTS,
-      edgeNodeSep: configGraphNodeMode === ConfigNodeMode.CARDS ? 300 : 100,
+      ...(configGraphNodeMode === ConfigNodeMode.CARDS
+        ? DEFAULT_GRAPH_CARDS_ELK_OPTS
+        : DEFAULT_GRAPH_ELK_OPTS),
     });
-  }, [configGraphNodeMode]);
+  }, [configGraphNodeMode, setConfigGraphELKSettings]);
 
   return (
     <Box
@@ -1331,6 +1385,7 @@ export function ConfigGraphCircles() {
         onReset={resetLayoutSettings}
         onRecalc={recalcLayout}
         running={layout.running}
+        mode={configGraphNodeMode}
       />
       <Dialog open={confirmCardsOpen} onClose={() => setConfirmCardsOpen(false)}>
         <DialogTitle>Switch to card view?</DialogTitle>

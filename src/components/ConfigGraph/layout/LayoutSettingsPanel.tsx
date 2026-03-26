@@ -17,6 +17,7 @@ import {
 } from '@mui/material';
 import { Close, RestartAlt } from '@mui/icons-material';
 import { alpha } from '@mui/material/styles';
+import { ConfigNodeMode } from '@utils/constants';
 
 import { CONTROL_HEIGHT } from '../util/constants';
 import type { ElkOptions, ElkAlgo } from '@mytypes/graphTypes';
@@ -29,6 +30,7 @@ type Props = {
   onReset?: () => void;
   onRecalc?: () => void;
   running?: boolean;
+  mode?: ConfigNodeMode;
 };
 
 function RowLabel({ children }: { children: React.ReactNode }) {
@@ -50,12 +52,29 @@ export function LayoutSettingsPanel({
   onReset,
   onRecalc,
   running,
+  mode = ConfigNodeMode.NODES,
 }: Props) {
   if (!open) return null;
 
   const handleNumber = (k: keyof ElkOptions) => (_: any, val: number | number[]) =>
     onChange({ ...value, [k]: Array.isArray(val) ? val[0] : val });
   const directionMode = value.autoDirection ? 'AUTO' : value.direction;
+  const sliderLimits =
+    mode === ConfigNodeMode.CARDS
+      ? {
+          nodeSep: { min: 20, max: 200, step: 2 },
+          rankSep: { min: 60, max: 400, step: 4 },
+          edgeSep: { min: 0, max: 120, step: 2 },
+          edgeNodeSep: { min: 40, max: 400, step: 4 },
+          padding: { min: 0, max: 200, step: 2 },
+        }
+      : {
+          nodeSep: { min: 0, max: 160, step: 2 },
+          rankSep: { min: 0, max: 200, step: 2 },
+          edgeSep: { min: 0, max: 80, step: 1 },
+          edgeNodeSep: { min: 0, max: 260, step: 2 },
+          padding: { min: 0, max: 120, step: 2 },
+        };
 
   return (
     <Paper
@@ -229,9 +248,9 @@ export function LayoutSettingsPanel({
             <RowLabel>Node sep</RowLabel>
             <Slider
               size="small"
-              min={20}
-              max={200}
-              step={2}
+              min={sliderLimits.nodeSep.min}
+              max={sliderLimits.nodeSep.max}
+              step={sliderLimits.nodeSep.step}
               value={value.nodeSep}
               onChange={handleNumber('nodeSep')}
             />
@@ -244,9 +263,9 @@ export function LayoutSettingsPanel({
             <RowLabel>Rank sep</RowLabel>
             <Slider
               size="small"
-              min={60}
-              max={400}
-              step={4}
+              min={sliderLimits.rankSep.min}
+              max={sliderLimits.rankSep.max}
+              step={sliderLimits.rankSep.step}
               value={value.rankSep}
               onChange={handleNumber('rankSep')}
             />
@@ -259,9 +278,9 @@ export function LayoutSettingsPanel({
             <RowLabel>Edge sep</RowLabel>
             <Slider
               size="small"
-              min={0}
-              max={120}
-              step={2}
+              min={sliderLimits.edgeSep.min}
+              max={sliderLimits.edgeSep.max}
+              step={sliderLimits.edgeSep.step}
               value={value.edgeSep}
               onChange={handleNumber('edgeSep')}
             />
@@ -274,9 +293,9 @@ export function LayoutSettingsPanel({
             <RowLabel>Edge↔Node</RowLabel>
             <Slider
               size="small"
-              min={40}
-              max={400}
-              step={4}
+              min={sliderLimits.edgeNodeSep.min}
+              max={sliderLimits.edgeNodeSep.max}
+              step={sliderLimits.edgeNodeSep.step}
               value={value.edgeNodeSep}
               onChange={handleNumber('edgeNodeSep')}
             />
@@ -289,9 +308,9 @@ export function LayoutSettingsPanel({
             <RowLabel>Padding</RowLabel>
             <Slider
               size="small"
-              min={0}
-              max={200}
-              step={2}
+              min={sliderLimits.padding.min}
+              max={sliderLimits.padding.max}
+              step={sliderLimits.padding.step}
               value={value.padding}
               onChange={handleNumber('padding')}
             />

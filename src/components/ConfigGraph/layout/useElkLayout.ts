@@ -24,6 +24,7 @@ export type Options = {
   edgeSep?: number; // spacing between edges
   edgeNodeSep?: number; // spacing between edges and nodes
   padding?: number; // graph padding
+  maxAxisScale?: number;
   direction?: 'RIGHT' | 'LEFT' | 'UP' | 'DOWN';
   autoDirection?: boolean;
   scaleToFit?: boolean;
@@ -46,6 +47,7 @@ export function useElkLayout({
   edgeSep = 24,
   edgeNodeSep = 100,
   padding = 24,
+  maxAxisScale,
   direction = 'DOWN',
   autoDirection = true,
   scaleToFit = false,
@@ -188,6 +190,7 @@ export function useElkLayout({
               positions: posById,
               containerWidth,
               containerHeight,
+              maxAxisScale,
             })
           : posById;
 
@@ -218,6 +221,7 @@ export function useElkLayout({
     edgeSep,
     edgeNodeSep,
     padding,
+    maxAxisScale,
   ]);
 
   // Fit view after layout if requested

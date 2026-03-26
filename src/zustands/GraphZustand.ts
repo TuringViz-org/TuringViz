@@ -6,6 +6,7 @@ import { subscribeWithSelector } from 'zustand/middleware';
 import {
   ConfigNodeMode,
   DEFAULT_ELK_OPTS,
+  DEFAULT_GRAPH_NODES_ELK_OPTS,
   DEFAULT_CONFIG_GRAPH_TARGET_NODES,
   DEFAULT_TREE_DEPTH,
 } from '@utils/constants';
@@ -71,8 +72,8 @@ const initialState: GraphZustandState = {
   computationTreeNodeMode: ConfigNodeMode.NODES,
 
   tmGraphELKSettings: { ...DEFAULT_ELK_OPTS },
-  configGraphELKSettings: { ...DEFAULT_ELK_OPTS },
-  computationTreeELKSettings: { ...DEFAULT_ELK_OPTS },
+  configGraphELKSettings: { ...DEFAULT_GRAPH_NODES_ELK_OPTS },
+  computationTreeELKSettings: { ...DEFAULT_GRAPH_NODES_ELK_OPTS },
 
   computationTreeDepth: DEFAULT_TREE_DEPTH,
   configGraphTargetNodes: DEFAULT_CONFIG_GRAPH_TARGET_NODES,
