@@ -1,5 +1,5 @@
 // src/components/MainPage/RunControl.tsx
-import { ButtonGroup, Button, useTheme } from '@mui/material';
+import { ButtonGroup, Button, useMediaQuery, useTheme } from '@mui/material';
 import { PlayArrow, Stop, SkipNext, RestartAlt } from '@mui/icons-material';
 import { useGlobalZustand } from '@zustands/GlobalZustand';
 import {
@@ -27,9 +27,11 @@ const buttonAlignSx = {
 
 export function RunControls() {
   const theme = useTheme();
+  const stackButtons = useMediaQuery(theme.breakpoints.down('md'));
   const isRunningLive = useGlobalZustand((state) => state.runningLive);
   const makeControlButtonSx = (bg: string, hover: string) => ({
     ...buttonAlignSx,
+    whiteSpace: 'nowrap',
     color: theme.palette.getContrastText(bg),
     backgroundColor: bg,
     borderColor: `${bg} !important`,
@@ -48,8 +50,12 @@ export function RunControls() {
     <ButtonGroup
       size="small"
       variant="contained"
+      orientation={stackButtons ? 'vertical' : 'horizontal'}
+      fullWidth={stackButtons}
       sx={{
+        maxWidth: '100%',
         '& .MuiButtonGroup-grouped': {
+          minWidth: stackButtons ? '100%' : undefined,
           boxShadow: 'none',
         },
         '& .MuiButtonGroup-grouped:not(:first-of-type)': {

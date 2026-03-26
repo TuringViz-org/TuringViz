@@ -7,6 +7,7 @@ import {
   Tab,
   Stack,
   useTheme,
+  useMediaQuery,
 } from '@mui/material';
 import ExampleMenu from '@components/MainPage/ExampleMenu';
 import RecentMachinesMenu from '@components/MainPage/RecentMachinesMenu';
@@ -19,6 +20,94 @@ type MainHeaderProps = {
 
 export function MainHeader({ activeTab, onTabChange }: MainHeaderProps) {
   const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+
+  if (isMobile) {
+    return (
+      <AppBar
+        position="static"
+        elevation={0}
+        sx={{
+          bgcolor: theme.palette.primary.main,
+          borderBottom: `5px solid ${theme.palette.primary.dark}`,
+          color: theme.palette.primary.contrastText,
+        }}
+      >
+        <Toolbar
+          variant="dense"
+          sx={{
+            flexDirection: 'column',
+            alignItems: 'stretch',
+            gap: 0.75,
+            py: 0.75,
+          }}
+        >
+          <Stack
+            direction="row"
+            sx={{
+              minHeight: 34,
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 1,
+            }}
+          >
+            <Typography
+              variant="h5"
+              sx={{
+                fontWeight: 500,
+                fontSize: '1rem',
+                lineHeight: 1,
+                whiteSpace: 'normal',
+                display: 'inline-flex',
+                alignItems: 'center',
+                minHeight: 32,
+              }}
+            >
+              TuringViz
+            </Typography>
+
+            <Stack direction="row" spacing={0.5} sx={{ flexShrink: 0 }}>
+              <RecentMachinesMenu compact />
+              <ExampleMenu compact />
+            </Stack>
+          </Stack>
+
+          <Tabs
+            value={activeTab}
+            onChange={(_, tab: AppTab) => onTabChange(tab)}
+            variant="scrollable"
+            allowScrollButtonsMobile
+            scrollButtons="auto"
+            textColor="inherit"
+            indicatorColor="secondary"
+            sx={{
+              minHeight: 42,
+              width: '100%',
+              '& .MuiTabs-indicator': {
+                height: 3,
+              },
+              '& .MuiTabs-flexContainer': {
+                alignItems: 'stretch',
+              },
+              '& .MuiTab-root': {
+                minHeight: 42,
+                px: 1.5,
+                py: 0.75,
+                textTransform: 'none',
+                fontWeight: 600,
+                fontSize: '0.9rem',
+                lineHeight: 1.2,
+              },
+            }}
+          >
+            {APP_TABS.map((tab) => (
+              <Tab key={tab.value} value={tab.value} label={tab.label} />
+            ))}
+          </Tabs>
+        </Toolbar>
+      </AppBar>
+    );
+  }
 
   return (
     <AppBar
@@ -55,7 +144,7 @@ export function MainHeader({ activeTab, onTabChange }: MainHeaderProps) {
               minHeight: { md: 36 },
             }}
           >
-            Configuration Graph Visualizer
+            TuringViz
           </Typography>
 
           <Tabs
