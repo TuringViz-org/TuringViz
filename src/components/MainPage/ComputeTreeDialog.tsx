@@ -12,6 +12,7 @@ import {
   Stack,
   Checkbox,
   Chip,
+  CircularProgress,
 } from '@mui/material';
 import {
   MAX_COMPUTATION_TREE_TARGET_NODES,
@@ -22,16 +23,18 @@ type ComputeTreeDialogProps = {
   open: boolean;
   targetNodes: number;
   compressed: boolean;
+  confirming?: boolean;
   onTargetNodesChange: (value: number) => void;
   onCompressedChange: (value: boolean) => void;
   onClose: () => void;
-  onConfirm: () => void;
+  onConfirm: () => void | Promise<void>;
 };
 
 export function ComputeTreeDialog({
   open,
   targetNodes,
   compressed,
+  confirming = false,
   onTargetNodesChange,
   onCompressedChange,
   onClose,
@@ -40,7 +43,8 @@ export function ComputeTreeDialog({
   return (
     <Dialog
       open={open}
-      onClose={onClose}
+      onClose={confirming ? undefined : onClose}
+      disableEscapeKeyDown={confirming}
       maxWidth="xs"
       fullWidth
       sx={{ zIndex: 3000 }}
@@ -59,6 +63,7 @@ export function ComputeTreeDialog({
           step={10}
           onChange={(_, value) => onTargetNodesChange(value as number)}
           valueLabelDisplay="on"
+          disabled={confirming}
           aria-label="Computation tree target nodes"
           sx={{ mt: 2, mb: 0 }}
         />
@@ -76,6 +81,7 @@ export function ComputeTreeDialog({
           <Stack direction="row" spacing={1} alignItems="center">
             <Checkbox
               checked={compressed}
+              disabled={confirming}
               onChange={(event) => onCompressedChange(event.target.checked)}
             />
             <Chip
@@ -96,9 +102,21 @@ export function ComputeTreeDialog({
       </DialogContent>
 
       <DialogActions>
-        <Button onClick={onClose}>Cancel</Button>
-        <Button variant="contained" onClick={onConfirm}>
-          Compute
+        <Button onClick={onClose} disabled={confirming}>
+          Cancel
+        </Button>
+        <Button variant="contained" onClick={onConfirm} disabled={confirming}>
+          {confirming ? (
+            <>
+              <CircularProgress
+                size={14}
+                sx={{ mr: 1, color: 'inherit' }}
+              />
+              Checking...
+            </>
+          ) : (
+            'Compute'
+          )}
         </Button>
       </DialogActions>
     </Dialog>
