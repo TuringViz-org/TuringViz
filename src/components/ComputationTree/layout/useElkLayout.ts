@@ -5,7 +5,10 @@ import type { Edge as RFEdge, Node as RFNode } from '@xyflow/react';
 import { toast } from 'sonner';
 
 import {
+  CONFIG_CARD_HEIGHT_ESTIMATE,
+  CONFIG_CARD_WIDTH,
   CONFIG_NODE_DIAMETER,
+  NodeType,
 } from '../util/constants';
 import {
   createElkWithWorker,
@@ -21,6 +24,19 @@ type FallbackLayoutParams = {
   padding: number;
   direction: 'RIGHT' | 'LEFT' | 'UP' | 'DOWN';
 };
+
+function getNodeLayoutSize(node: RFNode): { width: number; height: number } {
+  const isCardNode = node.type === NodeType.CONFIG_CARD;
+  const width =
+    node.measured?.width ??
+    node.width ??
+    (isCardNode ? CONFIG_CARD_WIDTH : CONFIG_NODE_DIAMETER);
+  const height =
+    node.measured?.height ??
+    node.height ??
+    (isCardNode ? CONFIG_CARD_HEIGHT_ESTIMATE : CONFIG_NODE_DIAMETER);
+  return { width, height };
+}
 
 function buildFallbackPositions(
   rfNodes: RFNode[],
@@ -89,11 +105,11 @@ function buildFallbackPositions(
 
   const maxWidth = Math.max(
     CONFIG_NODE_DIAMETER,
-    ...rfNodes.map((n) => n.measured?.width ?? CONFIG_NODE_DIAMETER)
+    ...rfNodes.map((n) => getNodeLayoutSize(n).width)
   );
   const maxHeight = Math.max(
     CONFIG_NODE_DIAMETER,
-    ...rfNodes.map((n) => n.measured?.height ?? CONFIG_NODE_DIAMETER)
+    ...rfNodes.map((n) => getNodeLayoutSize(n).height)
   );
   const levelSpacing =
     (direction === 'RIGHT' || direction === 'LEFT' ? maxWidth : maxHeight) + rankSep;
@@ -311,9 +327,8 @@ export function useElkLayout({
 
     // Prepare ELK graph (position-only layout)
     const elkNodes: ElkNode[] = rfNodes.map((n) => ({
+      ...getNodeLayoutSize(n),
       id: n.id,
-      width: n.measured?.width ?? CONFIG_NODE_DIAMETER,
-      height: n.measured?.height ?? CONFIG_NODE_DIAMETER,
     }));
 
     const nodeIds = new Set(elkNodes.map((n) => n.id));
@@ -441,6 +456,9 @@ export function useElkLayout({
     if (!autoDirection) return;
     if (!autoResizeLayoutEnabled) return;
     if (nodesRef.current.length === 0) return;
+    const hasViewportSnapshot =
+      typeof viewportWidth === 'number' && typeof viewportHeight === 'number';
+    if (hasViewportSnapshot && (viewportWidth <= 0 || viewportHeight <= 0)) return;
 
     if (lastSizeKeyRef.current === viewportSizeKey) return;
     const hadPreviousSize = lastSizeKeyRef.current !== '';

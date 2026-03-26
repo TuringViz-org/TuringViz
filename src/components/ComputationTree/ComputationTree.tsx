@@ -16,6 +16,7 @@ import {
   MarkerType,
   Background,
   type ReactFlowState,
+  type Viewport,
 } from '@xyflow/react';
 import {
   Stack,
@@ -81,6 +82,7 @@ import { TreeLayoutSettingsPanel } from './layout/LayoutSettingsPanel';
 import { useDebouncedLayoutRestart } from '@hooks/useDebouncedLayoutRestart';
 import { GraphUIProvider, useGraphUI } from '@components/shared/GraphUIContext';
 import {
+  PORTAL_BRIDGE_BEFORE_SWITCH_EVENT,
   PORTAL_BRIDGE_SWITCH_EVENT,
   type PortalBridgeSwitchDetail,
 } from '@components/MainPage/PortalBridge';
@@ -1721,9 +1723,10 @@ function ComputationTreeCards({ targetNodes, compressing = false, paused = false
   const [structureKey, setStructureKey] = useState('');
   const [autoResizeLayoutEnabled, setAutoResizeLayoutEnabled] = useState(true);
   const fitAfterLayoutRef = useRef(false);
+  const restoreAfterLayoutRef = useRef(false);
   const handleAutoResizeLayout = useCallback(() => {
     if (nodes.length === 0) return;
-    fitAfterLayoutRef.current = true;
+    restoreAfterLayoutRef.current = true;
   }, [nodes.length]);
 
   const rf = useReactFlow();
@@ -1787,6 +1790,13 @@ function ComputationTreeCards({ targetNodes, compressing = false, paused = false
   const lastHandledMachineLoadRef = useRef<number>(-1);
   const [viewportReady, setViewportReady] = useState(false);
   const pendingReFitRef = useRef(false);
+  const viewportRef = useRef<Viewport | null>(null);
+  const viewportVisibleRef = useRef(false);
+  const initialViewportSettledRef = useRef(false);
+  const [contentVisible, setContentVisible] = useState(false);
+  const revealRaf1Ref = useRef<number | null>(null);
+  const revealRaf2Ref = useRef<number | null>(null);
+  const revealTimeoutRef = useRef<number | null>(null);
 
   useEffect(() => {
     nodesCountRef.current = nodes.length;
@@ -1798,8 +1808,55 @@ function ComputationTreeCards({ targetNodes, compressing = false, paused = false
     nodesReadyRef.current = nodesReady;
   }, [nodesReady]);
   useEffect(() => {
-    if (nodes.length === 0) setViewportReady(false);
+    if (nodes.length === 0) {
+      initialViewportSettledRef.current = false;
+      setViewportReady(false);
+    }
   }, [nodes.length]);
+
+  const storeViewport = useCallback(
+    (viewport?: Viewport) => {
+      viewportRef.current = viewport ?? rf.getViewport();
+    },
+    [rf]
+  );
+  const showLoadingOverlay = !viewportReady || layout.running;
+  const loadingMaskVisible = showLoadingOverlay || !contentVisible;
+
+  useEffect(() => {
+    const clearRevealQueue = () => {
+      if (revealRaf1Ref.current != null) {
+        window.cancelAnimationFrame(revealRaf1Ref.current);
+        revealRaf1Ref.current = null;
+      }
+      if (revealRaf2Ref.current != null) {
+        window.cancelAnimationFrame(revealRaf2Ref.current);
+        revealRaf2Ref.current = null;
+      }
+      if (revealTimeoutRef.current != null) {
+        window.clearTimeout(revealTimeoutRef.current);
+        revealTimeoutRef.current = null;
+      }
+    };
+    clearRevealQueue();
+
+    if (showLoadingOverlay) {
+      setContentVisible(false);
+      return clearRevealQueue;
+    }
+
+    revealRaf1Ref.current = window.requestAnimationFrame(() => {
+      revealRaf1Ref.current = null;
+      revealRaf2Ref.current = window.requestAnimationFrame(() => {
+        revealRaf2Ref.current = null;
+        revealTimeoutRef.current = window.setTimeout(() => {
+          revealTimeoutRef.current = null;
+          setContentVisible(true);
+        }, 90);
+      });
+    });
+    return clearRevealQueue;
+  }, [showLoadingOverlay]);
 
   // Disable cards mode if too many nodes
   const nodeCount = model?.nodes?.length ?? 0;
@@ -1859,6 +1916,7 @@ function ComputationTreeCards({ targetNodes, compressing = false, paused = false
     if (!didInitialLayoutRef.current && nodesReady && nodes.length > 0) {
       didInitialLayoutRef.current = true;
       awaitingInitialRevealRef.current = true;
+      initialViewportSettledRef.current = false;
       setViewportReady(false);
       scheduleLayoutRestart();
       fitAfterLayoutRef.current = true;
@@ -1877,6 +1935,7 @@ function ComputationTreeCards({ targetNodes, compressing = false, paused = false
     lastTopoKeyRef.current = structureKey;
 
     awaitingInitialRevealRef.current = true;
+    initialViewportSettledRef.current = false;
     setViewportReady(false);
     scheduleLayoutRestart();
     fitAfterLayoutRef.current = true;
@@ -1887,6 +1946,7 @@ function ComputationTreeCards({ targetNodes, compressing = false, paused = false
     if (paused) return;
     if (nodes.length === 0) return;
     awaitingInitialRevealRef.current = true;
+    initialViewportSettledRef.current = false;
     setViewportReady(false);
     scheduleLayoutRestart();
     fitAfterLayoutRef.current = true;
@@ -1899,6 +1959,7 @@ function ComputationTreeCards({ targetNodes, compressing = false, paused = false
     if (lastHandledMachineLoadRef.current === machineLoadVersion) return;
     lastHandledMachineLoadRef.current = machineLoadVersion;
     awaitingInitialRevealRef.current = true;
+    initialViewportSettledRef.current = false;
     setViewportReady(false);
     scheduleLayoutRestart();
     fitAfterLayoutRef.current = true;
@@ -1908,10 +1969,49 @@ function ComputationTreeCards({ targetNodes, compressing = false, paused = false
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
         rf.fitView({ padding: 0.2, duration: 0 });
+        storeViewport();
         onDone?.();
       });
     });
+  }, [rf, storeViewport]);
+
+  const restoreViewport = useCallback((onDone?: () => void) => {
+    if (!initialViewportSettledRef.current) return false;
+    const viewport = viewportRef.current;
+    if (!viewport) return false;
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        void rf.setViewport(viewport, { duration: 0 });
+        onDone?.();
+      });
+    });
+    return true;
   }, [rf]);
+
+  const restoreViewportOrFit = useCallback(
+    (onDone?: () => void) => {
+      if (restoreViewport(onDone)) return;
+      runFitView(onDone);
+    },
+    [restoreViewport, runFitView]
+  );
+
+  const revealViewport = useCallback(() => {
+    initialViewportSettledRef.current = true;
+    setViewportReady(true);
+  }, []);
+
+  const handleMoveEnd = useCallback(
+    (_event: unknown, viewport: Viewport) => {
+      storeViewport(viewport);
+    },
+    [storeViewport]
+  );
+
+  useEffect(() => {
+    if (viewportRef.current) return;
+    storeViewport();
+  }, [storeViewport]);
 
   useEffect(() => {
     const justFinished = prevRunningRef.current && !layout.running;
@@ -1929,19 +2029,35 @@ function ComputationTreeCards({ targetNodes, compressing = false, paused = false
           runFitView(() => {
             if (awaitingInitialRevealRef.current) {
               awaitingInitialRevealRef.current = false;
-              setViewportReady(true);
+              revealViewport();
             }
           });
         }
       }
       if (manualFitPendingRef.current && nodesCountRef.current > 0) {
         manualFitPendingRef.current = false;
-        runFitView();
+        restoreViewportOrFit(() => {
+          revealViewport();
+        });
+      }
+      if (restoreAfterLayoutRef.current && nodesCountRef.current > 0) {
+        restoreAfterLayoutRef.current = false;
+        restoreViewportOrFit(() => {
+          revealViewport();
+        });
       }
     }
 
     prevRunningRef.current = layout.running;
-  }, [layout.running, nodes.length, runFitView, viewportWidth, viewportHeight]);
+  }, [
+    layout.running,
+    nodes.length,
+    revealViewport,
+    restoreViewportOrFit,
+    runFitView,
+    viewportWidth,
+    viewportHeight,
+  ]);
 
   // Re-fit when viewport becomes visible after layout completed while hidden
   useEffect(() => {
@@ -1949,9 +2065,24 @@ function ComputationTreeCards({ targetNodes, compressing = false, paused = false
     if (viewportWidth <= 0 || viewportHeight <= 0) return;
     pendingReFitRef.current = false;
     runFitView(() => {
-      setViewportReady(true);
+      revealViewport();
     });
-  }, [viewportWidth, viewportHeight, runFitView]);
+  }, [viewportWidth, viewportHeight, runFitView, revealViewport]);
+
+  useEffect(() => {
+    const visible = viewportWidth > 0 && viewportHeight > 0;
+    const wasVisible = viewportVisibleRef.current;
+    viewportVisibleRef.current = visible;
+    if (!visible || wasVisible) return;
+    setViewportReady(false);
+    if (layoutRunningRef.current) {
+      manualFitPendingRef.current = true;
+      return;
+    }
+    restoreViewportOrFit(() => {
+      revealViewport();
+    });
+  }, [viewportWidth, viewportHeight, restoreViewportOrFit, revealViewport]);
 
   // Handlers
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -1987,33 +2118,42 @@ function ComputationTreeCards({ targetNodes, compressing = false, paused = false
   );
 
   // Fit handling on portal switches
-  const scheduleFitAfterSwitch = useCallback(() => {
+  const scheduleViewportAfterSwitch = useCallback(() => {
     if (!nodesReadyRef.current || nodesCountRef.current === 0) return;
+    setViewportReady(false);
     if (layoutRunningRef.current) {
       manualFitPendingRef.current = true;
       return;
     }
     manualFitPendingRef.current = false;
-    runFitView(() => {
+    restoreViewportOrFit(() => {
       if (awaitingInitialRevealRef.current) {
         awaitingInitialRevealRef.current = false;
-        setViewportReady(true);
       }
+      revealViewport();
     });
-  }, [runFitView]);
+  }, [restoreViewportOrFit, revealViewport]);
 
   useEffect(() => {
+    const handleBeforeSwitch: EventListener = (event) => {
+      const detail = (event as CustomEvent<PortalBridgeSwitchDetail>).detail;
+      if (!detail || detail.id !== 'computationTree') return;
+      setViewportReady(false);
+    };
+
     const handler: EventListener = (event) => {
       const detail = (event as CustomEvent<PortalBridgeSwitchDetail>).detail;
       if (!detail || detail.id !== 'computationTree') return;
       setAutoResizeLayoutEnabled(detail.location !== 'target');
-      scheduleFitAfterSwitch();
+      scheduleViewportAfterSwitch();
     };
+    window.addEventListener(PORTAL_BRIDGE_BEFORE_SWITCH_EVENT, handleBeforeSwitch);
     window.addEventListener(PORTAL_BRIDGE_SWITCH_EVENT, handler);
     return () => {
+      window.removeEventListener(PORTAL_BRIDGE_BEFORE_SWITCH_EVENT, handleBeforeSwitch);
       window.removeEventListener(PORTAL_BRIDGE_SWITCH_EVENT, handler);
     };
-  }, [scheduleFitAfterSwitch]);
+  }, [scheduleViewportAfterSwitch]);
 
   // Legend items (sorted for stable rendering)
   const legendItems = useMemo(() => {
@@ -2057,33 +2197,34 @@ function ComputationTreeCards({ targetNodes, compressing = false, paused = false
   }, [computationTreeNodeMode, setComputationTreeELKSettings]);
 
   return (
-    <ReactFlow
-      id="ComputationTreeCards"
-      style={{
-        width: '100%',
-        height: '100%',
-        minHeight: 360,
-        opacity: viewportReady ? 1 : 0,
-        pointerEvents: viewportReady ? 'auto' : 'none',
-        transition: 'opacity 120ms ease',
-      }}
-      nodes={nodes}
-      edges={edges}
-      onNodesChange={onNodesChange}
-      onEdgesChange={onEdgesChange}
-      onPaneClick={handlePaneClick}
-      onNodeClick={handleNodeClick}
-      onEdgeClick={handleEdgeClick}
-      nodeTypes={rfNodeTypes}
-      edgeTypes={rfEdgeTypes}
-      defaultEdgeOptions={rfDefaultEdgeOptions}
-      proOptions={{ hideAttribution: true }}
-      minZoom={0.05}
-      defaultViewport={{ x: 0, y: 0, zoom: 0.1 }}
-      nodesDraggable={false}
-      onlyRenderVisibleElements
-    >
-      {!viewportReady && <LoadingOverlay />}
+    <Box sx={{ position: 'relative', width: '100%', height: '100%', minHeight: 360 }}>
+      <ReactFlow
+        id="ComputationTreeCards"
+        style={{
+          width: '100%',
+          height: '100%',
+          minHeight: 360,
+          opacity: loadingMaskVisible ? 0 : 1,
+          pointerEvents: loadingMaskVisible ? 'none' : 'auto',
+          transition: loadingMaskVisible ? 'none' : 'opacity 120ms ease',
+        }}
+        nodes={nodes}
+        edges={edges}
+        onNodesChange={onNodesChange}
+        onEdgesChange={onEdgesChange}
+        onPaneClick={handlePaneClick}
+        onNodeClick={handleNodeClick}
+        onEdgeClick={handleEdgeClick}
+        onMoveEnd={handleMoveEnd}
+        nodeTypes={rfNodeTypes}
+        edgeTypes={rfEdgeTypes}
+        defaultEdgeOptions={rfDefaultEdgeOptions}
+        proOptions={{ hideAttribution: true }}
+        minZoom={0.05}
+        defaultViewport={{ x: 0, y: 0, zoom: 0.1 }}
+        nodesDraggable={false}
+        onlyRenderVisibleElements
+      >
 
       {/* Layout settings panel trigger button */}
       <Box
@@ -2161,7 +2302,7 @@ function ComputationTreeCards({ targetNodes, compressing = false, paused = false
             variant="contained"
             onClick={() => runFitView()}
             startIcon={<CenterFocusStrong fontSize="small" />}
-            disabled={!viewportReady || layout.running}
+            disabled={loadingMaskVisible}
             sx={{
               height: CONTROL_HEIGHT,
               borderRadius: 1.5,
@@ -2250,8 +2391,11 @@ function ComputationTreeCards({ targetNodes, compressing = false, paused = false
         contentClassName="ct-scrollable"
       />
 
-      <Background gap={10} size={1} />
-    </ReactFlow>
+        <Background gap={10} size={1} />
+      </ReactFlow>
+
+      {loadingMaskVisible && <LoadingOverlay />}
+    </Box>
   );
 }
 

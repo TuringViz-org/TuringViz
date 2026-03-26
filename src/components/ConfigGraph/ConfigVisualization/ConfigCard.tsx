@@ -25,6 +25,10 @@ import { CELL_WIDTH } from './constants';
 import { CONFIG_CARD_WIDTH } from '../util/constants';
 import { computeDeeperGraphFromState } from '@tmfunctions/ConfigGraph';
 import runTapeStyles from '@components/TapeList/TapeList.module.css';
+import {
+  PORTAL_BRIDGE_SWITCH_EVENT,
+  type PortalBridgeSwitchDetail,
+} from '@components/MainPage/PortalBridge';
 
 import { useGlobalZustand } from '@zustands/GlobalZustand';
 import TapeRow from './TapeRow';
@@ -120,6 +124,29 @@ export default function ConfigCard(data: Props) {
     const viewWidth = tapeContainerRef.current.clientWidth;
     const targetScrollLeft = headX - viewWidth / 2 + CELL_WIDTH / 2;
     tapeContainerRef.current.scrollTo({ left: targetScrollLeft, behavior: 'auto' });
+  }, [headX]);
+
+  // Re-center after fullscreen portal switches (entry + exit).
+  useEffect(() => {
+    const center = () => {
+      const container = tapeContainerRef.current;
+      if (!container) return;
+      const viewWidth = container.clientWidth;
+      const targetScrollLeft = headX - viewWidth / 2 + CELL_WIDTH / 2;
+      container.scrollTo({ left: targetScrollLeft, behavior: 'auto' });
+    };
+
+    const handler: EventListener = (event) => {
+      const detail = (event as CustomEvent<PortalBridgeSwitchDetail>).detail;
+      if (!detail) return;
+      if (detail.id !== 'configGraph' && detail.id !== 'computationTree') return;
+      requestAnimationFrame(center);
+    };
+
+    window.addEventListener(PORTAL_BRIDGE_SWITCH_EVENT, handler);
+    return () => {
+      window.removeEventListener(PORTAL_BRIDGE_SWITCH_EVENT, handler);
+    };
   }, [headX]);
 
 

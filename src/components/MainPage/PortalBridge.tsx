@@ -27,6 +27,7 @@ export interface PortalBridgeSwitchDetail {
 }
 
 export const PORTAL_BRIDGE_SWITCH_EVENT = 'portal-bridge:switch';
+export const PORTAL_BRIDGE_BEFORE_SWITCH_EVENT = 'portal-bridge:before-switch';
 
 /**
  * Keeps a single React tree mounted while moving its rendered DOM between
@@ -66,6 +67,18 @@ export function PortalBridge(props: PortalBridgeProps) {
       active && targetRef.current ? targetRef.current : fallbackRef.current;
     if (!nextContainer) return;
 
+    const nextLocation: PortalBridgeLocation =
+      active && targetRef.current ? 'target' : 'fallback';
+    const locationChanged = locationRef.current !== nextLocation;
+
+    if (id && locationChanged) {
+      window.dispatchEvent(
+        new CustomEvent<PortalBridgeSwitchDetail>(PORTAL_BRIDGE_BEFORE_SWITCH_EVENT, {
+          detail: { id, location: nextLocation },
+        })
+      );
+    }
+
     const prev = lastContainerRef.current;
     if (prev && prev !== nextContainer && prev.contains(portalNode)) {
       prev.removeChild(portalNode);
@@ -77,9 +90,7 @@ export function PortalBridge(props: PortalBridgeProps) {
 
     lastContainerRef.current = nextContainer;
 
-    const nextLocation: PortalBridgeLocation =
-      active && targetRef.current ? 'target' : 'fallback';
-    if (locationRef.current !== nextLocation) {
+    if (locationChanged) {
       locationRef.current = nextLocation;
       if (id) {
         const schedule =

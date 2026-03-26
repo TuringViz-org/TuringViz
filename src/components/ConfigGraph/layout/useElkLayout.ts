@@ -244,6 +244,7 @@ export function useElkLayout({
     if (!autoResizeLayoutEnabled) return;
     if (!nodesInitialized) return;
     if (getNodes().length === 0) return;
+    if (viewportWidth <= 0 || viewportHeight <= 0) return;
 
     if (lastSizeKeyRef.current === sizeKey) return;
     const hadPreviousSize = lastSizeKeyRef.current !== '';
