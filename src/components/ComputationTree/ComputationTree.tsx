@@ -72,8 +72,10 @@ import { buildComputationTreeGraph } from './util/buildComputationTree';
 import {
   CARDS_CONFIRM_THRESHOLD,
   ConfigNodeMode,
+  DEFAULT_GRAPH_CARDS_ELK_OPTS,
+  DEFAULT_GRAPH_ELK_OPTS,
+  DEFAULT_GRAPH_NODES_ELK_OPTS,
   DEFAULT_TREE_DEPTH,
-  DEFAULT_ELK_OPTS,
   HOVER_POPPER_DELAY_MS,
   MAX_COMPUTATION_TREE_TARGET_NODES,
 } from '@utils/constants';
@@ -121,6 +123,7 @@ type ViewportSnapshot = {
   zoom: number;
   pan: { x: number; y: number };
 };
+const NODES_MIN_FIT_ZOOM = 0.02;
 
 const rfNodeTypes = {
   [NodeType.CONFIG]: ConfigNode,
@@ -290,9 +293,10 @@ const getCyStyles = (theme: any): any[] => [
     {
       selector: 'edge.compressed',
       style: {
-        'line-style': 'dashed',
+        'curve-style': 'straight',
         width: GRAPH_EDGE_COMPRESSED_WIDTH,
-        'line-dash-pattern': [6, 4],
+        'line-color': normalizeColor(theme.palette.primary.main),
+        'target-arrow-color': normalizeColor(theme.palette.primary.main),
       },
     },
     {
@@ -531,6 +535,8 @@ function ComputationTreeCircles({ targetNodes, compressing = false, paused = fal
     direction: computationTreeELKSettings.direction,
     autoDirection: computationTreeELKSettings.autoDirection ?? true,
     scaleToFit: true,
+    maxAxisScale:
+      computationTreeNodeMode === ConfigNodeMode.CARDS ? undefined : 1.45,
     containerRef,
     topoKeyOverride: structureKey,
     autoRun: false,
@@ -553,17 +559,27 @@ function ComputationTreeCircles({ targetNodes, compressing = false, paused = fal
   });
   const scheduleLayoutRestart = useDebouncedLayoutRestart(layout);
 
-  // Adjust edgeNodeSep when node mode changes
+  // Apply mode-specific layout defaults when node mode changes
   useEffect(() => {
-    const edgeNodeSepTarget =
-      computationTreeNodeMode === ConfigNodeMode.CARDS ? 300 : 100;
-    if (computationTreeELKSettings.edgeNodeSep === edgeNodeSepTarget) return;
-    setComputationTreeELKSettings({ edgeNodeSep: edgeNodeSepTarget });
-  }, [
-    computationTreeNodeMode,
-    computationTreeELKSettings.edgeNodeSep,
-    setComputationTreeELKSettings,
-  ]);
+    const target =
+      computationTreeNodeMode === ConfigNodeMode.CARDS
+        ? DEFAULT_GRAPH_CARDS_ELK_OPTS
+        : DEFAULT_GRAPH_NODES_ELK_OPTS;
+    const same =
+      computationTreeELKSettings.nodeSep === target.nodeSep &&
+      computationTreeELKSettings.rankSep === target.rankSep &&
+      computationTreeELKSettings.edgeSep === target.edgeSep &&
+      computationTreeELKSettings.edgeNodeSep === target.edgeNodeSep &&
+      computationTreeELKSettings.padding === target.padding;
+    if (same) return;
+    setComputationTreeELKSettings({
+      nodeSep: target.nodeSep,
+      rankSep: target.rankSep,
+      edgeSep: target.edgeSep,
+      edgeNodeSep: target.edgeNodeSep,
+      padding: target.padding,
+    });
+  }, [computationTreeNodeMode, computationTreeELKSettings, setComputationTreeELKSettings]);
 
   // Performance + layout tracking
   const didInitialLayoutRef = useRef(false);
@@ -667,6 +683,32 @@ function ComputationTreeCircles({ targetNodes, compressing = false, paused = fal
   }, [computationTreeNodeMode, scheduleLayoutRestart, nodes.length, paused]);
 
   // Fit helper for Cytoscape
+  const ensureStartNodeVisibleInCy = useCallback((cy: CyCore) => {
+    const startNode = cy.$('node.start').first();
+    if (!startNode || startNode.empty()) return;
+    const rendered = startNode.renderedPosition();
+    if (!rendered || !Number.isFinite(rendered.x) || !Number.isFinite(rendered.y)) return;
+
+    const width = cy.width();
+    const height = cy.height();
+    if (!(width > 0) || !(height > 0)) return;
+
+    const margin = 24;
+    let dx = 0;
+    let dy = 0;
+
+    if (rendered.x < margin) dx = margin - rendered.x;
+    else if (rendered.x > width - margin) dx = width - margin - rendered.x;
+
+    if (rendered.y < margin) dy = margin - rendered.y;
+    else if (rendered.y > height - margin) dy = height - margin - rendered.y;
+
+    if (dx === 0 && dy === 0) return;
+
+    const pan = cy.pan();
+    cy.pan({ x: pan.x + dx, y: pan.y + dy });
+  }, []);
+
   const runFitView = useCallback((onDone?: () => void) => {
     const cy = cyRef.current;
     if (!cy) return;
@@ -674,13 +716,20 @@ function ComputationTreeCircles({ targetNodes, compressing = false, paused = fal
     requestAnimationFrame(() => {
       cy.resize();
       cy.fit(cy.elements(), 30);
+      if (cy.zoom() < NODES_MIN_FIT_ZOOM) {
+        cy.zoom({
+          level: NODES_MIN_FIT_ZOOM,
+          renderedPosition: { x: cy.width() / 2, y: cy.height() / 2 },
+        });
+      }
+      ensureStartNodeVisibleInCy(cy);
       viewportRef.current = {
         zoom: cy.zoom(),
         pan: { ...cy.pan() },
       };
       onDone?.();
     });
-  }, []);
+  }, [ensureStartNodeVisibleInCy]);
 
   const isContainerVisible = useCallback(() => {
     const el = containerRef.current;
@@ -1057,6 +1106,7 @@ function ComputationTreeCircles({ targetNodes, compressing = false, paused = fal
 
     const cy = cytoscape({
       container,
+      webgl: true,
       elements: [],
       style: cyStyles,
       minZoom: 0.01,
@@ -1436,8 +1486,9 @@ function ComputationTreeCircles({ targetNodes, compressing = false, paused = fal
 
   const resetLayoutSettings = useCallback(() => {
     setComputationTreeELKSettings({
-      ...DEFAULT_ELK_OPTS,
-      edgeNodeSep: computationTreeNodeMode === ConfigNodeMode.CARDS ? 300 : 100,
+      ...(computationTreeNodeMode === ConfigNodeMode.CARDS
+        ? DEFAULT_GRAPH_CARDS_ELK_OPTS
+        : DEFAULT_GRAPH_ELK_OPTS),
     });
   }, [computationTreeNodeMode, setComputationTreeELKSettings]);
 
@@ -1507,6 +1558,7 @@ function ComputationTreeCircles({ targetNodes, compressing = false, paused = fal
         onReset={resetLayoutSettings}
         onRecalc={recalcLayout}
         running={layout.running}
+        mode={computationTreeNodeMode}
       />
       <Dialog open={confirmCardsOpen} onClose={() => setConfirmCardsOpen(false)}>
         <DialogTitle>Switch to card view?</DialogTitle>
@@ -1747,6 +1799,8 @@ function ComputationTreeCards({ targetNodes, compressing = false, paused = false
     direction: computationTreeELKSettings.direction,
     autoDirection: computationTreeELKSettings.autoDirection ?? true,
     scaleToFit: true,
+    maxAxisScale:
+      computationTreeNodeMode === ConfigNodeMode.CARDS ? undefined : 1.45,
     viewportWidth,
     viewportHeight,
     topoKeyOverride: structureKey,
@@ -1766,17 +1820,27 @@ function ComputationTreeCards({ targetNodes, compressing = false, paused = false
   });
   const scheduleLayoutRestart = useDebouncedLayoutRestart(layout);
 
-  // Adjust edgeNodeSep when node mode changes
+  // Apply mode-specific layout defaults when node mode changes
   useEffect(() => {
-    const edgeNodeSepTarget =
-      computationTreeNodeMode === ConfigNodeMode.CARDS ? 300 : 100;
-    if (computationTreeELKSettings.edgeNodeSep === edgeNodeSepTarget) return;
-    setComputationTreeELKSettings({ edgeNodeSep: edgeNodeSepTarget });
-  }, [
-    computationTreeNodeMode,
-    computationTreeELKSettings.edgeNodeSep,
-    setComputationTreeELKSettings,
-  ]);
+    const target =
+      computationTreeNodeMode === ConfigNodeMode.CARDS
+        ? DEFAULT_GRAPH_CARDS_ELK_OPTS
+        : DEFAULT_GRAPH_NODES_ELK_OPTS;
+    const same =
+      computationTreeELKSettings.nodeSep === target.nodeSep &&
+      computationTreeELKSettings.rankSep === target.rankSep &&
+      computationTreeELKSettings.edgeSep === target.edgeSep &&
+      computationTreeELKSettings.edgeNodeSep === target.edgeNodeSep &&
+      computationTreeELKSettings.padding === target.padding;
+    if (same) return;
+    setComputationTreeELKSettings({
+      nodeSep: target.nodeSep,
+      rankSep: target.rankSep,
+      edgeSep: target.edgeSep,
+      edgeNodeSep: target.edgeNodeSep,
+      padding: target.padding,
+    });
+  }, [computationTreeNodeMode, computationTreeELKSettings, setComputationTreeELKSettings]);
 
   // Performance + layout tracking
   const nodesCountRef = useRef(0);
@@ -1965,15 +2029,64 @@ function ComputationTreeCards({ targetNodes, compressing = false, paused = false
     fitAfterLayoutRef.current = true;
   }, [machineLoadVersion, nodesReady, nodes.length, paused]);
 
+  const ensureStartNodeVisibleInRF = useCallback((): Viewport | null => {
+    if (!(viewportWidth > 0) || !(viewportHeight > 0)) return null;
+    const startNode = rf.getNodes().find((n) => (n.data as any)?.isStart === true);
+    if (!startNode) return null;
+
+    const viewport = rf.getViewport();
+    if (!(viewport.zoom > 0)) return null;
+    let nextViewport = viewport;
+
+    const origin = Array.isArray(startNode.origin) ? startNode.origin : [0, 0];
+    const ox = origin[0] ?? 0;
+    const oy = origin[1] ?? 0;
+    const width = startNode.measured?.width ?? startNode.width ?? 0;
+    const height = startNode.measured?.height ?? startNode.height ?? 0;
+    const pos = (startNode as any).positionAbsolute ?? startNode.position;
+    if (!pos || !Number.isFinite(pos.x) || !Number.isFinite(pos.y)) return null;
+
+    const centerX = pos.x + (0.5 - ox) * width;
+    const centerY = pos.y + (0.5 - oy) * height;
+    const renderedX = centerX * nextViewport.zoom + nextViewport.x;
+    const renderedY = centerY * nextViewport.zoom + nextViewport.y;
+
+    const margin = 24;
+    let dx = 0;
+    let dy = 0;
+
+    if (renderedX < margin) dx = margin - renderedX;
+    else if (renderedX > viewportWidth - margin) dx = viewportWidth - margin - renderedX;
+
+    if (renderedY < margin) dy = margin - renderedY;
+    else if (renderedY > viewportHeight - margin) dy = viewportHeight - margin - renderedY;
+
+    if (dx !== 0 || dy !== 0) {
+      nextViewport = {
+        x: nextViewport.x + dx,
+        y: nextViewport.y + dy,
+        zoom: nextViewport.zoom,
+      };
+    }
+
+    const changed =
+      nextViewport.x !== viewport.x ||
+      nextViewport.y !== viewport.y ||
+      nextViewport.zoom !== viewport.zoom;
+    if (changed) void rf.setViewport(nextViewport, { duration: 0 });
+    return nextViewport;
+  }, [rf, viewportWidth, viewportHeight]);
+
   const runFitView = useCallback((onDone?: () => void) => {
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
         rf.fitView({ padding: 0.2, duration: 0 });
-        storeViewport();
+        const correctedViewport = ensureStartNodeVisibleInRF();
+        storeViewport(correctedViewport ?? undefined);
         onDone?.();
       });
     });
-  }, [rf, storeViewport]);
+  }, [rf, storeViewport, ensureStartNodeVisibleInRF]);
 
   const restoreViewport = useCallback((onDone?: () => void) => {
     if (!initialViewportSettledRef.current) return false;
@@ -2191,8 +2304,9 @@ function ComputationTreeCards({ targetNodes, compressing = false, paused = false
 
   const resetLayoutSettings = useCallback(() => {
     setComputationTreeELKSettings({
-      ...DEFAULT_ELK_OPTS,
-      edgeNodeSep: computationTreeNodeMode === ConfigNodeMode.CARDS ? 300 : 100,
+      ...(computationTreeNodeMode === ConfigNodeMode.CARDS
+        ? DEFAULT_GRAPH_CARDS_ELK_OPTS
+        : DEFAULT_GRAPH_ELK_OPTS),
     });
   }, [computationTreeNodeMode, setComputationTreeELKSettings]);
 
@@ -2265,6 +2379,7 @@ function ComputationTreeCards({ targetNodes, compressing = false, paused = false
         onReset={resetLayoutSettings}
         onRecalc={recalcLayout}
         running={layout.running}
+        mode={computationTreeNodeMode}
       />
       <Dialog open={confirmCardsOpen} onClose={() => setConfirmCardsOpen(false)}>
         <DialogTitle>Switch to card view?</DialogTitle>

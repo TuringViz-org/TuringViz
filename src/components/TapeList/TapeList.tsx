@@ -34,7 +34,7 @@ function TapeList() {
   const isRunningLive = useGlobalZustand((state) => state.runningLive);
   const runSpeedMs = useGlobalZustand((state) => state.runSpeedMs);
   const setRunSpeedMs = useGlobalZustand((state) => state.setRunSpeedMs);
-  const isSmallScreen = useMediaQuery(theme.breakpoints.down('sm'));
+  const stackControls = useMediaQuery(theme.breakpoints.down('lg'));
   const stepsPerSecond = (1000 / runSpeedMs).toFixed(2);
   const tapeContainerRef = useRef<HTMLDivElement | null>(null);
   const CELL_SIZE = 50;
@@ -162,7 +162,7 @@ function TapeList() {
       <Box
         sx={{
           display: 'grid',
-          gridTemplateColumns: isSmallScreen ? 'minmax(0, 1fr)' : 'minmax(0, 1fr) auto',
+          gridTemplateColumns: stackControls ? 'minmax(0, 1fr)' : 'minmax(0, 1fr) auto',
           alignItems: 'center',
           columnGap: 1,
           rowGap: 0.5,
@@ -172,8 +172,9 @@ function TapeList() {
         <Box
           sx={{
             gridColumn: '1 / 2',
-            width: isSmallScreen ? '100%' : 360,
-            justifySelf: 'center',
+            width: '100%',
+            maxWidth: stackControls ? '100%' : 360,
+            justifySelf: stackControls ? 'stretch' : 'center',
           }}
         >
           <Typography
@@ -192,8 +193,9 @@ function TapeList() {
         <Box
           sx={{
             gridColumn: '1 / 2',
-            width: isSmallScreen ? '100%' : 360,
-            justifySelf: 'center',
+            width: '100%',
+            maxWidth: stackControls ? '100%' : 360,
+            justifySelf: stackControls ? 'stretch' : 'center',
           }}
         >
           <Slider
@@ -216,15 +218,15 @@ function TapeList() {
         <ButtonGroup
           size="small"
           variant="contained"
-          orientation={isSmallScreen ? 'vertical' : 'horizontal'}
-          fullWidth={isSmallScreen}
+          orientation={stackControls ? 'vertical' : 'horizontal'}
+          fullWidth={stackControls}
           sx={{
-            gridColumn: isSmallScreen ? '1 / 2' : '2 / 3',
-            gridRow: isSmallScreen ? 'auto' : '2 / 3',
-            justifySelf: isSmallScreen ? 'stretch' : 'end',
-            alignSelf: isSmallScreen ? 'stretch' : 'start',
+            gridColumn: stackControls ? '1 / 2' : '2 / 3',
+            gridRow: stackControls ? 'auto' : '2 / 3',
+            justifySelf: stackControls ? 'stretch' : 'end',
+            alignSelf: stackControls ? 'stretch' : 'start',
             '& .MuiButtonGroup-grouped': {
-              minWidth: isSmallScreen ? '100%' : undefined,
+              minWidth: stackControls ? '100%' : undefined,
               boxShadow: 'none',
             },
             '& .MuiButtonGroup-grouped:not(:first-of-type)': {

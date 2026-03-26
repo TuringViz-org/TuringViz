@@ -4,12 +4,14 @@ type Options = {
   positions: Map<string, Position>;
   containerWidth: number;
   containerHeight: number;
+  maxAxisScale?: number;
 };
 
 export function scaleToContainer({
   positions,
   containerWidth,
   containerHeight,
+  maxAxisScale,
 }: Options): Map<string, Position> {
   if (positions.size === 0) return positions;
   if (!(containerWidth > 0) || !(containerHeight > 0)) return positions;
@@ -44,6 +46,11 @@ export function scaleToContainer({
     scaleY = graphAspectRatio / containerAspectRatio;
   } else {
     return positions;
+  }
+
+  if (Number.isFinite(maxAxisScale) && maxAxisScale > 1) {
+    scaleX = Math.min(scaleX, maxAxisScale);
+    scaleY = Math.min(scaleY, maxAxisScale);
   }
 
   if (scaleX <= 1 && scaleY <= 1) return positions;
