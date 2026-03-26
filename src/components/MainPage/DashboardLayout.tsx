@@ -123,13 +123,6 @@ export function DashboardLayout({
     }
   }, [tapesVisible]);
 
-  useEffect(() => {
-    const raf = requestAnimationFrame(() => {
-      window.dispatchEvent(new Event('resize'));
-    });
-    return () => cancelAnimationFrame(raf);
-  }, [activeTab]);
-
   return (
     <Container
       maxWidth={false}

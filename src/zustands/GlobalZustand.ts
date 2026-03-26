@@ -93,6 +93,10 @@ interface GlobalZustand {
 
   configGraph: ConfigGraph | null; //The graph representation of the configurations of the TM
   setConfigGraph: (configGraph: ConfigGraph) => void;
+  configGraphComputing: boolean;
+  beginConfigGraphCompute: () => void;
+  endConfigGraphCompute: () => void;
+  configGraphComputeJobs: number;
 
   //This should be incremented every time the config graph is changed, so that the components can react to changes in the config graph
   configGraphVersion: number;
@@ -149,6 +153,21 @@ export const useGlobalZustand = create<GlobalZustand>((set) => ({
 
   configGraph: null,
   setConfigGraph: (configGraph) => set({ configGraph }),
+  configGraphComputing: false,
+  configGraphComputeJobs: 0,
+  beginConfigGraphCompute: () =>
+    set((state) => ({
+      configGraphComputeJobs: state.configGraphComputeJobs + 1,
+      configGraphComputing: true,
+    })),
+  endConfigGraphCompute: () =>
+    set((state) => {
+      const nextJobs = Math.max(0, state.configGraphComputeJobs - 1);
+      return {
+        configGraphComputeJobs: nextJobs,
+        configGraphComputing: nextJobs > 0,
+      };
+    }),
 
   states: new Set<string>(),
   setStates: (states) => set({ states }),
@@ -237,6 +256,8 @@ export const useGlobalZustand = create<GlobalZustand>((set) => ({
       running: false,
       runningLive: false,
       configGraph: null,
+      configGraphComputing: false,
+      configGraphComputeJobs: 0,
       lastState: '',
       lastTransition: -1,
       input: [[[], []]],

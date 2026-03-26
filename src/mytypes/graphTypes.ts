@@ -5,6 +5,7 @@ export type Direction = 'RIGHT' | 'LEFT' | 'UP' | 'DOWN';
 export type ElkOptions = {
   algorithm?: ElkAlgo;
   direction: Direction;
+  autoDirection?: boolean;
   nodeSep: number;
   rankSep: number;
   edgeSep: number;

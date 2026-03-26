@@ -89,20 +89,6 @@ table:
   done: {}`,
 };
 
-export const SelfLoops: ExampleTM = {
-  name: 'Self Loops',
-  code: `# Generating graph with self loops
-input: '000000' # length 6
-blank: ' '
-tapes: 1
-startstate: go
-table:
-  go:
-    '0': ["R", "S"]
-    ' ': {"S": done}
-  done: {}`,
-};
-
 export const DAG: ExampleTM = {
   name: 'DAG',
   code: `# Computing a config graph that is a DAG
@@ -458,7 +444,6 @@ ExampleTMs.push(NonDetSubSetSum);
 ExampleTMs.push(CheckEven);
 ExampleTMs.push(GCD);
 ExampleTMs.push(AllStrings);
-ExampleTMs.push(SelfLoops);
 ExampleTMs.push(DAG);
 ExampleTMs.push(Circle);
 ExampleTMs.push(NonDetSAT);

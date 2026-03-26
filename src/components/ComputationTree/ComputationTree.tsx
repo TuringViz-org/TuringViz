@@ -4,7 +4,6 @@ import cytoscape, {
   type Core as CyCore,
   type EventObjectEdge,
   type EventObjectNode,
-  type Stylesheet,
 } from 'cytoscape';
 import {
   ReactFlow,
@@ -13,8 +12,11 @@ import {
   useNodesInitialized,
   useNodesState,
   useReactFlow,
+  useStore,
   MarkerType,
   Background,
+  type ReactFlowState,
+  type Viewport,
 } from '@xyflow/react';
 import {
   Stack,
@@ -27,9 +29,12 @@ import {
   Paper,
   Popper,
   ClickAwayListener,
-  IconButton,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
 } from '@mui/material';
-import { Cached, Adjust, ViewAgenda, Tune, CenterFocusStrong } from '@mui/icons-material';
+import { Adjust, ViewAgenda, Tune, CenterFocusStrong } from '@mui/icons-material';
 import { alpha, useTheme } from '@mui/material/styles';
 import type { VirtualElement } from '@popperjs/core';
 import { toast } from 'sonner';
@@ -41,6 +46,7 @@ import { EdgeTooltip } from '@components/ConfigGraph/edges/EdgeTooltip';
 import { ConfigNode } from '@components/ConfigGraph/nodes/ConfigNode';
 import { ConfigCardNode } from '@components/ConfigGraph/nodes/ConfigCardNode';
 import { FloatingEdge } from '@components/ConfigGraph/edges/FloatingEdge';
+import { LoadingOverlay } from '@components/shared/LoadingOverlay';
 
 import {
   CONFIG_CARD_HEIGHT_ESTIMATE,
@@ -76,6 +82,7 @@ import { TreeLayoutSettingsPanel } from './layout/LayoutSettingsPanel';
 import { useDebouncedLayoutRestart } from '@hooks/useDebouncedLayoutRestart';
 import { GraphUIProvider, useGraphUI } from '@components/shared/GraphUIContext';
 import {
+  PORTAL_BRIDGE_BEFORE_SWITCH_EVENT,
   PORTAL_BRIDGE_SWITCH_EVENT,
   type PortalBridgeSwitchDetail,
 } from '@components/MainPage/PortalBridge';
@@ -180,8 +187,7 @@ const resolveStateColor = (
   return undefined;
 };
 
-function getCyStyles(theme: ReturnType<typeof useTheme>): Stylesheet[] {
-  return [
+const getCyStyles = (theme: any): any[] => [
     {
       selector: 'core',
       style: {
@@ -310,7 +316,6 @@ function getCyStyles(theme: ReturnType<typeof useTheme>): Stylesheet[] {
       style: { label: '' },
     },
   ];
-}
 
 function NodeDetailPopper({
   node,
@@ -379,7 +384,8 @@ function NodeDetailPopper({
 function useComputationTreeData(
   targetNodes: number,
   compressing: boolean,
-  nodeMode: ConfigNodeMode
+  nodeMode: ConfigNodeMode,
+  paused: boolean
 ): {
   model: ComputationTreeModel | null;
   base: ReturnType<typeof buildComputationTreeGraph>;
@@ -399,6 +405,7 @@ function useComputationTreeData(
   const requestRef = useRef(0);
 
   useEffect(() => {
+    if (paused) return;
     const startConfig = getStartConfiguration();
     const reqId = requestRef.current + 1;
     requestRef.current = reqId;
@@ -441,6 +448,7 @@ function useComputationTreeData(
     numberOfTapes,
     startState,
     input,
+    paused,
   ]);
 
   useEffect(() => {
@@ -451,9 +459,9 @@ function useComputationTreeData(
   return { model, base };
 }
 
-type Props = { targetNodes: number; compressing?: boolean };
+type Props = { targetNodes: number; compressing?: boolean; paused?: boolean };
 
-function ComputationTreeCircles({ targetNodes, compressing = false }: Props) {
+function ComputationTreeCircles({ targetNodes, compressing = false, paused = false }: Props) {
   const theme = useTheme();
   const cyRef = useRef<CyCore | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -480,7 +488,8 @@ function ComputationTreeCircles({ targetNodes, compressing = false }: Props) {
   const { model, base } = useComputationTreeData(
     targetNodes,
     !!compressing,
-    computationTreeNodeMode
+    computationTreeNodeMode,
+    paused
   );
 
   const [nodes, setNodes] = useState<RFNode[]>(base.nodes);
@@ -488,6 +497,15 @@ function ComputationTreeCircles({ targetNodes, compressing = false }: Props) {
   const [structureKey, setStructureKey] = useState('');
   const [containerVisible, setContainerVisible] = useState(true);
   const [viewportReady, setViewportReady] = useState(false);
+  const [autoResizeLayoutEnabled, setAutoResizeLayoutEnabled] = useState(true);
+  const fitAfterLayoutRef = useRef(false);
+  const pendingLayoutViewportFitRef = useRef(false);
+  const layoutPositionsAppliedRef = useRef(false);
+  const pendingRevealFitRef = useRef(false);
+  const handleAutoResizeLayout = useCallback(() => {
+    if (nodes.length === 0) return;
+    fitAfterLayoutRef.current = true;
+  }, [nodes.length]);
 
   // Keep node/edge lookup maps for quick access in event handlers
   const nodeMapRef = useRef<Map<string, RFNode>>(new Map());
@@ -511,9 +529,18 @@ function ComputationTreeCircles({ targetNodes, compressing = false }: Props) {
     edgeNodeSep: computationTreeELKSettings.edgeNodeSep,
     padding: computationTreeELKSettings.padding,
     direction: computationTreeELKSettings.direction,
+    autoDirection: computationTreeELKSettings.autoDirection ?? true,
+    scaleToFit: true,
+    containerRef,
     topoKeyOverride: structureKey,
     autoRun: false,
+    autoResizeLayoutEnabled: !paused && autoResizeLayoutEnabled,
+    onAutoResizeLayout: handleAutoResizeLayout,
     onLayout: (positions) => {
+      if (fitAfterLayoutRef.current) {
+        pendingLayoutViewportFitRef.current = true;
+        layoutPositionsAppliedRef.current = false;
+      }
       setNodes((prev) =>
         prev.map((n) => {
           const p = positions.get(n.id);
@@ -541,7 +568,6 @@ function ComputationTreeCircles({ targetNodes, compressing = false }: Props) {
   // Performance + layout tracking
   const didInitialLayoutRef = useRef(false);
   const lastTopoKeyRef = useRef<string | null>(null);
-  const fitAfterLayoutRef = useRef(false);
   const prevRunningRef = useRef(layout.running);
   const pendingMachineLoadFitRef = useRef(false);
   const awaitingInitialRevealRef = useRef(false);
@@ -556,7 +582,7 @@ function ComputationTreeCircles({ targetNodes, compressing = false }: Props) {
 
   useEffect(() => {
     if (computationTreeNodeMode === ConfigNodeMode.CARDS && cardsDisabled) {
-      setComputationTreeNodeMode(ConfigNodeMode.CIRCLES);
+      setComputationTreeNodeMode(ConfigNodeMode.NODES);
       toast.warning(
         `Cards are disabled when there are more than ${CARDS_LIMIT} nodes (current: ${nodeCount}).`
       );
@@ -603,6 +629,7 @@ function ComputationTreeCircles({ targetNodes, compressing = false }: Props) {
 
   // Start ELK once when nodes are ready
   useEffect(() => {
+    if (paused) return;
     if (!didInitialLayoutRef.current && nodes.length > 0) {
       didInitialLayoutRef.current = true;
       awaitingInitialRevealRef.current = true;
@@ -610,10 +637,11 @@ function ComputationTreeCircles({ targetNodes, compressing = false }: Props) {
       scheduleLayoutRestart();
       fitAfterLayoutRef.current = true;
     }
-  }, [nodes.length, scheduleLayoutRestart]);
+  }, [nodes.length, scheduleLayoutRestart, paused]);
 
   // Start ELK on structural changes
   useEffect(() => {
+    if (paused) return;
     if (nodes.length === 0) return;
     if (lastTopoKeyRef.current === null) {
       lastTopoKeyRef.current = structureKey;
@@ -622,16 +650,21 @@ function ComputationTreeCircles({ targetNodes, compressing = false }: Props) {
     if (lastTopoKeyRef.current === structureKey) return;
     lastTopoKeyRef.current = structureKey;
 
+    awaitingInitialRevealRef.current = true;
+    setViewportReady(false);
     scheduleLayoutRestart();
     fitAfterLayoutRef.current = true;
-  }, [structureKey, nodes.length, scheduleLayoutRestart]);
+  }, [structureKey, nodes.length, scheduleLayoutRestart, paused]);
 
   // Start ELK when nodeMode changes
   useEffect(() => {
+    if (paused) return;
     if (nodes.length === 0) return;
+    awaitingInitialRevealRef.current = true;
+    setViewportReady(false);
     scheduleLayoutRestart();
     fitAfterLayoutRef.current = true;
-  }, [computationTreeNodeMode, scheduleLayoutRestart, nodes.length]);
+  }, [computationTreeNodeMode, scheduleLayoutRestart, nodes.length, paused]);
 
   // Fit helper for Cytoscape
   const runFitView = useCallback((onDone?: () => void) => {
@@ -641,6 +674,10 @@ function ComputationTreeCircles({ targetNodes, compressing = false }: Props) {
     requestAnimationFrame(() => {
       cy.resize();
       cy.fit(cy.elements(), 30);
+      viewportRef.current = {
+        zoom: cy.zoom(),
+        pan: { ...cy.pan() },
+      };
       onDone?.();
     });
   }, []);
@@ -656,6 +693,7 @@ function ComputationTreeCircles({ targetNodes, compressing = false }: Props) {
 
   // Re-center on every successful "Load Machine".
   useEffect(() => {
+    if (paused) return;
     if (lastHandledMachineLoadRef.current === machineLoadVersion) return;
     pendingMachineLoadFitRef.current = !isContainerVisible();
     awaitingInitialRevealRef.current = true;
@@ -664,7 +702,7 @@ function ComputationTreeCircles({ targetNodes, compressing = false }: Props) {
     lastHandledMachineLoadRef.current = machineLoadVersion;
     scheduleLayoutRestart();
     fitAfterLayoutRef.current = true;
-  }, [machineLoadVersion, nodes.length, isContainerVisible]);
+  }, [machineLoadVersion, nodes.length, isContainerVisible, paused]);
 
   const restoreViewport = useCallback(() => {
     const cy = cyRef.current;
@@ -673,26 +711,39 @@ function ComputationTreeCircles({ targetNodes, compressing = false }: Props) {
     cy.viewport(viewport);
   }, []);
 
+  const completePendingLayoutFit = useCallback(() => {
+    if (!pendingLayoutViewportFitRef.current) return;
+    if (!layoutPositionsAppliedRef.current) return;
+    if (layout.running) return;
+
+    pendingLayoutViewportFitRef.current = false;
+    layoutPositionsAppliedRef.current = false;
+    const visibleNow = isContainerVisible();
+    if (visibleNow) {
+      runFitView(() => {
+        pendingMachineLoadFitRef.current = false;
+        if (awaitingInitialRevealRef.current) {
+          awaitingInitialRevealRef.current = false;
+          setViewportReady(true);
+        }
+      });
+    } else {
+      // Layout finished while tab is hidden — defer reveal until visible
+      pendingRevealFitRef.current = true;
+    }
+  }, [layout.running, runFitView, isContainerVisible]);
+
   useEffect(() => {
     const justFinished = prevRunningRef.current && !layout.running;
     if (justFinished) {
       if (fitAfterLayoutRef.current && nodes.length > 0) {
         fitAfterLayoutRef.current = false;
-        runFitView(() => {
-          const visibleNow = isContainerVisible();
-          if (visibleNow) {
-            pendingMachineLoadFitRef.current = false;
-          }
-          if (visibleNow && awaitingInitialRevealRef.current) {
-            awaitingInitialRevealRef.current = false;
-            setViewportReady(true);
-          }
-        });
+        completePendingLayoutFit();
       }
     }
 
     prevRunningRef.current = layout.running;
-  }, [layout.running, nodes.length, runFitView, isContainerVisible]);
+  }, [layout.running, nodes.length, completePendingLayoutFit]);
 
   // Event helpers ------------------------------------------------------------
   const hoverTimerRef = useRef<number | null>(null);
@@ -733,6 +784,7 @@ function ComputationTreeCircles({ targetNodes, compressing = false }: Props) {
     reason: null,
   });
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [confirmCardsOpen, setConfirmCardsOpen] = useState(false);
 
   const clearHoverTimer = useCallback(() => {
     if (hoverTimerRef.current != null) {
@@ -1203,7 +1255,18 @@ function ComputationTreeCircles({ targetNodes, compressing = false }: Props) {
     });
 
     cy.nodes().ungrabify();
-  }, [nodes, edges, computationTreeNodeMode, theme, resolveColorForState]);
+    if (pendingLayoutViewportFitRef.current) {
+      layoutPositionsAppliedRef.current = true;
+      completePendingLayoutFit();
+    }
+  }, [
+    nodes,
+    edges,
+    computationTreeNodeMode,
+    theme,
+    resolveColorForState,
+    completePendingLayoutFit,
+  ]);
 
   const lastSelectedRef = useRef<string | null>(null);
 
@@ -1227,8 +1290,11 @@ function ComputationTreeCircles({ targetNodes, compressing = false }: Props) {
     const cy = cyRef.current;
     const el = containerRef.current;
     if (!cy || !el || typeof ResizeObserver === 'undefined') return;
+    let wasVisible = isContainerVisible();
     const ro = new ResizeObserver(() => {
       const visibleNow = isContainerVisible();
+      const justBecameVisible = !wasVisible && visibleNow;
+      wasVisible = visibleNow;
       setContainerVisible(visibleNow);
       cy.resize();
       if (
@@ -1242,8 +1308,36 @@ function ComputationTreeCircles({ targetNodes, compressing = false }: Props) {
             awaitingInitialRevealRef.current = false;
             setViewportReady(true);
           }
+          pendingRevealFitRef.current = false;
           refreshSelectedAnchors();
         });
+        return;
+      }
+      // Layout finished while hidden — now visible, so perform deferred reveal
+      if (pendingRevealFitRef.current && visibleNow && nodes.length > 0) {
+        pendingRevealFitRef.current = false;
+        runFitView(() => {
+          pendingMachineLoadFitRef.current = false;
+          if (awaitingInitialRevealRef.current) {
+            awaitingInitialRevealRef.current = false;
+            setViewportReady(true);
+          }
+          refreshSelectedAnchors();
+        });
+        return;
+      }
+      // Container just became visible while still in loading state — layout
+      // was never run because runLayout early-returned on zero dimensions.
+      // Re-trigger the full layout + fit cycle now.
+      if (justBecameVisible && !viewportReady && !layout.running && nodes.length > 0) {
+        awaitingInitialRevealRef.current = true;
+        fitAfterLayoutRef.current = true;
+        pendingLayoutViewportFitRef.current = true;
+        scheduleLayoutRestart();
+        return;
+      }
+      if (layout.running || fitAfterLayoutRef.current || pendingLayoutViewportFitRef.current) {
+        refreshSelectedAnchors();
         return;
       }
       restoreViewport();
@@ -1251,7 +1345,16 @@ function ComputationTreeCircles({ targetNodes, compressing = false }: Props) {
     });
     ro.observe(el);
     return () => ro.disconnect();
-  }, [restoreViewport, runFitView, nodes.length, isContainerVisible, refreshSelectedAnchors]);
+  }, [
+    layout.running,
+    restoreViewport,
+    runFitView,
+    nodes.length,
+    isContainerVisible,
+    refreshSelectedAnchors,
+    viewportReady,
+    scheduleLayoutRestart,
+  ]);
 
   // Portal switch fit handling
   const scheduleFitAfterSwitch = useCallback(() => {
@@ -1269,6 +1372,7 @@ function ComputationTreeCircles({ targetNodes, compressing = false }: Props) {
     const handler: EventListener = (event) => {
       const detail = (event as CustomEvent<PortalBridgeSwitchDetail>).detail;
       if (!detail || detail.id !== 'computationTree') return;
+      setAutoResizeLayoutEnabled(detail.location !== 'target');
       scheduleFitAfterSwitch();
     };
     window.addEventListener(PORTAL_BRIDGE_SWITCH_EVENT, handler);
@@ -1304,6 +1408,26 @@ function ComputationTreeCircles({ targetNodes, compressing = false }: Props) {
   }, [stateColorMatching]);
 
   const showLegend = legendItems.length > 0 && (model?.nodes?.length ?? 0) > 0;
+
+  const requestNodeModeChange = useCallback(
+    (nextMode: ConfigNodeMode) => {
+      if (nextMode === ConfigNodeMode.CARDS && cardsDisabled) {
+        toast.info(
+          `Cards are disabled when there are more than ${CARDS_LIMIT} nodes (current: ${nodeCount}).`
+        );
+        return;
+      }
+      if (
+        nextMode === ConfigNodeMode.CARDS &&
+        nodeCount > CARDS_CONFIRM_THRESHOLD
+      ) {
+        setConfirmCardsOpen(true);
+        return;
+      }
+      setComputationTreeNodeMode(nextMode);
+    },
+    [cardsDisabled, nodeCount, setComputationTreeNodeMode]
+  );
 
   const recalcLayout = useCallback(() => {
     scheduleLayoutRestart();
@@ -1341,6 +1465,8 @@ function ComputationTreeCircles({ targetNodes, compressing = false }: Props) {
           transition: 'opacity 120ms ease',
         }}
       />
+
+      {!viewportReady && <LoadingOverlay />}
 
       {/* Layout settings panel trigger button */}
       <Box
@@ -1382,8 +1508,27 @@ function ComputationTreeCircles({ targetNodes, compressing = false }: Props) {
         onRecalc={recalcLayout}
         running={layout.running}
       />
+      <Dialog open={confirmCardsOpen} onClose={() => setConfirmCardsOpen(false)}>
+        <DialogTitle>Switch to card view?</DialogTitle>
+        <DialogContent>
+          Card view can be slow for trees above {CARDS_CONFIRM_THRESHOLD} nodes
+          (current: {nodeCount}). Continue?
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setConfirmCardsOpen(false)}>Cancel</Button>
+          <Button
+            variant="contained"
+            onClick={() => {
+              setConfirmCardsOpen(false);
+              setComputationTreeNodeMode(ConfigNodeMode.CARDS);
+            }}
+          >
+            Continue
+          </Button>
+        </DialogActions>
+      </Dialog>
 
-      {/* Top-left controls panel (recalculate layout and node mode switch) */}
+      {/* Top-left controls panel (fit view and node mode switch) */}
       <Box
         sx={{
           position: 'absolute',
@@ -1397,9 +1542,9 @@ function ComputationTreeCircles({ targetNodes, compressing = false }: Props) {
           <Button
             size="small"
             variant="contained"
-            onClick={recalcLayout}
-            startIcon={<Cached fontSize="small" />}
-            disabled={layout.running}
+            onClick={() => runFitView()}
+            startIcon={<CenterFocusStrong fontSize="small" />}
+            disabled={!viewportReady || layout.running}
             sx={{
               height: CONTROL_HEIGHT,
               borderRadius: 1.5,
@@ -1407,7 +1552,7 @@ function ComputationTreeCircles({ targetNodes, compressing = false }: Props) {
               px: 1.25,
             }}
           >
-            Recalculate layout
+            Fit view
           </Button>
 
           <ToggleButtonGroup
@@ -1416,22 +1561,7 @@ function ComputationTreeCircles({ targetNodes, compressing = false }: Props) {
             value={computationTreeNodeMode}
             onChange={(_, v) => {
               if (!v) return;
-              if (v === ConfigNodeMode.CARDS && cardsDisabled) {
-                toast.info(
-                  `Cards are disabled when there are more than ${CARDS_LIMIT} nodes (current: ${nodeCount}).`
-                );
-                return;
-              }
-              if (
-                v === ConfigNodeMode.CARDS &&
-                nodeCount > CARDS_CONFIRM_THRESHOLD &&
-                !window.confirm(
-                  'Switching to card view can be very slow with many nodes. Continue?'
-                )
-              ) {
-                return;
-              }
-              setComputationTreeNodeMode(v);
+              requestNodeModeChange(v);
             }}
             aria-label="node rendering mode"
             sx={{
@@ -1457,10 +1587,10 @@ function ComputationTreeCircles({ targetNodes, compressing = false }: Props) {
               }),
             }}
           >
-            <ToggleButton value={ConfigNodeMode.CIRCLES} aria-label="circle nodes">
+            <ToggleButton value={ConfigNodeMode.NODES} aria-label="nodes">
               <Stack direction="row" spacing={0.75} alignItems="center">
                 <Adjust fontSize="small" />
-                <span>Circles</span>
+                <span>Nodes</span>
               </Stack>
             </ToggleButton>
 
@@ -1501,15 +1631,6 @@ function ComputationTreeCircles({ targetNodes, compressing = false }: Props) {
         visible={showLegend}
         hoveredKey={hoveredState}
         contentClassName="ct-scrollable"
-        addon={
-          <Tooltip title="Fit view">
-            <span>
-              <IconButton size="small" onClick={runFitView}>
-                <CenterFocusStrong fontSize="small" />
-              </IconButton>
-            </span>
-          </Tooltip>
-        }
       />
 
       {/* Node detail popper */}
@@ -1561,7 +1682,7 @@ function ComputationTreeCircles({ targetNodes, compressing = false }: Props) {
   );
 }
 
-function ComputationTreeCards({ targetNodes, compressing = false }: Props) {
+function ComputationTreeCards({ targetNodes, compressing = false, paused = false }: Props) {
   const theme = useTheme();
   // Global Zustand state
   const transitions = useGlobalZustand((s) => s.transitions);
@@ -1593,15 +1714,25 @@ function ComputationTreeCards({ targetNodes, compressing = false }: Props) {
   const { model, base } = useComputationTreeData(
     targetNodes,
     !!compressing,
-    computationTreeNodeMode
+    computationTreeNodeMode,
+    paused
   );
 
   const [nodes, setNodes, onNodesChange] = useNodesState<RFNode>(base.nodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState<RFEdge>(base.edges);
   const [structureKey, setStructureKey] = useState('');
+  const [autoResizeLayoutEnabled, setAutoResizeLayoutEnabled] = useState(true);
+  const fitAfterLayoutRef = useRef(false);
+  const restoreAfterLayoutRef = useRef(false);
+  const handleAutoResizeLayout = useCallback(() => {
+    if (nodes.length === 0) return;
+    restoreAfterLayoutRef.current = true;
+  }, [nodes.length]);
 
   const rf = useReactFlow();
   const nodesReady = useNodesInitialized();
+  const viewportWidth = useStore((s: ReactFlowState) => s.width);
+  const viewportHeight = useStore((s: ReactFlowState) => s.height);
 
   // ELK layout
   const layout = useElkLayout({
@@ -1614,8 +1745,14 @@ function ComputationTreeCards({ targetNodes, compressing = false }: Props) {
     edgeNodeSep: computationTreeELKSettings.edgeNodeSep,
     padding: computationTreeELKSettings.padding,
     direction: computationTreeELKSettings.direction,
+    autoDirection: computationTreeELKSettings.autoDirection ?? true,
+    scaleToFit: true,
+    viewportWidth,
+    viewportHeight,
     topoKeyOverride: structureKey,
     autoRun: false,
+    autoResizeLayoutEnabled: !paused && autoResizeLayoutEnabled,
+    onAutoResizeLayout: handleAutoResizeLayout,
     onLayout: (positions) => {
       setNodes((prev) =>
         prev.map((n) => {
@@ -1645,7 +1782,6 @@ function ComputationTreeCards({ targetNodes, compressing = false }: Props) {
   const nodesCountRef = useRef(0);
   const didInitialLayoutRef = useRef(false);
   const lastTopoKeyRef = useRef<string | null>(null);
-  const fitAfterLayoutRef = useRef(false);
   const prevRunningRef = useRef(layout.running);
   const layoutRunningRef = useRef(layout.running);
   const nodesReadyRef = useRef(nodesReady);
@@ -1653,6 +1789,14 @@ function ComputationTreeCards({ targetNodes, compressing = false }: Props) {
   const awaitingInitialRevealRef = useRef(false);
   const lastHandledMachineLoadRef = useRef<number>(-1);
   const [viewportReady, setViewportReady] = useState(false);
+  const pendingReFitRef = useRef(false);
+  const viewportRef = useRef<Viewport | null>(null);
+  const viewportVisibleRef = useRef(false);
+  const initialViewportSettledRef = useRef(false);
+  const [contentVisible, setContentVisible] = useState(false);
+  const revealRaf1Ref = useRef<number | null>(null);
+  const revealRaf2Ref = useRef<number | null>(null);
+  const revealTimeoutRef = useRef<number | null>(null);
 
   useEffect(() => {
     nodesCountRef.current = nodes.length;
@@ -1664,8 +1808,55 @@ function ComputationTreeCards({ targetNodes, compressing = false }: Props) {
     nodesReadyRef.current = nodesReady;
   }, [nodesReady]);
   useEffect(() => {
-    if (nodes.length === 0) setViewportReady(false);
+    if (nodes.length === 0) {
+      initialViewportSettledRef.current = false;
+      setViewportReady(false);
+    }
   }, [nodes.length]);
+
+  const storeViewport = useCallback(
+    (viewport?: Viewport) => {
+      viewportRef.current = viewport ?? rf.getViewport();
+    },
+    [rf]
+  );
+  const showLoadingOverlay = !viewportReady || layout.running;
+  const loadingMaskVisible = showLoadingOverlay || !contentVisible;
+
+  useEffect(() => {
+    const clearRevealQueue = () => {
+      if (revealRaf1Ref.current != null) {
+        window.cancelAnimationFrame(revealRaf1Ref.current);
+        revealRaf1Ref.current = null;
+      }
+      if (revealRaf2Ref.current != null) {
+        window.cancelAnimationFrame(revealRaf2Ref.current);
+        revealRaf2Ref.current = null;
+      }
+      if (revealTimeoutRef.current != null) {
+        window.clearTimeout(revealTimeoutRef.current);
+        revealTimeoutRef.current = null;
+      }
+    };
+    clearRevealQueue();
+
+    if (showLoadingOverlay) {
+      setContentVisible(false);
+      return clearRevealQueue;
+    }
+
+    revealRaf1Ref.current = window.requestAnimationFrame(() => {
+      revealRaf1Ref.current = null;
+      revealRaf2Ref.current = window.requestAnimationFrame(() => {
+        revealRaf2Ref.current = null;
+        revealTimeoutRef.current = window.setTimeout(() => {
+          revealTimeoutRef.current = null;
+          setContentVisible(true);
+        }, 90);
+      });
+    });
+    return clearRevealQueue;
+  }, [showLoadingOverlay]);
 
   // Disable cards mode if too many nodes
   const nodeCount = model?.nodes?.length ?? 0;
@@ -1673,7 +1864,7 @@ function ComputationTreeCards({ targetNodes, compressing = false }: Props) {
 
   useEffect(() => {
     if (computationTreeNodeMode === ConfigNodeMode.CARDS && cardsDisabled) {
-      setComputationTreeNodeMode(ConfigNodeMode.CIRCLES);
+      setComputationTreeNodeMode(ConfigNodeMode.NODES);
       toast.warning(
         `Cards are disabled when there are more than ${CARDS_LIMIT} nodes (current: ${nodeCount}).`
       );
@@ -1721,17 +1912,20 @@ function ComputationTreeCards({ targetNodes, compressing = false }: Props) {
 
   // Start ELK once when nodes are ready
   useEffect(() => {
+    if (paused) return;
     if (!didInitialLayoutRef.current && nodesReady && nodes.length > 0) {
       didInitialLayoutRef.current = true;
       awaitingInitialRevealRef.current = true;
+      initialViewportSettledRef.current = false;
       setViewportReady(false);
       scheduleLayoutRestart();
       fitAfterLayoutRef.current = true;
     }
-  }, [nodesReady, nodes.length, scheduleLayoutRestart]);
+  }, [nodesReady, nodes.length, scheduleLayoutRestart, paused]);
 
   // Start ELK on structural changes
   useEffect(() => {
+    if (paused) return;
     if (!nodesReady || nodes.length === 0) return;
     if (lastTopoKeyRef.current === null) {
       lastTopoKeyRef.current = structureKey;
@@ -1740,60 +1934,159 @@ function ComputationTreeCards({ targetNodes, compressing = false }: Props) {
     if (lastTopoKeyRef.current === structureKey) return;
     lastTopoKeyRef.current = structureKey;
 
+    awaitingInitialRevealRef.current = true;
+    initialViewportSettledRef.current = false;
+    setViewportReady(false);
     scheduleLayoutRestart();
     fitAfterLayoutRef.current = true;
-  }, [structureKey, nodesReady, nodes.length, scheduleLayoutRestart]);
+  }, [structureKey, nodesReady, nodes.length, scheduleLayoutRestart, paused]);
 
   // Start ELK when nodeMode changes
   useEffect(() => {
+    if (paused) return;
     if (nodes.length === 0) return;
+    awaitingInitialRevealRef.current = true;
+    initialViewportSettledRef.current = false;
+    setViewportReady(false);
     scheduleLayoutRestart();
     fitAfterLayoutRef.current = true;
-  }, [computationTreeNodeMode, scheduleLayoutRestart, nodes.length]);
+  }, [computationTreeNodeMode, scheduleLayoutRestart, nodes.length, paused]);
 
   // Re-center on every successful "Load Machine".
   useEffect(() => {
+    if (paused) return;
     if (!nodesReady || nodes.length === 0) return;
     if (lastHandledMachineLoadRef.current === machineLoadVersion) return;
     lastHandledMachineLoadRef.current = machineLoadVersion;
     awaitingInitialRevealRef.current = true;
+    initialViewportSettledRef.current = false;
     setViewportReady(false);
     scheduleLayoutRestart();
     fitAfterLayoutRef.current = true;
-  }, [machineLoadVersion, nodesReady, nodes.length]);
+  }, [machineLoadVersion, nodesReady, nodes.length, paused]);
 
   const runFitView = useCallback((onDone?: () => void) => {
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
         rf.fitView({ padding: 0.2, duration: 0 });
+        storeViewport();
         onDone?.();
       });
     });
+  }, [rf, storeViewport]);
+
+  const restoreViewport = useCallback((onDone?: () => void) => {
+    if (!initialViewportSettledRef.current) return false;
+    const viewport = viewportRef.current;
+    if (!viewport) return false;
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        void rf.setViewport(viewport, { duration: 0 });
+        onDone?.();
+      });
+    });
+    return true;
   }, [rf]);
+
+  const restoreViewportOrFit = useCallback(
+    (onDone?: () => void) => {
+      if (restoreViewport(onDone)) return;
+      runFitView(onDone);
+    },
+    [restoreViewport, runFitView]
+  );
+
+  const revealViewport = useCallback(() => {
+    initialViewportSettledRef.current = true;
+    setViewportReady(true);
+  }, []);
+
+  const handleMoveEnd = useCallback(
+    (_event: unknown, viewport: Viewport) => {
+      storeViewport(viewport);
+    },
+    [storeViewport]
+  );
+
+  useEffect(() => {
+    if (viewportRef.current) return;
+    storeViewport();
+  }, [storeViewport]);
 
   useEffect(() => {
     const justFinished = prevRunningRef.current && !layout.running;
     if (justFinished) {
       if (fitAfterLayoutRef.current && nodes.length > 0) {
         fitAfterLayoutRef.current = false;
-        runFitView(() => {
+        const isHidden = viewportWidth <= 0 || viewportHeight <= 0;
+        if (isHidden) {
+          // Layout finished while tab is hidden — defer reveal until visible
+          pendingReFitRef.current = true;
           if (awaitingInitialRevealRef.current) {
             awaitingInitialRevealRef.current = false;
-            setViewportReady(true);
           }
-        });
+        } else {
+          runFitView(() => {
+            if (awaitingInitialRevealRef.current) {
+              awaitingInitialRevealRef.current = false;
+              revealViewport();
+            }
+          });
+        }
       }
       if (manualFitPendingRef.current && nodesCountRef.current > 0) {
         manualFitPendingRef.current = false;
-        runFitView();
+        restoreViewportOrFit(() => {
+          revealViewport();
+        });
+      }
+      if (restoreAfterLayoutRef.current && nodesCountRef.current > 0) {
+        restoreAfterLayoutRef.current = false;
+        restoreViewportOrFit(() => {
+          revealViewport();
+        });
       }
     }
 
     prevRunningRef.current = layout.running;
-  }, [layout.running, nodes.length, runFitView]);
+  }, [
+    layout.running,
+    nodes.length,
+    revealViewport,
+    restoreViewportOrFit,
+    runFitView,
+    viewportWidth,
+    viewportHeight,
+  ]);
+
+  // Re-fit when viewport becomes visible after layout completed while hidden
+  useEffect(() => {
+    if (!pendingReFitRef.current) return;
+    if (viewportWidth <= 0 || viewportHeight <= 0) return;
+    pendingReFitRef.current = false;
+    runFitView(() => {
+      revealViewport();
+    });
+  }, [viewportWidth, viewportHeight, runFitView, revealViewport]);
+
+  useEffect(() => {
+    const visible = viewportWidth > 0 && viewportHeight > 0;
+    const wasVisible = viewportVisibleRef.current;
+    viewportVisibleRef.current = visible;
+    if (!visible || wasVisible) return;
+    setViewportReady(false);
+    if (layoutRunningRef.current) {
+      manualFitPendingRef.current = true;
+      return;
+    }
+    restoreViewportOrFit(() => {
+      revealViewport();
+    });
+  }, [viewportWidth, viewportHeight, restoreViewportOrFit, revealViewport]);
 
   // Handlers
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [confirmCardsOpen, setConfirmCardsOpen] = useState(false);
 
   const handlePaneClick = useCallback(() => {
     setSelected({ type: null, id: null });
@@ -1825,32 +2118,42 @@ function ComputationTreeCards({ targetNodes, compressing = false }: Props) {
   );
 
   // Fit handling on portal switches
-  const scheduleFitAfterSwitch = useCallback(() => {
+  const scheduleViewportAfterSwitch = useCallback(() => {
     if (!nodesReadyRef.current || nodesCountRef.current === 0) return;
+    setViewportReady(false);
     if (layoutRunningRef.current) {
       manualFitPendingRef.current = true;
       return;
     }
     manualFitPendingRef.current = false;
-    runFitView(() => {
+    restoreViewportOrFit(() => {
       if (awaitingInitialRevealRef.current) {
         awaitingInitialRevealRef.current = false;
-        setViewportReady(true);
       }
+      revealViewport();
     });
-  }, [runFitView]);
+  }, [restoreViewportOrFit, revealViewport]);
 
   useEffect(() => {
+    const handleBeforeSwitch: EventListener = (event) => {
+      const detail = (event as CustomEvent<PortalBridgeSwitchDetail>).detail;
+      if (!detail || detail.id !== 'computationTree') return;
+      setViewportReady(false);
+    };
+
     const handler: EventListener = (event) => {
       const detail = (event as CustomEvent<PortalBridgeSwitchDetail>).detail;
       if (!detail || detail.id !== 'computationTree') return;
-      scheduleFitAfterSwitch();
+      setAutoResizeLayoutEnabled(detail.location !== 'target');
+      scheduleViewportAfterSwitch();
     };
+    window.addEventListener(PORTAL_BRIDGE_BEFORE_SWITCH_EVENT, handleBeforeSwitch);
     window.addEventListener(PORTAL_BRIDGE_SWITCH_EVENT, handler);
     return () => {
+      window.removeEventListener(PORTAL_BRIDGE_BEFORE_SWITCH_EVENT, handleBeforeSwitch);
       window.removeEventListener(PORTAL_BRIDGE_SWITCH_EVENT, handler);
     };
-  }, [scheduleFitAfterSwitch]);
+  }, [scheduleViewportAfterSwitch]);
 
   // Legend items (sorted for stable rendering)
   const legendItems = useMemo(() => {
@@ -1860,6 +2163,26 @@ function ComputationTreeCards({ targetNodes, compressing = false }: Props) {
   }, [stateColorMatching]);
 
   const showLegend = legendItems.length > 0 && (model?.nodes?.length ?? 0) > 0;
+
+  const requestNodeModeChange = useCallback(
+    (nextMode: ConfigNodeMode) => {
+      if (nextMode === ConfigNodeMode.CARDS && cardsDisabled) {
+        toast.info(
+          `Cards are disabled when there are more than ${CARDS_LIMIT} nodes (current: ${nodeCount}).`
+        );
+        return;
+      }
+      if (
+        nextMode === ConfigNodeMode.CARDS &&
+        nodeCount > CARDS_CONFIRM_THRESHOLD
+      ) {
+        setConfirmCardsOpen(true);
+        return;
+      }
+      setComputationTreeNodeMode(nextMode);
+    },
+    [cardsDisabled, nodeCount, setComputationTreeNodeMode]
+  );
 
   const recalcLayout = useCallback(() => {
     scheduleLayoutRestart();
@@ -1874,32 +2197,35 @@ function ComputationTreeCards({ targetNodes, compressing = false }: Props) {
   }, [computationTreeNodeMode, setComputationTreeELKSettings]);
 
   return (
-    <ReactFlow
-      id="ComputationTreeCards"
-      style={{
-        width: '100%',
-        height: '100%',
-        minHeight: 360,
-        opacity: viewportReady ? 1 : 0,
-        pointerEvents: viewportReady ? 'auto' : 'none',
-        transition: 'opacity 120ms ease',
-      }}
-      nodes={nodes}
-      edges={edges}
-      onNodesChange={onNodesChange}
-      onEdgesChange={onEdgesChange}
-      onPaneClick={handlePaneClick}
-      onNodeClick={handleNodeClick}
-      onEdgeClick={handleEdgeClick}
-      nodeTypes={rfNodeTypes}
-      edgeTypes={rfEdgeTypes}
-      defaultEdgeOptions={rfDefaultEdgeOptions}
-      proOptions={{ hideAttribution: true }}
-      minZoom={0.05}
-      defaultViewport={{ x: 0, y: 0, zoom: 0.1 }}
-      nodesDraggable={false}
-      onlyRenderVisibleElements
-    >
+    <Box sx={{ position: 'relative', width: '100%', height: '100%', minHeight: 360 }}>
+      <ReactFlow
+        id="ComputationTreeCards"
+        style={{
+          width: '100%',
+          height: '100%',
+          minHeight: 360,
+          opacity: loadingMaskVisible ? 0 : 1,
+          pointerEvents: loadingMaskVisible ? 'none' : 'auto',
+          transition: loadingMaskVisible ? 'none' : 'opacity 120ms ease',
+        }}
+        nodes={nodes}
+        edges={edges}
+        onNodesChange={onNodesChange}
+        onEdgesChange={onEdgesChange}
+        onPaneClick={handlePaneClick}
+        onNodeClick={handleNodeClick}
+        onEdgeClick={handleEdgeClick}
+        onMoveEnd={handleMoveEnd}
+        nodeTypes={rfNodeTypes}
+        edgeTypes={rfEdgeTypes}
+        defaultEdgeOptions={rfDefaultEdgeOptions}
+        proOptions={{ hideAttribution: true }}
+        minZoom={0.05}
+        defaultViewport={{ x: 0, y: 0, zoom: 0.1 }}
+        nodesDraggable={false}
+        onlyRenderVisibleElements
+      >
+
       {/* Layout settings panel trigger button */}
       <Box
         sx={{
@@ -1940,8 +2266,27 @@ function ComputationTreeCards({ targetNodes, compressing = false }: Props) {
         onRecalc={recalcLayout}
         running={layout.running}
       />
+      <Dialog open={confirmCardsOpen} onClose={() => setConfirmCardsOpen(false)}>
+        <DialogTitle>Switch to card view?</DialogTitle>
+        <DialogContent>
+          Card view can be slow for trees above {CARDS_CONFIRM_THRESHOLD} nodes
+          (current: {nodeCount}). Continue?
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setConfirmCardsOpen(false)}>Cancel</Button>
+          <Button
+            variant="contained"
+            onClick={() => {
+              setConfirmCardsOpen(false);
+              setComputationTreeNodeMode(ConfigNodeMode.CARDS);
+            }}
+          >
+            Continue
+          </Button>
+        </DialogActions>
+      </Dialog>
 
-      {/* Top-left controls panel (recalculate layout and node mode switch) */}
+      {/* Top-left controls panel (fit view and node mode switch) */}
       <Box
         sx={{
           position: 'absolute',
@@ -1955,9 +2300,9 @@ function ComputationTreeCards({ targetNodes, compressing = false }: Props) {
           <Button
             size="small"
             variant="contained"
-            onClick={recalcLayout}
-            startIcon={<Cached fontSize="small" />}
-            disabled={layout.running}
+            onClick={() => runFitView()}
+            startIcon={<CenterFocusStrong fontSize="small" />}
+            disabled={loadingMaskVisible}
             sx={{
               height: CONTROL_HEIGHT,
               borderRadius: 1.5,
@@ -1965,7 +2310,7 @@ function ComputationTreeCards({ targetNodes, compressing = false }: Props) {
               px: 1.25,
             }}
           >
-            Recalculate layout
+            Fit view
           </Button>
 
           <ToggleButtonGroup
@@ -1974,22 +2319,7 @@ function ComputationTreeCards({ targetNodes, compressing = false }: Props) {
             value={computationTreeNodeMode}
             onChange={(_, v) => {
               if (!v) return;
-              if (v === ConfigNodeMode.CARDS && cardsDisabled) {
-                toast.info(
-                  `Cards are disabled when there are more than ${CARDS_LIMIT} nodes (current: ${nodeCount}).`
-                );
-                return;
-              }
-              if (
-                v === ConfigNodeMode.CARDS &&
-                nodeCount > CARDS_CONFIRM_THRESHOLD &&
-                !window.confirm(
-                  'Switching to card view can be very slow with many nodes. Continue?'
-                )
-              ) {
-                return;
-              }
-              setComputationTreeNodeMode(v);
+              requestNodeModeChange(v);
             }}
             aria-label="node rendering mode"
             sx={{
@@ -2015,10 +2345,10 @@ function ComputationTreeCards({ targetNodes, compressing = false }: Props) {
               }),
             }}
           >
-            <ToggleButton value={ConfigNodeMode.CIRCLES} aria-label="circle nodes">
+            <ToggleButton value={ConfigNodeMode.NODES} aria-label="nodes">
               <Stack direction="row" spacing={0.75} alignItems="center">
                 <Adjust fontSize="small" />
-                <span>Circles</span>
+                <span>Nodes</span>
               </Stack>
             </ToggleButton>
 
@@ -2059,19 +2389,13 @@ function ComputationTreeCards({ targetNodes, compressing = false }: Props) {
         visible={showLegend}
         hoveredKey={hoveredState}
         contentClassName="ct-scrollable"
-        addon={
-          <Tooltip title="Fit view">
-            <span>
-              <IconButton size="small" onClick={runFitView}>
-                <CenterFocusStrong fontSize="small" />
-              </IconButton>
-            </span>
-          </Tooltip>
-        }
       />
 
-      <Background gap={10} size={1} />
-    </ReactFlow>
+        <Background gap={10} size={1} />
+      </ReactFlow>
+
+      {loadingMaskVisible && <LoadingOverlay />}
+    </Box>
   );
 }
 
@@ -2086,15 +2410,17 @@ export function ComputationTree(props: Props) {
 export function ComputationTreeWrapper({
   targetNodes = DEFAULT_TREE_DEPTH,
   compressing = false,
+  paused = false,
 }: {
   targetNodes?: number;
   compressing?: boolean;
+  paused?: boolean;
 }) {
   const machineLoadVersion = useGlobalZustand((s) => s.machineLoadVersion);
   return (
     <ReactFlowProvider>
       <GraphUIProvider key={machineLoadVersion}>
-        <ComputationTree targetNodes={targetNodes} compressing={compressing} />
+        <ComputationTree targetNodes={targetNodes} compressing={compressing} paused={paused} />
       </GraphUIProvider>
     </ReactFlowProvider>
   );

@@ -116,7 +116,13 @@ export function buildComputationTreeGraph(
   // Topology-Key
   const nodeIds = [...byId.keys()].sort((a, b) => a - b).map(String);
   const edgeKeys = model.edges
-    .map((e) => `${e.from}→${e.to}#${e.transitionIndex ?? ''}`)
+    .map((e) => {
+      // Include compression metadata so toggling compressed mode always
+      // invalidates layout cache in cards mode.
+      const compressedFlag = e.compressed === true ? '1' : '0';
+      const compressedLen = Math.max(1, e.compressedLength ?? 1);
+      return `${e.from}→${e.to}#${e.transitionIndex ?? ''}@${compressedFlag}:${compressedLen}`;
+    })
     .sort();
   const topoKey = `${nodeIds.join('|')}__${edgeKeys.join('|')}`;
 

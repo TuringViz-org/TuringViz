@@ -86,7 +86,7 @@ export function getOffsetIntersection(
 
 /**
  * Computes the loop anchor point above the node.
- * - Circles: on top of the circle + offset
+ * - Nodes: on top of the circle + offset
  * - Rectangles (Cards): above the top center + offset
  */
 export function getLoopPoint(node: InternalNode, offset = 10) {
@@ -108,7 +108,7 @@ export function getLoopPoint(node: InternalNode, offset = 10) {
 
 /**
  * Computes the start/end coords for a loop edge on a node.
- * - Circles: two points on the circumference offset by a small angle
+ * - Nodes: two points on the circumference offset by a small angle
  * - Rectangles (Cards): two points on the top edge left/right of the center
  */
 export function getLoopEdgeParams(node: InternalNode, offsetAngle = Math.PI / 6) {

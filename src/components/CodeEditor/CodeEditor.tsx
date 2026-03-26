@@ -76,8 +76,8 @@ const CodeEditor: React.FC = () => {
 
       lastLoadedValueRef.current = currentValue;
       setIsClean(true);
-      setConfigGraphNodeMode(ConfigNodeMode.CIRCLES);
-      setComputationTreeNodeMode(ConfigNodeMode.CIRCLES);
+      setConfigGraphNodeMode(ConfigNodeMode.NODES);
+      setComputationTreeNodeMode(ConfigNodeMode.NODES);
       pendingAutoLoadRef.current = false;
       return;
     }

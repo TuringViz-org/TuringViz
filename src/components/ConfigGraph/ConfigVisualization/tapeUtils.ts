@@ -31,3 +31,9 @@ export function getLocalBounds(tape: TapeContentSingleTape) {
   const maxPosLocal = tape[1].length - 1;
   return { minPosLocal, maxPosLocal };
 }
+
+/** True when this absolute position exists in the concrete local tape content. */
+export function hasCellAtAbsolutePos(tape: TapeContentSingleTape, pos: number): boolean {
+  const { minPosLocal, maxPosLocal } = getLocalBounds(tape);
+  return pos >= minPosLocal && pos <= maxPosLocal;
+}

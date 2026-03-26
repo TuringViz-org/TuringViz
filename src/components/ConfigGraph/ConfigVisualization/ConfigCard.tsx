@@ -21,13 +21,17 @@ import { HourglassEmpty, AltRoute } from '@mui/icons-material';
 import { alpha } from '@mui/material/styles';
 
 import { Configuration } from '@mytypes/TMTypes';
-import { useGlobalZustand } from '@zustands/GlobalZustand';
-import TapeRow from './TapeRow';
-import SyncedScrollbar from './SyncedScrollbar';
-import { useSyncedHorizontalScroll } from './useSyncedHorizontalScroll';
-import { CELL_STRIDE, CELL_WIDTH } from './constants';
+import { CELL_WIDTH } from './constants';
 import { CONFIG_CARD_WIDTH } from '../util/constants';
 import { computeDeeperGraphFromState } from '@tmfunctions/ConfigGraph';
+import runTapeStyles from '@components/TapeList/TapeList.module.css';
+import {
+  PORTAL_BRIDGE_SWITCH_EVENT,
+  type PortalBridgeSwitchDetail,
+} from '@components/MainPage/PortalBridge';
+
+import { useGlobalZustand } from '@zustands/GlobalZustand';
+import TapeRow from './TapeRow';
 
 type Props = {
   config: Configuration;
@@ -40,10 +44,9 @@ type Props = {
 
 /**
  * Orchestrates the configuration visualization:
- * - Header with state & reading chips
- * - N tape rows with fixed meta + per-row horizontal viewport
- * - One shared custom scrollbar controlling all viewports
- * - Initial centering to the head of the top tape (if overflow)
+ * - Header with state/pending/selection controls
+ * - N synced horizontally scrollable tape rows
+ * - Initial centering to the head of the top tape
  */
 export default function ConfigCard(data: Props) {
   const {
@@ -80,66 +83,73 @@ export default function ConfigCard(data: Props) {
     setPendingOpen(false);
   }, [config, pendingAmount]);
 
-  // Synced horizontal scrolling across all tape viewports
-  const {
-    setViewportRef,
-    trackRef,
-    thumbRef,
-    hasOverflow,
-    hovered,
-    setHovered,
-    thumb,
-    onViewportScroll,
-    handleTrackMouseDown,
-    getMaster,
-    centerAllTo,
-    dragging,
-  } = useSyncedHorizontalScroll({ thumbMinWidth: 24 });
+  const tapeContainerRef = useRef<HTMLDivElement | null>(null);
 
-  // Colors / sizing for the custom scrollbar
-  const trackColor = alpha(theme.palette.border.dark, 0.55);
-  const thumbColor = alpha(theme.palette.primary.main, 0.55);
-  const trackPadding = 8; // px
-  const trackHeight = 10; // px
+  const HEAD_CONTEXT_RADIUS = 5;
 
-  // Initial centering: center all rows so that the head of the top tape is in the middle
-  const didInitialCenter = useRef(false);
+  const sharedBounds = useMemo(() => {
+    let minR = Number.POSITIVE_INFINITY;
+    let maxR = Number.NEGATIVE_INFINITY;
+
+    for (let i = 0; i < config.tapes.length; i++) {
+      const tape = config.tapes[i];
+      const head = config.heads[i] ?? 0;
+      const leftLen = tape[0]?.length ?? 0;
+      const rightLen = tape[1]?.length ?? 0;
+      const localMin = -leftLen;
+      const localMax = rightLen - 1;
+      
+      const relMin = Math.min(localMin - head, -HEAD_CONTEXT_RADIUS);
+      const relMax = Math.max(localMax - head, HEAD_CONTEXT_RADIUS);
+
+      minR = Math.min(minR, relMin);
+      maxR = Math.max(maxR, relMax);
+    }
+
+    if (!Number.isFinite(minR) || !Number.isFinite(maxR)) {
+      return { minR: -HEAD_CONTEXT_RADIUS, maxR: HEAD_CONTEXT_RADIUS };
+    }
+
+    return { minR, maxR };
+  }, [config.tapes, config.heads]);
+
+  const { minR, maxR } = sharedBounds;
+  
+  // Unlike the main UI, we don't have dots on the side, so we don't need padding. Head aligns exactly at -minR cells.
+  const headX = -minR * CELL_WIDTH;
+
+  // Initial centering
   useEffect(() => {
-    if (didInitialCenter.current) return;
+    if (!tapeContainerRef.current) return;
+    const viewWidth = tapeContainerRef.current.clientWidth;
+    const targetScrollLeft = headX - viewWidth / 2 + CELL_WIDTH / 2;
+    tapeContainerRef.current.scrollTo({ left: targetScrollLeft, behavior: 'auto' });
+  }, [headX]);
 
-    const tryCenter = () => {
-      const master = getMaster();
-      if (!master) return;
-
-      const scrollW = master.scrollWidth;
-      const clientW = master.clientWidth;
-      const overflow = scrollW > clientW + 1;
-      if (!overflow) return;
-
-      const heads = config.heads ?? [];
-      if (heads.length === 0) return;
-
-      const refIdx = 0;
-      const headRef = heads[refIdx];
-      const refTape = config.tapes[refIdx];
-      const minPosLocal = -refTape[0].length; // local start of tape 0
-      const headIndex = headRef - minPosLocal;
-
-      const target = headIndex * CELL_STRIDE - clientW / 2 + CELL_WIDTH / 2;
-      const clamped = Math.max(0, Math.min(target, scrollW - clientW));
-
-      // Double rAF ensures layout is fully settled before scrolling
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          centerAllTo(clamped);
-          didInitialCenter.current = true;
-        });
-      });
+  // Re-center after fullscreen portal switches (entry + exit).
+  useEffect(() => {
+    const center = () => {
+      const container = tapeContainerRef.current;
+      if (!container) return;
+      const viewWidth = container.clientWidth;
+      const targetScrollLeft = headX - viewWidth / 2 + CELL_WIDTH / 2;
+      container.scrollTo({ left: targetScrollLeft, behavior: 'auto' });
     };
 
-    const id = setTimeout(tryCenter, 0);
-    return () => clearTimeout(id);
-  }, [config.heads, config.tapes, getMaster, centerAllTo]);
+    const handler: EventListener = (event) => {
+      const detail = (event as CustomEvent<PortalBridgeSwitchDetail>).detail;
+      if (!detail) return;
+      if (detail.id !== 'configGraph' && detail.id !== 'computationTree') return;
+      requestAnimationFrame(center);
+    };
+
+    window.addEventListener(PORTAL_BRIDGE_SWITCH_EVENT, handler);
+    return () => {
+      window.removeEventListener(PORTAL_BRIDGE_SWITCH_EVENT, handler);
+    };
+  }, [headX]);
+
+
 
   return (
     <>
@@ -162,9 +172,9 @@ export default function ConfigCard(data: Props) {
           sx={{
             pt: 1.25,
             px: 1.25,
-            pb: 0,
+            pb: 1,
             position: 'relative',
-            '&:last-child': { pb: 2 },
+            '&:last-child': { pb: 1 },
           }}
         >
           {/* Header */}
@@ -314,41 +324,31 @@ export default function ConfigCard(data: Props) {
 
           {/* Tape rows + overlayed shared custom scrollbar */}
           <Box
-            sx={{ position: 'relative' }}
-            onMouseEnter={() => setHovered(true)}
-            onMouseLeave={() => !dragging && setHovered(false)}
+            ref={tapeContainerRef}
+            className={runTapeStyles.hiddenScrollbar}
+            sx={{
+              overflowX: 'auto',
+              overflowY: 'hidden',
+              width: '100%',
+              backgroundColor: '#ffffff',
+              scrollbarWidth: 'none',
+              mt: 1,
+            }}
           >
-            <Stack spacing={1}>
+            <Stack spacing={0}>
               {config.tapes.map((tape, i) => (
                 <TapeRow
                   key={i}
                   tapeIndex={i}
-                  head={config.heads[i]}
                   tape={tape}
+                  head={config.heads[i] ?? 0}
                   blank={blank}
-                  setViewportRef={setViewportRef}
-                  onViewportScroll={onViewportScroll}
-                  isLast={i === config.tapes.length - 1}
-                  bottomPaddingPx={trackHeight + 15}
+                  minR={minR}
+                  maxR={maxR}
+                  headX={headX}
                 />
               ))}
             </Stack>
-
-            {/* Overlay custom scrollbar controlling all viewports */}
-            <SyncedScrollbar
-              trackRef={trackRef}
-              thumbRef={thumbRef}
-              hasOverflow={hasOverflow}
-              hovered={hovered}
-              dragging={dragging}
-              thumbLeftPx={thumb.left}
-              thumbWidthPx={thumb.width}
-              trackPadding={trackPadding}
-              trackHeight={trackHeight}
-              trackColor={trackColor}
-              thumbColor={thumbColor}
-              onTrackMouseDown={handleTrackMouseDown}
-            />
           </Box>
         </CardContent>
       </Card>

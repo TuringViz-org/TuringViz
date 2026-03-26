@@ -180,6 +180,7 @@ export async function recomputeConfigGraphWithTargetNodes(
   const startConfig = getStartConfiguration();
   const startHash = hashConfig(startConfig);
   const requestId = ++latestConfigGraphComputeRequestId;
+  store.beginConfigGraphCompute();
 
   try {
     const graph = await computeConfigGraphInWorker({
@@ -203,5 +204,7 @@ export async function recomputeConfigGraphWithTargetNodes(
   } catch (error) {
     console.error('Failed to recompute configuration graph:', error);
     return false;
+  } finally {
+    useGlobalZustand.getState().endConfigGraphCompute();
   }
 }

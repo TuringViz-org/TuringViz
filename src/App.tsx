@@ -1,5 +1,15 @@
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ThemeProvider, CssBaseline, Button, CircularProgress, Stack } from '@mui/material';
+import {
+  ThemeProvider,
+  CssBaseline,
+  Button,
+  CircularProgress,
+  Stack,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+} from '@mui/material';
 import { toast } from 'sonner';
 
 import { theme } from '@theme';
@@ -27,11 +37,17 @@ import {
   MAX_COMPUTATION_TREE_TARGET_NODES,
   MIN_CONFIG_GRAPH_TARGET_NODES,
   MAX_CONFIG_GRAPH_TARGET_NODES,
+  CARDS_CONFIRM_THRESHOLD,
+  ConfigNodeMode,
 } from '@utils/constants';
 import { recomputeConfigGraphWithTargetNodes } from '@tmfunctions/ConfigGraph';
 import { useFullscreenState } from '@components/MainPage/hooks/useFullscreenState';
 import { useGistBootstrap } from '@components/MainPage/hooks/useGistBootstrap';
 import { useSharedMachineBootstrap } from '@components/MainPage/hooks/useSharedMachineBootstrap';
+import { useGlobalZustand } from '@zustands/GlobalZustand';
+import { getStartConfiguration } from '@tmfunctions/Configurations';
+import { computeComputationTreeInWorker } from '@utils/graphWorkerClient';
+import { CARDS_LIMIT } from '@components/ComputationTree/util/constants';
 import {
   LazyTMGraphWrapper,
   LazyConfigGraphWrapper,
@@ -93,7 +109,11 @@ export default function App() {
   const setConfigGraphTargetNodes = useGraphZustand(
     (s) => s.setConfigGraphTargetNodes
   );
+  const computationTreeNodeMode = useGraphZustand((s) => s.computationTreeNodeMode);
   const { setCode } = useEditorZustand();
+  const transitions = useGlobalZustand((s) => s.transitions);
+  const blank = useGlobalZustand((s) => s.blank);
+  const numberOfTapes = useGlobalZustand((s) => s.numberOfTapes);
 
   useSharedMachineBootstrap(setCode);
   useGistBootstrap(setCode);
@@ -104,6 +124,15 @@ export default function App() {
     useState<number>(DEFAULT_TREE_DEPTH);
   const [pendingCompressed, setPendingCompressed] = useState<boolean>(false);
   const [compressed, setCompressed] = useState<boolean>(false);
+  const [computeTreeChecking, setComputeTreeChecking] = useState(false);
+  const [confirmTreeCardsOpen, setConfirmTreeCardsOpen] = useState(false);
+  const [pendingTreeCardsCount, setPendingTreeCardsCount] = useState(0);
+  const [cardsLimitDialogOpen, setCardsLimitDialogOpen] = useState(false);
+  const [cardsLimitDialogCount, setCardsLimitDialogCount] = useState(0);
+  const [queuedTreeSettings, setQueuedTreeSettings] = useState<{
+    targetNodes: number;
+    compressed: boolean;
+  } | null>(null);
 
   const [computeConfigOpen, setComputeConfigOpen] = useState(false);
   const [pendingConfigTargetNodes, setPendingConfigTargetNodes] =
@@ -132,22 +161,88 @@ export default function App() {
     setComputeOpen(true);
   }, [computationTreeTargetNodes, compressed]);
 
-  const handleComputeConfirm = useCallback(() => {
-    setComputationTreeDepth(sanitizeTreeTargetNodes(pendingTreeTargetNodes));
-    setCompressed(pendingCompressed);
-    setComputeOpen(false);
+  const applyTreeSettings = useCallback(
+    (nextTargetNodes: number, nextCompressed: boolean) => {
+      setComputationTreeDepth(nextTargetNodes);
+      setCompressed(nextCompressed);
+      setComputeOpen(false);
 
-    // Re-render the tree in fullscreen after settings changes so sizing stays correct.
-    if (treeFullscreen.open) {
-      treeFullscreen.setRender(false);
-      requestAnimationFrame(() => treeFullscreen.setRender(true));
+      // Re-render the tree in fullscreen after settings changes so sizing stays correct.
+      if (treeFullscreen.open) {
+        treeFullscreen.setRender(false);
+        requestAnimationFrame(() => treeFullscreen.setRender(true));
+      }
+    },
+    [setComputationTreeDepth, treeFullscreen.open, treeFullscreen.setRender]
+  );
+
+  const handleComputeConfirm = useCallback(async () => {
+    const safeTargetNodes = sanitizeTreeTargetNodes(pendingTreeTargetNodes);
+    const nextCompressed = pendingCompressed;
+    const changed =
+      safeTargetNodes !== computationTreeTargetNodes || nextCompressed !== compressed;
+
+    if (!changed) {
+      setComputeOpen(false);
+      return;
+    }
+
+    if (computationTreeNodeMode !== ConfigNodeMode.CARDS) {
+      applyTreeSettings(safeTargetNodes, nextCompressed);
+      return;
+    }
+
+    setComputeTreeChecking(true);
+    try {
+      const startConfig = getStartConfiguration();
+      const effectiveDepth = nextCompressed
+        ? MAX_COMPUTATION_TREE_TARGET_NODES
+        : safeTargetNodes;
+
+      const nextTree = await computeComputationTreeInWorker({
+        depth: effectiveDepth,
+        targetNodes: safeTargetNodes,
+        compressing: nextCompressed,
+        transitions,
+        numberOfTapes,
+        blank,
+        startConfig,
+      });
+
+      const nextNodeCount = nextTree.nodes.length;
+      if (nextNodeCount > CARDS_LIMIT) {
+        setCardsLimitDialogCount(nextNodeCount);
+        setCardsLimitDialogOpen(true);
+        return;
+      }
+
+      if (nextNodeCount > CARDS_CONFIRM_THRESHOLD) {
+        setQueuedTreeSettings({
+          targetNodes: safeTargetNodes,
+          compressed: nextCompressed,
+        });
+        setPendingTreeCardsCount(nextNodeCount);
+        setComputeOpen(false);
+        setConfirmTreeCardsOpen(true);
+        return;
+      }
+
+      applyTreeSettings(safeTargetNodes, nextCompressed);
+    } catch {
+      applyTreeSettings(safeTargetNodes, nextCompressed);
+    } finally {
+      setComputeTreeChecking(false);
     }
   }, [
     pendingTreeTargetNodes,
     pendingCompressed,
-    setComputationTreeDepth,
-    treeFullscreen.open,
-    treeFullscreen.setRender,
+    computationTreeTargetNodes,
+    compressed,
+    computationTreeNodeMode,
+    transitions,
+    numberOfTapes,
+    blank,
+    applyTreeSettings,
   ]);
 
   const openComputeConfigGraph = useCallback(() => {
@@ -296,11 +391,71 @@ export default function App() {
         open={computeOpen}
         targetNodes={pendingTreeTargetNodes}
         compressed={pendingCompressed}
+        confirming={computeTreeChecking}
         onTargetNodesChange={setPendingTreeTargetNodes}
         onCompressedChange={setPendingCompressed}
-        onClose={() => setComputeOpen(false)}
+        onClose={() => {
+          if (computeTreeChecking) return;
+          setComputeOpen(false);
+        }}
         onConfirm={handleComputeConfirm}
       />
+
+      <Dialog
+        open={confirmTreeCardsOpen}
+        onClose={() => {
+          setConfirmTreeCardsOpen(false);
+          setQueuedTreeSettings(null);
+        }}
+      >
+        <DialogTitle>Switch to card view?</DialogTitle>
+        <DialogContent>
+          Card view can be slow for trees above {CARDS_CONFIRM_THRESHOLD} nodes
+          (current: {pendingTreeCardsCount}). Continue?
+        </DialogContent>
+        <DialogActions>
+          <Button
+            onClick={() => {
+              setConfirmTreeCardsOpen(false);
+              setQueuedTreeSettings(null);
+            }}
+          >
+            Cancel
+          </Button>
+          <Button
+            variant="contained"
+            onClick={() => {
+              if (queuedTreeSettings) {
+                applyTreeSettings(
+                  queuedTreeSettings.targetNodes,
+                  queuedTreeSettings.compressed
+                );
+              }
+              setConfirmTreeCardsOpen(false);
+              setQueuedTreeSettings(null);
+            }}
+          >
+            Continue
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog
+        open={cardsLimitDialogOpen}
+        onClose={() => setCardsLimitDialogOpen(false)}
+        sx={{ zIndex: 3200 }}
+      >
+        <DialogTitle>Card view not available</DialogTitle>
+        <DialogContent>
+          Cards are disabled when there are more than {CARDS_LIMIT} nodes
+          (current: {cardsLimitDialogCount}).
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setCardsLimitDialogOpen(false)} variant="contained">
+            OK
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       <ComputeConfigGraphDialog
         open={computeConfigOpen}

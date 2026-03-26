@@ -4,7 +4,6 @@ import cytoscape, {
   type Core as CyCore,
   type EventObjectEdge,
   type EventObjectNode,
-  type Stylesheet,
 } from 'cytoscape';
 import {
   Box,
@@ -17,10 +16,13 @@ import {
   Popper,
   ClickAwayListener,
   Stack,
-  IconButton,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
 } from '@mui/material';
 import { alpha, useTheme } from '@mui/material/styles';
-import { Cached, Adjust, ViewAgenda, Tune, CenterFocusStrong } from '@mui/icons-material';
+import { Adjust, ViewAgenda, Tune, CenterFocusStrong } from '@mui/icons-material';
 import type { VirtualElement } from '@popperjs/core';
 import { toast } from 'sonner';
 import type { Edge as RFEdge, Node as RFNode } from '@xyflow/react';
@@ -28,6 +30,7 @@ import type { Edge as RFEdge, Node as RFNode } from '@xyflow/react';
 import { LegendPanel } from '@components/shared/LegendPanel';
 import ConfigCard from '@components/ConfigGraph/ConfigVisualization/ConfigCard';
 import { EdgeTooltip } from '@components/ConfigGraph/edges/EdgeTooltip';
+import { LoadingOverlay } from '@components/shared/LoadingOverlay';
 
 import {
   CONFIG_CARD_HEIGHT_ESTIMATE,
@@ -143,7 +146,7 @@ const makeVirtualAnchor = (anchor: Anchor | null): VirtualElement => {
   };
 };
 
-const getCyStyles = (theme: ReturnType<typeof useTheme>): Stylesheet[] => [
+const getCyStyles = (theme: any): any[] => [
   {
     selector: 'core',
     style: {
@@ -363,6 +366,7 @@ export function ConfigGraphCircles() {
   const transitions = useGlobalZustand((s) => s.transitions);
   const stateColorMatching = useGlobalZustand((s) => s.stateColorMatching);
   const machineLoadVersion = useGlobalZustand((s) => s.machineLoadVersion);
+  const configGraphComputing = useGlobalZustand((s) => s.configGraphComputing);
 
   // Graph Zustand state and setters
   const configGraphNodeMode = useConfigGraphNodeMode();
@@ -413,8 +417,18 @@ export function ConfigGraphCircles() {
     reason: null,
   });
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [confirmCardsOpen, setConfirmCardsOpen] = useState(false);
   const [containerVisible, setContainerVisible] = useState(true);
   const [viewportReady, setViewportReady] = useState(false);
+  const [autoResizeLayoutEnabled, setAutoResizeLayoutEnabled] = useState(true);
+  const fitAfterLayoutRef = useRef(false);
+  const pendingMachineLoadFitRef = useRef(false);
+  const awaitingInitialRevealRef = useRef(false);
+  const pendingRevealFitRef = useRef(false);
+  const lastHandledMachineLoadRef = useRef<number>(-1);
+  const handleAutoResizeLayout = useCallback(() => {
+    fitAfterLayoutRef.current = true;
+  }, []);
 
   const clearHoverTimer = useCallback(() => {
     if (hoverTimerRef.current != null) {
@@ -463,7 +477,7 @@ export function ConfigGraphCircles() {
       configGraph,
       transitions,
       undefined,
-      ConfigNodeMode.CIRCLES
+      ConfigNodeMode.NODES
     );
   }, [configGraph, transitions]);
 
@@ -492,8 +506,13 @@ export function ConfigGraphCircles() {
     edgeNodeSep: configGraphELKSettings.edgeNodeSep,
     padding: configGraphELKSettings.padding,
     direction: configGraphELKSettings.direction,
+    autoDirection: configGraphELKSettings.autoDirection ?? true,
+    scaleToFit: true,
+    containerRef,
     topoKeyOverride: structureKey,
     autoRun: false,
+    autoResizeLayoutEnabled,
+    onAutoResizeLayout: handleAutoResizeLayout,
     onLayout: (positions) => {
       setNodes((prev) =>
         prev.map((n) => {
@@ -515,14 +534,15 @@ export function ConfigGraphCircles() {
 
   const didInitialLayoutRef = useRef(false);
   const lastTopoKeyRef = useRef<string | null>(null);
-  const fitAfterLayoutRef = useRef(false);
   const prevRunningRef = useRef(layout.running);
-  const pendingMachineLoadFitRef = useRef(false);
-  const awaitingInitialRevealRef = useRef(false);
-  const lastHandledMachineLoadRef = useRef<number>(-1);
   useEffect(() => {
     if (nodes.length === 0) setViewportReady(false);
   }, [nodes.length]);
+  useEffect(() => {
+    if (!configGraphComputing) return;
+    awaitingInitialRevealRef.current = true;
+    setViewportReady(false);
+  }, [configGraphComputing]);
 
   // Disable cards if too many nodes
   const nodeCount = model?.Graph?.size ?? 0;
@@ -530,7 +550,7 @@ export function ConfigGraphCircles() {
 
   useEffect(() => {
     if (configGraphNodeMode === ConfigNodeMode.CARDS && cardsDisabled) {
-      setConfigGraphNodeMode(ConfigNodeMode.CIRCLES);
+      setConfigGraphNodeMode(ConfigNodeMode.NODES);
       toast.warning(
         `Cards are disabled when there are more than ${CARDS_LIMIT} nodes (current: ${nodeCount}).`
       );
@@ -570,6 +590,9 @@ export function ConfigGraphCircles() {
 
   // Topology key
   const topoKey = structureKey;
+  const structureSyncPending = base.topoKey !== structureKey;
+  const showLoadingOverlay =
+    !viewportReady || layout.running || configGraphComputing || structureSyncPending;
 
   // Layout triggers
   useEffect(() => {
@@ -591,12 +614,16 @@ export function ConfigGraphCircles() {
     if (lastTopoKeyRef.current === topoKey) return;
     lastTopoKeyRef.current = topoKey;
 
+    awaitingInitialRevealRef.current = true;
+    setViewportReady(false);
     scheduleLayoutRestart();
     fitAfterLayoutRef.current = true;
   }, [topoKey, nodes.length, scheduleLayoutRestart]);
 
   useEffect(() => {
     if (nodes.length === 0) return;
+    awaitingInitialRevealRef.current = true;
+    setViewportReady(false);
     scheduleLayoutRestart();
     fitAfterLayoutRef.current = true;
   }, [configGraphNodeMode, scheduleLayoutRestart, nodes.length]);
@@ -656,16 +683,19 @@ export function ConfigGraphCircles() {
     if (justFinished) {
       if (fitAfterLayoutRef.current && nodes.length > 0) {
         fitAfterLayoutRef.current = false;
-        runFitView(undefined, () => {
-          const visibleNow = isContainerVisible();
-          if (visibleNow) {
+        const visibleNow = isContainerVisible();
+        if (visibleNow) {
+          runFitView(undefined, () => {
             pendingMachineLoadFitRef.current = false;
-          }
-          if (visibleNow && awaitingInitialRevealRef.current) {
-            awaitingInitialRevealRef.current = false;
-            setViewportReady(true);
-          }
-        });
+            if (awaitingInitialRevealRef.current) {
+              awaitingInitialRevealRef.current = false;
+              setViewportReady(true);
+            }
+          });
+        } else {
+          // Layout finished while tab is hidden — defer reveal until visible
+          pendingRevealFitRef.current = true;
+        }
       }
     }
     prevRunningRef.current = layout.running;
@@ -1094,8 +1124,11 @@ export function ConfigGraphCircles() {
     const cy = cyRef.current;
     const el = containerRef.current;
     if (!cy || !el || typeof ResizeObserver === 'undefined') return;
+    let wasVisible = isContainerVisible();
     const ro = new ResizeObserver(() => {
       const visibleNow = isContainerVisible();
+      const justBecameVisible = !wasVisible && visibleNow;
+      wasVisible = visibleNow;
       setContainerVisible(visibleNow);
       cy.resize();
       if (
@@ -1109,8 +1142,31 @@ export function ConfigGraphCircles() {
             awaitingInitialRevealRef.current = false;
             setViewportReady(true);
           }
+          pendingRevealFitRef.current = false;
           refreshSelectedAnchors();
         });
+        return;
+      }
+      // Layout finished while hidden — now visible, so perform deferred reveal
+      if (pendingRevealFitRef.current && visibleNow && nodes.length > 0) {
+        pendingRevealFitRef.current = false;
+        runFitView(undefined, () => {
+          pendingMachineLoadFitRef.current = false;
+          if (awaitingInitialRevealRef.current) {
+            awaitingInitialRevealRef.current = false;
+            setViewportReady(true);
+          }
+          refreshSelectedAnchors();
+        });
+        return;
+      }
+      // Container just became visible while still in loading state — layout
+      // was never run because runLayout early-returned on zero dimensions.
+      // Re-trigger the full layout + fit cycle now.
+      if (justBecameVisible && !viewportReady && !layout.running && nodes.length > 0) {
+        awaitingInitialRevealRef.current = true;
+        fitAfterLayoutRef.current = true;
+        scheduleLayoutRestart();
         return;
       }
       restoreViewport();
@@ -1118,7 +1174,7 @@ export function ConfigGraphCircles() {
     });
     ro.observe(el);
     return () => ro.disconnect();
-  }, [restoreViewport, runFitView, nodes.length, isContainerVisible, refreshSelectedAnchors]);
+  }, [restoreViewport, runFitView, nodes.length, isContainerVisible, refreshSelectedAnchors, viewportReady, layout.running, scheduleLayoutRestart]);
 
   // Portal switch fit
   const scheduleFitAfterSwitch = useCallback(() => {
@@ -1136,6 +1192,7 @@ export function ConfigGraphCircles() {
     const handler: EventListener = (event) => {
       const detail = (event as CustomEvent<PortalBridgeSwitchDetail>).detail;
       if (!detail || detail.id !== 'configGraph') return;
+      setAutoResizeLayoutEnabled(detail.location !== 'target');
       scheduleFitAfterSwitch();
     };
     window.addEventListener(PORTAL_BRIDGE_SWITCH_EVENT, handler);
@@ -1172,6 +1229,26 @@ export function ConfigGraphCircles() {
 
   const showLegend = legendItems.length > 0 && (model?.Graph?.size ?? 0) > 0;
 
+  const requestNodeModeChange = useCallback(
+    (nextMode: ConfigNodeMode) => {
+      if (nextMode === ConfigNodeMode.CARDS && cardsDisabled) {
+        toast.info(
+          `Cards are disabled when there are more than ${CARDS_LIMIT} nodes (current: ${nodeCount}).`
+        );
+        return;
+      }
+      if (
+        nextMode === ConfigNodeMode.CARDS &&
+        nodeCount > CARDS_CONFIRM_THRESHOLD
+      ) {
+        setConfirmCardsOpen(true);
+        return;
+      }
+      setConfigGraphNodeMode(nextMode);
+    },
+    [cardsDisabled, nodeCount, setConfigGraphNodeMode]
+  );
+
   const recalcLayout = useCallback(() => {
     scheduleLayoutRestart();
     fitAfterLayoutRef.current = true;
@@ -1203,11 +1280,17 @@ export function ConfigGraphCircles() {
         sx={{
           position: 'absolute',
           inset: 0,
-          opacity: viewportReady ? 1 : 0,
-          pointerEvents: viewportReady ? 'auto' : 'none',
+          opacity: showLoadingOverlay ? 0 : 1,
+          pointerEvents: showLoadingOverlay ? 'none' : 'auto',
           transition: 'opacity 120ms ease',
         }}
       />
+
+      {showLoadingOverlay && (
+        <LoadingOverlay
+          label={configGraphComputing ? 'Computing graph...' : 'Calculating layout...'}
+        />
+      )}
 
       {/* Layout settings panel trigger button */}
       <Box
@@ -1249,6 +1332,25 @@ export function ConfigGraphCircles() {
         onRecalc={recalcLayout}
         running={layout.running}
       />
+      <Dialog open={confirmCardsOpen} onClose={() => setConfirmCardsOpen(false)}>
+        <DialogTitle>Switch to card view?</DialogTitle>
+        <DialogContent>
+          Card view can be slow for graphs above {CARDS_CONFIRM_THRESHOLD} nodes
+          (current: {nodeCount}). Continue?
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setConfirmCardsOpen(false)}>Cancel</Button>
+          <Button
+            variant="contained"
+            onClick={() => {
+              setConfirmCardsOpen(false);
+              setConfigGraphNodeMode(ConfigNodeMode.CARDS);
+            }}
+          >
+            Continue
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       {/* Top-left controls */}
       <Box
@@ -1264,9 +1366,9 @@ export function ConfigGraphCircles() {
           <Button
             size="small"
             variant="contained"
-            onClick={recalcLayout}
-            disabled={layout.running}
-            startIcon={<Cached fontSize="small" />}
+            onClick={() => runFitView()}
+            disabled={showLoadingOverlay}
+            startIcon={<CenterFocusStrong fontSize="small" />}
             sx={{
               height: CONTROL_HEIGHT,
               borderRadius: 1.5,
@@ -1274,7 +1376,7 @@ export function ConfigGraphCircles() {
               px: 1.25,
             }}
           >
-            Recalculate layout
+            Fit view
           </Button>
 
           <ToggleButtonGroup
@@ -1283,22 +1385,7 @@ export function ConfigGraphCircles() {
             value={configGraphNodeMode}
             onChange={(_, v) => {
               if (!v) return;
-              if (v === ConfigNodeMode.CARDS && cardsDisabled) {
-                toast.info(
-                  `Cards are disabled when there are more than ${CARDS_LIMIT} nodes (current: ${nodeCount}).`
-                );
-                return;
-              }
-              if (
-                v === ConfigNodeMode.CARDS &&
-                nodeCount > CARDS_CONFIRM_THRESHOLD &&
-                !window.confirm(
-                  'Switching to card view can be very slow with many nodes. Continue?'
-                )
-              ) {
-                return;
-              }
-              setConfigGraphNodeMode(v);
+              requestNodeModeChange(v);
             }}
             aria-label="node rendering mode"
             sx={{
@@ -1324,10 +1411,10 @@ export function ConfigGraphCircles() {
               }),
             }}
           >
-            <ToggleButton value={ConfigNodeMode.CIRCLES} aria-label="circle nodes">
+            <ToggleButton value={ConfigNodeMode.NODES} aria-label="nodes">
               <Stack direction="row" spacing={0.75} alignItems="center">
                 <Adjust fontSize="small" />
-                <span>Circles</span>
+                <span>Nodes</span>
               </Stack>
             </ToggleButton>
 
@@ -1364,15 +1451,6 @@ export function ConfigGraphCircles() {
         visible={showLegend}
         hoveredKey={hoveredState}
         contentClassName="ct-scrollable"
-        addon={
-          <Tooltip title="Fit view">
-            <span>
-              <IconButton size="small" onClick={() => runFitView()}>
-                <CenterFocusStrong fontSize="small" />
-              </IconButton>
-            </span>
-          </Tooltip>
-        }
       />
 
       {/* Node detail popper */}
