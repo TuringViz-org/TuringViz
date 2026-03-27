@@ -1,5 +1,5 @@
 // src/components/ComputationTree/ComputationTree.tsx
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import cytoscape, {
   type Core as CyCore,
   type EventObjectEdge,
@@ -124,6 +124,7 @@ type ViewportSnapshot = {
   pan: { x: number; y: number };
 };
 const NODES_MIN_FIT_ZOOM = 0.02;
+const MIN_COMPUTE_OVERLAY_MS = 180;
 
 const rfNodeTypes = {
   [NodeType.CONFIG]: ConfigNode,
@@ -393,6 +394,7 @@ function useComputationTreeData(
 ): {
   model: ComputationTreeModel | null;
   base: ReturnType<typeof buildComputationTreeGraph>;
+  isComputing: boolean;
 } {
   const transitions = useGlobalZustand((s) => s.transitions);
   const blank = useGlobalZustand((s) => s.blank);
@@ -401,18 +403,33 @@ function useComputationTreeData(
   const input = useGlobalZustand((s) => s.input);
 
   const [model, setModel] = useState<ComputationTreeModel | null>(null);
+  const [isComputing, setIsComputing] = useState(false);
   const [base, setBase] = useState<ReturnType<typeof buildComputationTreeGraph>>({
     nodes: [],
     edges: [],
     topoKey: '',
   });
   const requestRef = useRef(0);
+  const computeHideTimerRef = useRef<number | null>(null);
+  const computeStartedAtRef = useRef(0);
+  const pendingModelFromComputeRef = useRef(false);
 
-  useEffect(() => {
-    if (paused) return;
+  useLayoutEffect(() => {
+    if (computeHideTimerRef.current != null) {
+      window.clearTimeout(computeHideTimerRef.current);
+      computeHideTimerRef.current = null;
+    }
+    if (paused) {
+      pendingModelFromComputeRef.current = false;
+      setIsComputing(false);
+      return;
+    }
     const startConfig = getStartConfiguration();
     const reqId = requestRef.current + 1;
     requestRef.current = reqId;
+    setIsComputing(true);
+    computeStartedAtRef.current = performance.now();
+    pendingModelFromComputeRef.current = false;
     const effectiveDepth = compressing
       ? MAX_COMPUTATION_TREE_TARGET_NODES
       : targetNodes;
@@ -428,22 +445,36 @@ function useComputationTreeData(
     })
       .then((tree) => {
         if (requestRef.current !== reqId) return;
+        pendingModelFromComputeRef.current = true;
         setModel(tree);
       })
       .catch(() => {
         if (requestRef.current !== reqId) return;
-        const tree = getComputationTreeFromInputs(
-          startConfig,
-          transitions,
-          numberOfTapes,
-          blank,
-          effectiveDepth,
-          compressing,
-          (msg) => toast.warning(msg),
-          targetNodes
-        );
-        setModel(tree);
+        try {
+          const tree = getComputationTreeFromInputs(
+            startConfig,
+            transitions,
+            numberOfTapes,
+            blank,
+            effectiveDepth,
+            compressing,
+            (msg) => toast.warning(msg),
+            targetNodes
+          );
+          pendingModelFromComputeRef.current = true;
+          setModel(tree);
+        } catch {
+          pendingModelFromComputeRef.current = false;
+          setIsComputing(false);
+        }
       });
+
+    return () => {
+      if (computeHideTimerRef.current != null) {
+        window.clearTimeout(computeHideTimerRef.current);
+        computeHideTimerRef.current = null;
+      }
+    };
   }, [
     targetNodes,
     compressing,
@@ -458,9 +489,25 @@ function useComputationTreeData(
   useEffect(() => {
     if (!model) return;
     setBase(buildComputationTreeGraph(model, transitions, nodeMode));
+    if (!pendingModelFromComputeRef.current) return;
+    pendingModelFromComputeRef.current = false;
+    const elapsed = performance.now() - computeStartedAtRef.current;
+    const remaining = Math.max(0, MIN_COMPUTE_OVERLAY_MS - elapsed);
+    if (computeHideTimerRef.current != null) {
+      window.clearTimeout(computeHideTimerRef.current);
+      computeHideTimerRef.current = null;
+    }
+    if (remaining <= 0) {
+      setIsComputing(false);
+      return;
+    }
+    computeHideTimerRef.current = window.setTimeout(() => {
+      computeHideTimerRef.current = null;
+      setIsComputing(false);
+    }, remaining);
   }, [model, transitions, nodeMode]);
 
-  return { model, base };
+  return { model, base, isComputing };
 }
 
 type Props = { targetNodes: number; compressing?: boolean; paused?: boolean };
@@ -489,7 +536,7 @@ function ComputationTreeCircles({ targetNodes, compressing = false, paused = fal
   const { selected, setSelected, hoveredState, setHoveredState } = useGraphUI();
 
   // Base graph structure (nodes/edges) extraction
-  const { model, base } = useComputationTreeData(
+  const { model, base, isComputing } = useComputationTreeData(
     targetNodes,
     !!compressing,
     computationTreeNodeMode,
@@ -616,6 +663,11 @@ function ComputationTreeCircles({ targetNodes, compressing = false, paused = fal
   // Sync builder output into state; keep previous size/data; ELK will set positions afterwards
   useEffect(() => {
     if (!model) return;
+    const topologyChanged = base.topoKey !== structureKey;
+    if (topologyChanged) {
+      awaitingInitialRevealRef.current = true;
+      setViewportReady(false);
+    }
 
     setNodes((prev) =>
       reconcileNodes(prev, base.nodes, (node) => {
@@ -637,6 +689,7 @@ function ComputationTreeCircles({ targetNodes, compressing = false, paused = fal
     base.nodes,
     base.edges,
     base.topoKey,
+    structureKey,
     hideLabels,
     stateColorMatching,
     setNodes,
@@ -1458,6 +1511,9 @@ function ComputationTreeCircles({ targetNodes, compressing = false, paused = fal
   }, [stateColorMatching]);
 
   const showLegend = legendItems.length > 0 && (model?.nodes?.length ?? 0) > 0;
+  const structureSyncPending = base.topoKey !== structureKey;
+  const loadingMaskVisible =
+    !viewportReady || layout.running || isComputing || structureSyncPending;
 
   const requestNodeModeChange = useCallback(
     (nextMode: ConfigNodeMode) => {
@@ -1511,13 +1567,15 @@ function ComputationTreeCircles({ targetNodes, compressing = false, paused = fal
         sx={{
           position: 'absolute',
           inset: 0,
-          opacity: viewportReady ? 1 : 0,
-          pointerEvents: viewportReady ? 'auto' : 'none',
-          transition: 'opacity 120ms ease',
+          opacity: loadingMaskVisible ? 0 : 1,
+          pointerEvents: loadingMaskVisible ? 'none' : 'auto',
+          transition: loadingMaskVisible ? 'none' : 'opacity 120ms ease',
         }}
       />
 
-      {!viewportReady && <LoadingOverlay />}
+      {loadingMaskVisible && (
+        <LoadingOverlay label={isComputing ? 'Computing tree...' : 'Calculating layout...'} />
+      )}
 
       {/* Layout settings panel trigger button */}
       <Box
@@ -1763,7 +1821,7 @@ function ComputationTreeCards({ targetNodes, compressing = false, paused = false
   const { selected, setSelected, hoveredState } = useGraphUI();
 
   // Base graph structure
-  const { model, base } = useComputationTreeData(
+  const { model, base, isComputing } = useComputationTreeData(
     targetNodes,
     !!compressing,
     computationTreeNodeMode,
@@ -1884,7 +1942,9 @@ function ComputationTreeCards({ targetNodes, compressing = false, paused = false
     },
     [rf]
   );
-  const showLoadingOverlay = !viewportReady || layout.running;
+  const structureSyncPending = base.topoKey !== structureKey;
+  const showLoadingOverlay =
+    !viewportReady || layout.running || isComputing || structureSyncPending;
   const loadingMaskVisible = showLoadingOverlay || !contentVisible;
 
   useEffect(() => {
@@ -1946,6 +2006,12 @@ function ComputationTreeCards({ targetNodes, compressing = false, paused = false
   // Sync builder output into state; keep previous size/data; ELK will set positions afterwards
   useEffect(() => {
     if (!model) return;
+    const topologyChanged = base.topoKey !== structureKey;
+    if (topologyChanged) {
+      awaitingInitialRevealRef.current = true;
+      initialViewportSettledRef.current = false;
+      setViewportReady(false);
+    }
 
     setNodes((prev) =>
       reconcileNodes(prev, base.nodes, (node) => {
@@ -1967,6 +2033,7 @@ function ComputationTreeCards({ targetNodes, compressing = false, paused = false
     base.nodes,
     base.edges,
     base.topoKey,
+    structureKey,
     hideLabels,
     stateColorMatching,
     resolveColorForState,
@@ -2509,7 +2576,9 @@ function ComputationTreeCards({ targetNodes, compressing = false, paused = false
         <Background gap={10} size={1} />
       </ReactFlow>
 
-      {loadingMaskVisible && <LoadingOverlay />}
+      {loadingMaskVisible && (
+        <LoadingOverlay label={isComputing ? 'Computing tree...' : 'Calculating layout...'} />
+      )}
     </Box>
   );
 }

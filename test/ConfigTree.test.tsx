@@ -4,6 +4,7 @@ import schema from '../public/turingMachineSchema.json';
 import { useGlobalZustand } from '@zustands/GlobalZustand';
 
 import { parseYaml, setTuringMachineSchema } from '@utils/parsing';
+import { MAX_COMPRESSED_CHAIN_LENGTH } from '@utils/constants';
 import { createTapeContentFromStrings } from '@mytypes/TMTypes';
 import { getStartConfiguration, nextConfigurations } from '@tmfunctions/Configurations';
 import { getComputationTree } from '@tmfunctions/ComputationTree';
@@ -428,6 +429,33 @@ table:
     const states = new Set(tree.nodes.map(n => n.config.state));
     expect(states.has('qA5') || states.has('qB5')).toBe(true);
   });
+
+  it('Long deterministic chains are split by the compression path-length limit', () => {
+    const DESCRIPTION_VALUE = `
+input: '1'
+blank: ' '
+tapes: 1
+startstate: q0
+table:
+  q0:
+    '1': {'S': q0}
+`;
+
+    const errors = parseYaml(DESCRIPTION_VALUE);
+    expect(errors).toEqual([]);
+
+    const depth = MAX_COMPRESSED_CHAIN_LENGTH + 2;
+    const tree = getComputationTree(depth, /* compressing */ true, 20);
+
+    expect(tree.nodes.length).toBe(3);
+    expect(tree.edges.length).toBe(2);
+    tree.edges.forEach((edge) => {
+      expect(edge.compressedLength).toBeGreaterThan(1);
+      expect(edge.compressedLength).toBeLessThanOrEqual(MAX_COMPRESSED_CHAIN_LENGTH);
+      expect(edge.compressed).toBe(true);
+      expect(edge.transitionIndex).toBe(-1);
+    });
+  }, 15000);
 
   it('Single-step tail is NOT compressed (chain length = 1)', () => {
     // q0 has exactly one child; that child is a leaf (no further transitions).
