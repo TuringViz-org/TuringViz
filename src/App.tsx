@@ -16,8 +16,7 @@ import { theme } from '@theme';
 import { MainHeader } from '@components/MainPage/MainHeader';
 import { DashboardLayout } from '@components/MainPage/DashboardLayout';
 import { RunControls } from '@components/MainPage/RunControls';
-import { ComputeTreeDialog } from '@components/MainPage/ComputeTreeDialog';
-import { ComputeConfigGraphDialog } from '@components/MainPage/ComputeConfigGraphDialog';
+import { ComputeAgainControls } from '@components/MainPage/ComputeAgainControls';
 import {
   FullscreenPortals,
   type FullscreenPortalConfig,
@@ -32,7 +31,6 @@ import {
 } from '@zustands/GraphZustand';
 import { useEditorZustand } from '@zustands/EditorZustand';
 import {
-  DEFAULT_TREE_DEPTH,
   MIN_COMPUTATION_TREE_TARGET_NODES,
   MAX_COMPUTATION_TREE_TARGET_NODES,
   MIN_CONFIG_GRAPH_TARGET_NODES,
@@ -56,7 +54,12 @@ import {
 } from '@components/MainPage/lazyPanels';
 
 const graphLoader = (
-  <Stack alignItems="center" justifyContent="center" sx={{ height: '100%' }} spacing={1}>
+  <Stack
+    alignItems="center"
+    justifyContent="center"
+    sx={{ height: '100%' }}
+    spacing={1}
+  >
     <CircularProgress size={26} />
   </Stack>
 );
@@ -118,12 +121,16 @@ export default function App() {
   useSharedMachineBootstrap(setCode);
   useGistBootstrap(setCode);
 
-  // Dialog state
-  const [computeOpen, setComputeOpen] = useState(false);
-  const [pendingTreeTargetNodes, setPendingTreeTargetNodes] =
-    useState<number>(DEFAULT_TREE_DEPTH);
-  const [pendingCompressed, setPendingCompressed] = useState<boolean>(false);
+  // Compute controls state
   const [compressed, setCompressed] = useState<boolean>(false);
+  const [pendingTreeTargetNodes, setPendingTreeTargetNodes] = useState<number>(
+    computationTreeTargetNodes
+  );
+  const [pendingCompressed, setPendingCompressed] = useState<boolean>(compressed);
+  const [pendingConfigTargetNodes, setPendingConfigTargetNodes] = useState<number>(
+    configGraphTargetNodes
+  );
+  const [treeComputeNonce, setTreeComputeNonce] = useState(0);
   const [computeTreeChecking, setComputeTreeChecking] = useState(false);
   const [confirmTreeCardsOpen, setConfirmTreeCardsOpen] = useState(false);
   const [pendingTreeCardsCount, setPendingTreeCardsCount] = useState(0);
@@ -133,10 +140,6 @@ export default function App() {
     targetNodes: number;
     compressed: boolean;
   } | null>(null);
-
-  const [computeConfigOpen, setComputeConfigOpen] = useState(false);
-  const [pendingConfigTargetNodes, setPendingConfigTargetNodes] =
-    useState<number>(configGraphTargetNodes);
 
   const [activeTab, setActiveTab] = useState<AppTab>('input');
 
@@ -155,17 +158,22 @@ export default function App() {
   const { hasMountedConfigGraph, hasMountedTree, configTabActive, treeTabActive } =
     useDeferredPanelMount(activeTab);
 
-  const openCompute = useCallback(() => {
+  useEffect(() => {
     setPendingTreeTargetNodes(computationTreeTargetNodes);
+  }, [computationTreeTargetNodes]);
+
+  useEffect(() => {
     setPendingCompressed(compressed);
-    setComputeOpen(true);
-  }, [computationTreeTargetNodes, compressed]);
+  }, [compressed]);
+
+  useEffect(() => {
+    setPendingConfigTargetNodes(configGraphTargetNodes);
+  }, [configGraphTargetNodes]);
 
   const applyTreeSettings = useCallback(
     (nextTargetNodes: number, nextCompressed: boolean) => {
       setComputationTreeDepth(nextTargetNodes);
       setCompressed(nextCompressed);
-      setComputeOpen(false);
 
       // Re-render the tree in fullscreen after settings changes so sizing stays correct.
       if (treeFullscreen.open) {
@@ -176,19 +184,20 @@ export default function App() {
     [setComputationTreeDepth, treeFullscreen.open, treeFullscreen.setRender]
   );
 
-  const handleComputeConfirm = useCallback(async () => {
+  const handleComputeTreeConfirm = useCallback(async () => {
     const safeTargetNodes = sanitizeTreeTargetNodes(pendingTreeTargetNodes);
     const nextCompressed = pendingCompressed;
-    const changed =
-      safeTargetNodes !== computationTreeTargetNodes || nextCompressed !== compressed;
+    const unchanged =
+      safeTargetNodes === computationTreeTargetNodes &&
+      nextCompressed === compressed;
 
-    if (!changed) {
-      setComputeOpen(false);
-      return;
-    }
+    setPendingTreeTargetNodes(safeTargetNodes);
 
     if (computationTreeNodeMode !== ConfigNodeMode.CARDS) {
       applyTreeSettings(safeTargetNodes, nextCompressed);
+      if (unchanged) {
+        setTreeComputeNonce((value) => value + 1);
+      }
       return;
     }
 
@@ -222,14 +231,19 @@ export default function App() {
           compressed: nextCompressed,
         });
         setPendingTreeCardsCount(nextNodeCount);
-        setComputeOpen(false);
         setConfirmTreeCardsOpen(true);
         return;
       }
 
       applyTreeSettings(safeTargetNodes, nextCompressed);
+      if (unchanged) {
+        setTreeComputeNonce((value) => value + 1);
+      }
     } catch {
       applyTreeSettings(safeTargetNodes, nextCompressed);
+      if (unchanged) {
+        setTreeComputeNonce((value) => value + 1);
+      }
     } finally {
       setComputeTreeChecking(false);
     }
@@ -243,18 +257,14 @@ export default function App() {
     numberOfTapes,
     blank,
     applyTreeSettings,
+    setTreeComputeNonce,
   ]);
-
-  const openComputeConfigGraph = useCallback(() => {
-    setPendingConfigTargetNodes(configGraphTargetNodes);
-    setComputeConfigOpen(true);
-  }, [configGraphTargetNodes]);
 
   const handleComputeConfigConfirm = useCallback(async () => {
     const safeTargetNodes = sanitizeTargetNodes(pendingConfigTargetNodes);
+    setPendingConfigTargetNodes(safeTargetNodes);
 
     setConfigGraphTargetNodes(safeTargetNodes);
-    setComputeConfigOpen(false);
 
     const ok = await recomputeConfigGraphWithTargetNodes(safeTargetNodes);
     if (!ok) {
@@ -263,6 +273,37 @@ export default function App() {
       );
     }
   }, [pendingConfigTargetNodes, setConfigGraphTargetNodes]);
+
+  const configComputeActions = (
+    <ComputeAgainControls
+      targetNodes={pendingConfigTargetNodes}
+      minTargetNodes={MIN_CONFIG_GRAPH_TARGET_NODES}
+      maxTargetNodes={MAX_CONFIG_GRAPH_TARGET_NODES}
+      onTargetNodesChange={setPendingConfigTargetNodes}
+      onComputeAgain={() => {
+        void handleComputeConfigConfirm();
+      }}
+      disabled={computeTreeChecking}
+      sliderAriaLabel="Configuration graph target nodes"
+    />
+  );
+
+  const treeComputeActions = (
+    <ComputeAgainControls
+      targetNodes={pendingTreeTargetNodes}
+      minTargetNodes={MIN_COMPUTATION_TREE_TARGET_NODES}
+      maxTargetNodes={MAX_COMPUTATION_TREE_TARGET_NODES}
+      onTargetNodesChange={setPendingTreeTargetNodes}
+      onComputeAgain={() => {
+        void handleComputeTreeConfirm();
+      }}
+      disabled={computeTreeChecking}
+      showCompressed
+      compressed={pendingCompressed}
+      onCompressedChange={setPendingCompressed}
+      sliderAriaLabel="Computation tree target nodes"
+    />
+  );
 
   const tmGraphEnabled =
     activeTab === 'input' ||
@@ -307,11 +348,7 @@ export default function App() {
         setRender: configFullscreen.setRender,
         fallbackRef: configPanelRef,
         fullscreenRef: configFullscreenRef,
-        actions: (
-          <Button size="small" variant="contained" onClick={openComputeConfigGraph}>
-            Compute Graph
-          </Button>
-        ),
+        actions: configComputeActions,
         enabled: configGraphEnabled,
         content: configGraphEnabled ? (
           <Suspense fallback={graphLoader}>
@@ -328,15 +365,12 @@ export default function App() {
         setRender: treeFullscreen.setRender,
         fallbackRef: treePanelRef,
         fullscreenRef: treeFullscreenRef,
-        actions: (
-          <Button size="small" variant="contained" onClick={openCompute}>
-            Compute Tree
-          </Button>
-        ),
+        actions: treeComputeActions,
         enabled: treeEnabled,
         content: treeEnabled ? (
           <Suspense fallback={graphLoader}>
             <LazyComputationTreeWrapper
+              key={treeComputeNonce}
               targetNodes={computationTreeTargetNodes}
               compressing={compressed}
             />
@@ -362,8 +396,9 @@ export default function App() {
       treeEnabled,
       computationTreeTargetNodes,
       compressed,
-      openCompute,
-      openComputeConfigGraph,
+      treeComputeNonce,
+      configComputeActions,
+      treeComputeActions,
     ]
   );
 
@@ -383,22 +418,8 @@ export default function App() {
         onOpenTmFullscreen={tmFullscreen.openFullscreen}
         onOpenConfigFullscreen={configFullscreen.openFullscreen}
         onOpenTreeFullscreen={treeFullscreen.openFullscreen}
-        onOpenComputeConfigGraph={openComputeConfigGraph}
-        onOpenCompute={openCompute}
-      />
-
-      <ComputeTreeDialog
-        open={computeOpen}
-        targetNodes={pendingTreeTargetNodes}
-        compressed={pendingCompressed}
-        confirming={computeTreeChecking}
-        onTargetNodesChange={setPendingTreeTargetNodes}
-        onCompressedChange={setPendingCompressed}
-        onClose={() => {
-          if (computeTreeChecking) return;
-          setComputeOpen(false);
-        }}
-        onConfirm={handleComputeConfirm}
+        configActions={configComputeActions}
+        treeActions={treeComputeActions}
       />
 
       <Dialog
@@ -426,10 +447,16 @@ export default function App() {
             variant="contained"
             onClick={() => {
               if (queuedTreeSettings) {
+                const unchanged =
+                  queuedTreeSettings.targetNodes === computationTreeTargetNodes &&
+                  queuedTreeSettings.compressed === compressed;
                 applyTreeSettings(
                   queuedTreeSettings.targetNodes,
                   queuedTreeSettings.compressed
                 );
+                if (unchanged) {
+                  setTreeComputeNonce((value) => value + 1);
+                }
               }
               setConfirmTreeCardsOpen(false);
               setQueuedTreeSettings(null);
@@ -447,8 +474,8 @@ export default function App() {
       >
         <DialogTitle>Card view not available</DialogTitle>
         <DialogContent>
-          Cards are disabled when there are more than {CARDS_LIMIT} nodes
-          (current: {cardsLimitDialogCount}).
+          Cards are disabled when there are more than {CARDS_LIMIT} nodes (current:{' '}
+          {cardsLimitDialogCount}).
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setCardsLimitDialogOpen(false)} variant="contained">
@@ -456,16 +483,6 @@ export default function App() {
           </Button>
         </DialogActions>
       </Dialog>
-
-      <ComputeConfigGraphDialog
-        open={computeConfigOpen}
-        targetNodes={pendingConfigTargetNodes}
-        onTargetNodesChange={setPendingConfigTargetNodes}
-        onClose={() => setComputeConfigOpen(false)}
-        onConfirm={() => {
-          void handleComputeConfigConfirm();
-        }}
-      />
 
       <Suspense fallback={null}>
         <LazyRunChoiceDialog />

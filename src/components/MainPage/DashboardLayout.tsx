@@ -1,9 +1,15 @@
-import { lazy, Suspense, useEffect, useState, type MutableRefObject } from 'react';
+import {
+  lazy,
+  Suspense,
+  useEffect,
+  useState,
+  type MutableRefObject,
+  type ReactNode,
+} from 'react';
 import {
   Container,
   Tooltip,
   IconButton,
-  Button,
   Box,
   CircularProgress,
   Stack,
@@ -30,8 +36,8 @@ type DashboardLayoutProps = {
   onOpenTmFullscreen: () => void;
   onOpenConfigFullscreen: () => void;
   onOpenTreeFullscreen: () => void;
-  onOpenComputeConfigGraph: () => void;
-  onOpenCompute: () => void;
+  configActions?: ReactNode;
+  treeActions?: ReactNode;
 };
 
 type LayoutMode = {
@@ -41,11 +47,17 @@ type LayoutMode = {
 
 const TAB_LAYOUTS: Record<AppTab, LayoutMode> = {
   input: {
-    gridTemplateColumns: { xs: 'minmax(0, 1fr)', md: 'minmax(0, 1fr) minmax(0, 1fr)' },
+    gridTemplateColumns: {
+      xs: 'minmax(0, 1fr)',
+      md: 'minmax(0, 1fr) minmax(0, 1fr)',
+    },
     gridTemplateAreas: { xs: '"tm" "editor"', md: '"tm editor"' },
   },
   run: {
-    gridTemplateColumns: { xs: 'minmax(0, 1fr)', md: 'minmax(0, 1fr) minmax(0, 1fr)' },
+    gridTemplateColumns: {
+      xs: 'minmax(0, 1fr)',
+      md: 'minmax(0, 1fr) minmax(0, 1fr)',
+    },
     gridTemplateAreas: { xs: '"tm" "tapes"', md: '"tm tapes"' },
   },
   configurationGraph: {
@@ -68,7 +80,12 @@ const fullscreenButtonSx = {
 
 function PanelLoadingFallback({ label }: { label: string }) {
   return (
-    <Stack alignItems="center" justifyContent="center" sx={{ height: '100%' }} spacing={1}>
+    <Stack
+      alignItems="center"
+      justifyContent="center"
+      sx={{ height: '100%' }}
+      spacing={1}
+    >
       <CircularProgress size={22} />
       <Typography variant="caption" color="text.secondary">
         {label}
@@ -98,8 +115,8 @@ export function DashboardLayout({
   onOpenTmFullscreen,
   onOpenConfigFullscreen,
   onOpenTreeFullscreen,
-  onOpenComputeConfigGraph,
-  onOpenCompute,
+  configActions,
+  treeActions,
 }: DashboardLayoutProps) {
   const layout = TAB_LAYOUTS[activeTab];
 
@@ -216,9 +233,7 @@ export function DashboardLayout({
             minHeight={graphPanelMinHeight}
             actions={
               <>
-                <Button size="small" variant="contained" onClick={onOpenComputeConfigGraph}>
-                  Compute Graph
-                </Button>
+                {configActions}
                 <FullscreenButton onClick={onOpenConfigFullscreen} />
               </>
             }
@@ -247,9 +262,7 @@ export function DashboardLayout({
             minHeight={graphPanelMinHeight}
             actions={
               <>
-                <Button size="small" variant="contained" onClick={onOpenCompute}>
-                  Compute Tree
-                </Button>
+                {treeActions}
                 <FullscreenButton onClick={onOpenTreeFullscreen} />
               </>
             }
