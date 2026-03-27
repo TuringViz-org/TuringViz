@@ -348,6 +348,8 @@ export function useElkLayout({
               })
             : manualPathPositions;
         onLayoutRef.current?.(nextPositions);
+        // Keep the running=true -> running=false transition observable by React effects.
+        await new Promise<void>((resolve) => setTimeout(resolve, 0));
         return;
       }
 

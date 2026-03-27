@@ -170,6 +170,8 @@ export function useElkLayout({
             return same ? n : { ...n, position: p };
           })
         );
+        // Keep the running=true -> running=false transition observable by React effects.
+        await new Promise<void>((resolve) => setTimeout(resolve, 0));
         return;
       }
 
