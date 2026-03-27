@@ -6,7 +6,10 @@ import {
   getStartConfiguration,
 } from '@tmfunctions/Configurations';
 import { useGlobalZustand } from '@zustands/GlobalZustand';
-import { MAX_COMPUTATION_TREE_TARGET_NODES } from '@utils/constants';
+import {
+  MAX_COMPUTATION_TREE_TARGET_NODES,
+  MAX_COMPRESSED_CHAIN_LENGTH,
+} from '@utils/constants';
 import { toast } from 'sonner';
 
 export enum End {
@@ -377,6 +380,28 @@ function computeCompressedTreeFromInputs(
           firstTransitionIndex: transitionIndex,
         });
       } else {
+        if (item.chainLength >= MAX_COMPRESSED_CHAIN_LENGTH) {
+          if (!hasNodeBudget()) {
+            truncated = true;
+            updateEnd(item.parentId, End.NotYetComputed);
+            finalizeRemainingQueuedItems();
+            break;
+          }
+
+          const splitNodeId = addNode(item.config, End.None);
+          addChainEdge(item.parentId, splitNodeId, item.chainLength, item.firstTransitionIndex);
+
+          queue.push({
+            config: childConfig,
+            depthLeft: nextDepth,
+            nodeId: null,
+            parentId: splitNodeId,
+            chainLength: 1,
+            firstTransitionIndex: transitionIndex,
+          });
+          continue;
+        }
+
         queue.push({
           config: childConfig,
           depthLeft: nextDepth,

@@ -41,6 +41,8 @@ export const DEFAULT_GRAPH_ELK_OPTS = DEFAULT_GRAPH_NODES_ELK_OPTS;
 // NOTE: DEFAULT_TREE_DEPTH is kept for backwards compatibility with existing imports.
 export const MIN_COMPUTATION_TREE_TARGET_NODES = 30;
 export const MAX_COMPUTATION_TREE_TARGET_NODES = 100000;
+// Max number of deterministic steps collapsed into one compressed edge.
+export const MAX_COMPRESSED_CHAIN_LENGTH = 1000;
 export const DEFAULT_TREE_DEPTH = 15000;
 
 // Minimum/Default target node count for configuration graph computation
