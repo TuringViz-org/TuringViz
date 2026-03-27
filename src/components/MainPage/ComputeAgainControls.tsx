@@ -38,10 +38,16 @@ export function ComputeAgainControls({
       direction="row"
       spacing={1}
       alignItems="center"
-      sx={{ minWidth: 0, py: 0.25 }}
+      sx={{
+        minWidth: 0,
+        py: 0.25,
+        flexWrap: { xs: 'wrap', sm: 'nowrap' },
+        justifyContent: 'flex-end',
+        rowGap: 0.75,
+      }}
     >
       <Box
-        sx={{ width: { xs: 150, sm: 220 }, display: 'flex', alignItems: 'center' }}
+        sx={{ width: { xs: 120, sm: 220 }, display: 'flex', alignItems: 'center' }}
       >
         <Slider
           size="small"
@@ -61,7 +67,7 @@ export function ComputeAgainControls({
         variant="body2"
         color="text.secondary"
         sx={{
-          minWidth: 90,
+          minWidth: { xs: 78, sm: 90 },
           textAlign: 'right',
           fontVariantNumeric: 'tabular-nums',
           fontWeight: 500,
@@ -94,6 +100,7 @@ export function ComputeAgainControls({
         variant="contained"
         onClick={() => void onComputeAgain()}
         disabled={disabled}
+        sx={{ whiteSpace: 'nowrap' }}
       >
         Compute again
       </Button>

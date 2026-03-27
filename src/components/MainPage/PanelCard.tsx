@@ -40,16 +40,28 @@ export function PanelCard(props: {
               px: 2,
               py: 1,
               display: 'flex',
-              alignItems: 'center',
+              alignItems: { xs: 'flex-start', sm: 'center' },
               justifyContent: 'space-between',
+              flexWrap: { xs: 'wrap', sm: 'nowrap' },
+              rowGap: 0.75,
               bgcolor: (t) => t.palette.background.default,
             }}
           >
-            <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
+            <Typography variant="subtitle1" sx={{ fontWeight: 600, minWidth: 0 }}>
               {title}
             </Typography>
             {actions ? (
-              <Stack direction="row" spacing={1} alignItems="center">
+              <Stack
+                direction="row"
+                spacing={1}
+                alignItems="center"
+                sx={{
+                  width: { xs: '100%', sm: 'auto' },
+                  justifyContent: 'flex-end',
+                  flexWrap: { xs: 'wrap', sm: 'nowrap' },
+                  rowGap: 0.75,
+                }}
+              >
                 {actions}
               </Stack>
             ) : null}
