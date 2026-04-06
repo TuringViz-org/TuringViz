@@ -1,4 +1,4 @@
-import Elk from 'elkjs/lib/elk.bundled.js';
+import Elk, { type ElkNode } from 'elkjs/lib/elk.bundled.js';
 
 export type ElkAlgo = 'layered' | 'force' | 'mrtree' | 'stress' | 'radial';
 
@@ -26,4 +26,24 @@ export function createElkWithWorker(workerName = 'elk-layout-worker') {
         name: workerName,
       }),
   });
+}
+
+export async function runElkLayoutWithTimeout(
+  elk: InstanceType<typeof Elk>,
+  graph: ElkNode,
+  timeoutMs: number
+): Promise<ElkNode> {
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      elk.layout(graph),
+      new Promise<ElkNode>((_, reject) => {
+        timeoutId = setTimeout(() => {
+          reject(new Error(`ELK layout timed out after ${timeoutMs}ms`));
+        }, timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timeoutId != null) clearTimeout(timeoutId);
+  }
 }

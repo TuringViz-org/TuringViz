@@ -12,6 +12,7 @@ import {
 } from '../util/constants';
 import {
   createElkWithWorker,
+  runElkLayoutWithTimeout,
   resolveElkAlgorithm,
   type ElkAlgo,
 } from '@components/shared/layout/elkUtils';
@@ -25,6 +26,25 @@ type FallbackLayoutParams = {
   padding: number;
   direction: 'RIGHT' | 'LEFT' | 'UP' | 'DOWN';
 };
+
+const ELK_LAYOUT_TIMEOUT_MS = 12000;
+
+function buildTopoKeyFromElements(rfNodes: RFNode[], rfEdges: RFEdge[]): string {
+  const nIds = rfNodes
+    .map((n) => String(n.id))
+    .sort((a, b) => a.localeCompare(b))
+    .join('|');
+  const ePairs = Array.from(
+    new Set(
+      rfEdges
+        .filter((e) => String(e.source) !== String(e.target))
+        .map((e) => `${e.source}→${e.target}`)
+    )
+  )
+    .sort()
+    .join('|');
+  return `${nIds}__${ePairs}`;
+}
 
 function getNodeLayoutSize(node: RFNode): { width: number; height: number } {
   const isCardNode = node.type === NodeType.CONFIG_CARD;
@@ -207,6 +227,8 @@ export function useElkLayout({
   });
   const lastDirectionRef = useRef(direction);
   const lastSizeKeyRef = useRef<string>('');
+  const isRunningRef = useRef(false);
+  const rerunRequestedRef = useRef(false);
 
   // Create ELK instance once (kept across renders)
   if (!elkRef.current) elkRef.current = createElkWithWorker('computation-tree-elk-layout-worker');
@@ -253,23 +275,7 @@ export function useElkLayout({
   // This keeps layout re-runs limited to actual structure changes.
   const topoKey = useMemo(() => {
     if (topoKeyOverride != null) return topoKeyOverride;
-    const nIds = nodes
-      .map((n) => n.id)
-      .sort((a, b) => a.localeCompare(b))
-      .join('|');
-
-    // Collapse parallel edges to a unique set of source→target identifiers
-    const ePairs = Array.from(
-      new Set(
-        edges
-          .filter((e) => e.source !== e.target)
-          .map((e) => `${e.source}→${e.target}`)
-      )
-    )
-      .sort()
-      .join('|');
-
-    return `${nIds}__${ePairs}`;
+    return buildTopoKeyFromElements(nodes, edges);
   }, [nodes, edges, topoKeyOverride]);
 
   const effectiveViewportWidth =
@@ -298,166 +304,187 @@ export function useElkLayout({
   );
 
   const runLayout = useCallback(async () => {
-    const rfNodes = nodesRef.current;
-    const rfEdges = edgesRef.current;
-
-    if (!rfNodes.length) return;
-    if (containerRef?.current) {
-      const { clientWidth, clientHeight } = containerRef.current;
-      if (clientWidth <= 0 || clientHeight <= 0) return;
+    if (isRunningRef.current) {
+      rerunRequestedRef.current = true;
+      return;
     }
 
-    const effectiveDirection = autoDirection
-      ? resolveAutoDirection({
-          nodes: rfNodes,
-          edges: rfEdges,
-          containerWidth: effectiveViewportWidth,
-          containerHeight: effectiveViewportHeight,
-          preferredDirection: direction,
-          previousDirection: lastDirectionRef.current,
-        })
-      : direction;
-    lastDirectionRef.current = effectiveDirection;
-
+    isRunningRef.current = true;
     setRunning(true);
     try {
-      const manualPathPositions = buildSinglePathLayout(
-        rfNodes.map((n) => {
-          const { width, height } = getNodeLayoutSize(n);
-          return { id: String(n.id), width, height };
-        }),
-        rfEdges.map((e) => ({ source: String(e.source), target: String(e.target) })),
-        {
-          direction: effectiveDirection,
-          padding,
-          nodeSep,
-          rankSep,
-          edgeSep,
-          edgeNodeSep,
+      while (true) {
+        rerunRequestedRef.current = false;
+
+        const rfNodes = nodesRef.current;
+        const rfEdges = edgesRef.current;
+        if (!rfNodes.length) break;
+        if (containerRef?.current) {
+          const { clientWidth, clientHeight } = containerRef.current;
+          if (clientWidth <= 0 || clientHeight <= 0) break;
         }
-      );
 
-      if (manualPathPositions) {
-        const nextPositions =
-          autoDirection && scaleToFit
-            ? scaleToContainer({
-                positions: manualPathPositions,
-                containerWidth: effectiveViewportWidth,
-                containerHeight: effectiveViewportHeight,
-                maxAxisScale,
-              })
-            : manualPathPositions;
-        onLayoutRef.current?.(nextPositions);
-        // Keep the running=true -> running=false transition observable by React effects.
-        await new Promise<void>((resolve) => setTimeout(resolve, 0));
-        return;
-      }
+        const effectiveDirection = autoDirection
+          ? resolveAutoDirection({
+              nodes: rfNodes,
+              edges: rfEdges,
+              containerWidth: effectiveViewportWidth,
+              containerHeight: effectiveViewportHeight,
+              preferredDirection: direction,
+              previousDirection: lastDirectionRef.current,
+            })
+          : direction;
+        lastDirectionRef.current = effectiveDirection;
 
-      if (workerGraphKeyRef.current !== topoKey) {
-        elkRef.current?.terminateWorker();
-        elkRef.current = createElkWithWorker('computation-tree-elk-layout-worker');
-        workerGraphKeyRef.current = topoKey;
-      }
-
-      const elk = elkRef.current!;
-      // Prepare ELK graph (position-only layout)
-      const elkNodes: ElkNode[] = rfNodes.map((n) => ({
-        ...getNodeLayoutSize(n),
-        id: n.id,
-      }));
-
-      const nodeIds = new Set(elkNodes.map((n) => n.id));
-      // Only include edges that are not self-references
-      const elkEdges: ElkExtendedEdge[] = [];
-      const seenEdgeIds = new Set<string>();
-      for (const edge of rfEdges) {
-        const source = String(edge.source);
-        const target = String(edge.target);
-        if (source === target) continue;
-        if (!nodeIds.has(source) || !nodeIds.has(target)) continue;
-
-        // Keep edge ids stable and unique for ELK.
-        const edgeId = String(edge.id || `${source}→${target}`);
-        if (seenEdgeIds.has(edgeId)) continue;
-        seenEdgeIds.add(edgeId);
-
-        elkEdges.push({
-          id: edgeId,
-          sources: [source],
-          targets: [target],
-        });
-      }
-
-      const elkGraph: ElkNode = {
-        id: 'root',
-        layoutOptions: {
-          'elk.algorithm':
-            resolveElkAlgorithm(algorithm),
-          'elk.spacing.nodeNode': String(nodeSep),
-          'elk.layered.spacing.nodeNodeBetweenLayers': String(rankSep),
-          'elk.spacing.edgeEdge': String(edgeSep),
-          'elk.spacing.edgeNode': String(edgeNodeSep),
-          'elk.padding': String(padding),
-          // Dynamically swap orientation to better use viewport space.
-          'elk.direction': effectiveDirection,
-          // Balanced node placement to reduce long sweeps
-          'elk.layered.nodePlacement.bk.fixedAlignment': 'BALANCED',
-        },
-        children: elkNodes,
-        edges: elkEdges,
-      };
-
-      try {
-        const res = await elk.layout(elkGraph);
-
-        // Result: Update RF nodes (only map positions)
-        const posById = new Map<string, { x: number; y: number }>();
-        for (const c of res.children ?? []) {
-          if (!c.id) continue;
-          posById.set(c.id, { x: c.x ?? 0, y: c.y ?? 0 });
-        }
-        const nextPositions =
-          autoDirection && scaleToFit
-            ? scaleToContainer({
-                positions: posById,
-                containerWidth: effectiveViewportWidth,
-                containerHeight: effectiveViewportHeight,
-                maxAxisScale,
-              })
-            : posById;
-        onLayoutRef.current?.(nextPositions);
-      } catch {
-        if (lastFailureToastTopoKeyRef.current !== topoKey) {
-          lastFailureToastTopoKeyRef.current = topoKey;
-          toast.warning('Layout failed. Please try again with fewer nodes.');
-        }
-        // ELK may throw on very deep/wide trees (e.g. self-loop-heavy examples).
-        // Fall back to a deterministic layered layout so nodes stay visible.
-        try {
-          const fallbackPositions = buildFallbackPositions(rfNodes, rfEdges, {
+        const manualPathPositions = buildSinglePathLayout(
+          rfNodes.map((n) => {
+            const { width, height } = getNodeLayoutSize(n);
+            return { id: String(n.id), width, height };
+          }),
+          rfEdges.map((e) => ({ source: String(e.source), target: String(e.target) })),
+          {
+            direction: effectiveDirection,
+            padding,
             nodeSep,
             rankSep,
-            padding,
-            direction: effectiveDirection,
-          });
-          onLayoutRef.current?.(fallbackPositions);
-        } catch {
-          // Last-resort placement: keep nodes visible in a simple grid.
-          const emergencyPositions = new Map<string, { x: number; y: number }>();
-          const spacingX = CONFIG_NODE_DIAMETER + Math.max(24, nodeSep);
-          const spacingY = CONFIG_NODE_DIAMETER + Math.max(24, rankSep);
-          const columns = 20;
-          for (let i = 0; i < rfNodes.length; i++) {
-            const n = rfNodes[i]!;
-            emergencyPositions.set(String(n.id), {
-              x: padding + (i % columns) * spacingX,
-              y: padding + Math.floor(i / columns) * spacingY,
+            edgeSep,
+            edgeNodeSep,
+          }
+        );
+
+        if (manualPathPositions) {
+          const nextPositions =
+            autoDirection && scaleToFit
+              ? scaleToContainer({
+                  positions: manualPathPositions,
+                  containerWidth: effectiveViewportWidth,
+                  containerHeight: effectiveViewportHeight,
+                  maxAxisScale,
+                })
+              : manualPathPositions;
+          onLayoutRef.current?.(nextPositions);
+          // Keep the running=true -> running=false transition observable by React effects.
+          await new Promise<void>((resolve) => setTimeout(resolve, 0));
+        } else {
+          const topoKeyForRun = buildTopoKeyFromElements(rfNodes, rfEdges);
+
+          if (workerGraphKeyRef.current !== topoKeyForRun) {
+            elkRef.current?.terminateWorker();
+            elkRef.current = createElkWithWorker('computation-tree-elk-layout-worker');
+            workerGraphKeyRef.current = topoKeyForRun;
+          }
+
+          const elk = elkRef.current!;
+          // Prepare ELK graph (position-only layout)
+          const elkNodes: ElkNode[] = rfNodes.map((n) => ({
+            ...getNodeLayoutSize(n),
+            id: n.id,
+          }));
+
+          const nodeIds = new Set(elkNodes.map((n) => n.id));
+          // Only include edges that are not self-references
+          const elkEdges: ElkExtendedEdge[] = [];
+          const seenEdgeIds = new Set<string>();
+          for (const edge of rfEdges) {
+            const source = String(edge.source);
+            const target = String(edge.target);
+            if (source === target) continue;
+            if (!nodeIds.has(source) || !nodeIds.has(target)) continue;
+
+            // Keep edge ids stable and unique for ELK.
+            const edgeId = String(edge.id || `${source}→${target}`);
+            if (seenEdgeIds.has(edgeId)) continue;
+            seenEdgeIds.add(edgeId);
+
+            elkEdges.push({
+              id: edgeId,
+              sources: [source],
+              targets: [target],
             });
           }
-          onLayoutRef.current?.(emergencyPositions);
+
+          const elkGraph: ElkNode = {
+            id: 'root',
+            layoutOptions: {
+              'elk.algorithm':
+                resolveElkAlgorithm(algorithm),
+              'elk.spacing.nodeNode': String(nodeSep),
+              'elk.layered.spacing.nodeNodeBetweenLayers': String(rankSep),
+              'elk.spacing.edgeEdge': String(edgeSep),
+              'elk.spacing.edgeNode': String(edgeNodeSep),
+              'elk.padding': String(padding),
+              // Dynamically swap orientation to better use viewport space.
+              'elk.direction': effectiveDirection,
+              // Balanced node placement to reduce long sweeps
+              'elk.layered.nodePlacement.bk.fixedAlignment': 'BALANCED',
+            },
+            children: elkNodes,
+            edges: elkEdges,
+          };
+
+          try {
+            const res = await runElkLayoutWithTimeout(
+              elk,
+              elkGraph,
+              ELK_LAYOUT_TIMEOUT_MS
+            );
+
+            // Result: Update RF nodes (only map positions)
+            const posById = new Map<string, { x: number; y: number }>();
+            for (const c of res.children ?? []) {
+              if (!c.id) continue;
+              posById.set(c.id, { x: c.x ?? 0, y: c.y ?? 0 });
+            }
+            const nextPositions =
+              autoDirection && scaleToFit
+                ? scaleToContainer({
+                    positions: posById,
+                    containerWidth: effectiveViewportWidth,
+                    containerHeight: effectiveViewportHeight,
+                    maxAxisScale,
+                  })
+                : posById;
+            onLayoutRef.current?.(nextPositions);
+          } catch {
+            if (lastFailureToastTopoKeyRef.current !== topoKeyForRun) {
+              lastFailureToastTopoKeyRef.current = topoKeyForRun;
+              toast.warning('Layout failed. Please try again with fewer nodes.');
+            }
+            // Recreate worker so a stuck request cannot block future layouts.
+            elkRef.current?.terminateWorker();
+            elkRef.current = createElkWithWorker('computation-tree-elk-layout-worker');
+            workerGraphKeyRef.current = '';
+            // ELK may throw on very deep/wide trees (e.g. self-loop-heavy examples).
+            // Fall back to a deterministic layered layout so nodes stay visible.
+            try {
+              const fallbackPositions = buildFallbackPositions(rfNodes, rfEdges, {
+                nodeSep,
+                rankSep,
+                padding,
+                direction: effectiveDirection,
+              });
+              onLayoutRef.current?.(fallbackPositions);
+            } catch {
+              // Last-resort placement: keep nodes visible in a simple grid.
+              const emergencyPositions = new Map<string, { x: number; y: number }>();
+              const spacingX = CONFIG_NODE_DIAMETER + Math.max(24, nodeSep);
+              const spacingY = CONFIG_NODE_DIAMETER + Math.max(24, rankSep);
+              const columns = 20;
+              for (let i = 0; i < rfNodes.length; i++) {
+                const n = rfNodes[i]!;
+                emergencyPositions.set(String(n.id), {
+                  x: padding + (i % columns) * spacingX,
+                  y: padding + Math.floor(i / columns) * spacingY,
+                });
+              }
+              onLayoutRef.current?.(emergencyPositions);
+            }
+          }
         }
+
+        if (!rerunRequestedRef.current) break;
       }
     } finally {
+      isRunningRef.current = false;
       setRunning(false);
     }
   }, [
@@ -473,7 +500,7 @@ export function useElkLayout({
     scaleToFit,
     effectiveViewportWidth,
     effectiveViewportHeight,
-    topoKey,
+    containerRef,
   ]);
 
   // Fit view after layout if requested
