@@ -428,8 +428,13 @@ export function ConfigGraphCircles() {
   const pendingMachineLoadFitRef = useRef(false);
   const awaitingInitialRevealRef = useRef(false);
   const pendingRevealFitRef = useRef(false);
+  const skipNextAutoResizeFitRef = useRef(false);
   const lastHandledMachineLoadRef = useRef<number>(-1);
   const handleAutoResizeLayout = useCallback(() => {
+    if (skipNextAutoResizeFitRef.current) {
+      skipNextAutoResizeFitRef.current = false;
+      return;
+    }
     fitAfterLayoutRef.current = true;
   }, []);
 
@@ -1245,6 +1250,10 @@ export function ConfigGraphCircles() {
     const handler: EventListener = (event) => {
       const detail = (event as CustomEvent<PortalBridgeSwitchDetail>).detail;
       if (!detail || detail.id !== 'configGraph') return;
+      // Preserve the current viewport when moving between regular and fullscreen
+      // containers. iPad can emit resize/layout events immediately after switch,
+      // which would otherwise trigger an auto-fit and reset pan/zoom.
+      skipNextAutoResizeFitRef.current = true;
       setAutoResizeLayoutEnabled(detail.location !== 'target');
       scheduleFitAfterSwitch();
     };
