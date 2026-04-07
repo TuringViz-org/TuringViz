@@ -373,7 +373,6 @@ export default function App() {
               key={treeComputeNonce}
               targetNodes={computationTreeTargetNodes}
               compressing={compressed}
-              paused={!treeTabActive && !treeFullscreen.open && !treeFullscreen.render}
             />
           </Suspense>
         ) : null,
