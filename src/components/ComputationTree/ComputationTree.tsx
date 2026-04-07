@@ -550,11 +550,16 @@ function ComputationTreeCircles({ targetNodes, compressing = false, paused = fal
   const [viewportReady, setViewportReady] = useState(false);
   const [autoResizeLayoutEnabled, setAutoResizeLayoutEnabled] = useState(true);
   const fitAfterLayoutRef = useRef(false);
+  const skipNextAutoResizeFitRef = useRef(false);
   const pendingLayoutViewportFitRef = useRef(false);
   const layoutPositionsAppliedRef = useRef(false);
   const pendingRevealFitRef = useRef(false);
   const handleAutoResizeLayout = useCallback(() => {
     if (nodes.length === 0) return;
+    if (skipNextAutoResizeFitRef.current) {
+      skipNextAutoResizeFitRef.current = false;
+      return;
+    }
     fitAfterLayoutRef.current = true;
   }, [nodes.length]);
 
@@ -1475,6 +1480,10 @@ function ComputationTreeCircles({ targetNodes, compressing = false, paused = fal
     const handler: EventListener = (event) => {
       const detail = (event as CustomEvent<PortalBridgeSwitchDetail>).detail;
       if (!detail || detail.id !== 'computationTree') return;
+      // Preserve the current viewport when moving between regular and fullscreen
+      // containers. iPad can emit resize/layout events immediately after switch,
+      // which would otherwise trigger an auto-fit and reset pan/zoom.
+      skipNextAutoResizeFitRef.current = true;
       setAutoResizeLayoutEnabled(detail.location !== 'target');
       scheduleFitAfterSwitch();
     };
