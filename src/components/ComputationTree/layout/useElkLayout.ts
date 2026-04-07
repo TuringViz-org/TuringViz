@@ -318,10 +318,9 @@ export function useElkLayout({
         const rfNodes = nodesRef.current;
         const rfEdges = edgesRef.current;
         if (!rfNodes.length) break;
-        if (containerRef?.current) {
-          const { clientWidth, clientHeight } = containerRef.current;
-          if (clientWidth <= 0 || clientHeight <= 0) break;
-        }
+        // Match config-graph behavior: still compute a layout even when the
+        // container is temporarily 0x0 (e.g. during tab/portal transitions on iPad).
+        // This avoids leaving all nodes at (0,0), which visually looks like one node.
 
         const effectiveDirection = autoDirection
           ? resolveAutoDirection({
