@@ -95,10 +95,19 @@ describe('useGlobalZustand store', () => {
     ]);
     const blank = '-';
     const numberOfTapes = 2;
+    const input = createTapeContent([[[], ['1']], [[], ['0']]]);
 
     useGlobalZustand
       .getState()
-      .setAll(states, startState, transitions, blank, numberOfTapes, null);
+      .setAll(
+        states,
+        startState,
+        transitions,
+        blank,
+        numberOfTapes,
+        input,
+        null
+      );
 
     expect(Array.from(useGlobalZustand.getState().states)).toEqual(['a', 'b']);
     expect(useGlobalZustand.getState().startState).toBe('a');
@@ -106,10 +115,10 @@ describe('useGlobalZustand store', () => {
       Array.from(transitions.entries())
     );
     expect(useGlobalZustand.getState().blank).toBe('-');
-    expect(useGlobalZustand.getState().tapes).toEqual([
-      [[], []],
-      [[], []],
-    ]);
+    expect(useGlobalZustand.getState().input).toEqual(input);
+    expect(useGlobalZustand.getState().tapes).toEqual(input);
+    expect(useGlobalZustand.getState().input).not.toBe(input);
+    expect(useGlobalZustand.getState().tapes).not.toBe(input);
     expect(useGlobalZustand.getState().numberOfTapes).toBe(2);
   });
 

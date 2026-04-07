@@ -1,7 +1,12 @@
 // src/zustands/GlobalZustand.ts
 import { create } from 'zustand';
 
-import { Transition, TapeContent, Configuration } from '@mytypes/TMTypes';
+import {
+  Transition,
+  TapeContent,
+  Configuration,
+  deepCopyTapeContent,
+} from '@mytypes/TMTypes';
 import { ConfigGraph } from '@tmfunctions/ConfigGraph';
 import { getColorMatching} from '@utils/ColorMatching';
 
@@ -31,6 +36,7 @@ interface GlobalZustand {
     transitions: Map<string, Transition[]>,
     blank: string,
     numberOfTapes: number,
+    input: TapeContent,
     configGraph: ConfigGraph | null
   ) => void;
 
@@ -126,8 +132,19 @@ interface GlobalZustand {
 }
 
 export const useGlobalZustand = create<GlobalZustand>((set) => ({
-  setAll: (states, startState, transitions, blank, numberOfTapes, configGraph) => {
+  setAll: (
+    states,
+    startState,
+    transitions,
+    blank,
+    numberOfTapes,
+    input,
+    configGraph
+  ) => {
     set(prev => ({
+      // Keep input/tapes independent so runtime mutations never affect the original input.
+      input: deepCopyTapeContent(input),
+      tapes: deepCopyTapeContent(input),
       blank,
       numberOfTapes,
       runningLive: false,
@@ -138,11 +155,9 @@ export const useGlobalZustand = create<GlobalZustand>((set) => ({
       configGraph,
       startState,
       transitions,
-      tapes: Array.from({ length: numberOfTapes }, () => [[], []]),
       currentState: startState,
       heads: Array(numberOfTapes).fill(0),
       running: false,
-      input: Array.from({ length: numberOfTapes }, () => [[], []]),
       stateColorMatching: getColorMatching(states, prev.stateColorMatching),
       lastConfig: null,
       pendingRunChoice: null,

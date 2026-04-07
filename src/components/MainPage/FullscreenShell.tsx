@@ -64,13 +64,28 @@ export function FullscreenShell(props: {
           borderColor: (t) => t.palette.divider,
         }}
       >
-        <Toolbar variant="dense">
-          <Typography variant="subtitle1" sx={{ fontWeight: 600, flex: 1 }}>
+        <Toolbar variant="dense" sx={{ minHeight: 56, columnGap: 1 }}>
+          <Typography
+            variant="subtitle1"
+            sx={{
+              fontWeight: 600,
+              flex: 1,
+              minWidth: 0,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+            }}
+          >
             {title}
           </Typography>
 
           {actions ? (
-            <Stack direction="row" spacing={1}>
+            <Stack
+              direction="row"
+              spacing={1}
+              alignItems="center"
+              sx={{ flexShrink: 0, minWidth: 0, maxWidth: '100%' }}
+            >
               {actions}
             </Stack>
           ) : null}

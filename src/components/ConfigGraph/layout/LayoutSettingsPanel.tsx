@@ -35,7 +35,7 @@ type Props = {
 
 function RowLabel({ children }: { children: React.ReactNode }) {
   return (
-    <Typography variant="caption" sx={{ minWidth: 92, color: 'text.secondary' }}>
+    <Typography variant="caption" sx={{ minWidth: 80, color: 'text.secondary' }}>
       {children}
     </Typography>
   );
@@ -122,22 +122,12 @@ export function LayoutSettingsPanel({
 
       <Stack spacing={1.25}>
         {/* Direction */}
-        <Stack direction="row" spacing={1} alignItems="center">
+        <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" rowGap={0.75}>
           <RowLabel>Direction</RowLabel>
           <Box
             sx={{
               flex: 1,
-              minWidth: 0,
-              overflowX: 'auto',
-              overflowY: 'hidden',
-              pr: 0.5,
-              scrollbarWidth: 'thin',
-              '&::-webkit-scrollbar': { height: 6 },
-              '&::-webkit-scrollbar-thumb': (theme) => ({
-                backgroundColor: alpha(theme.palette.divider, 0.8),
-                borderRadius: 999,
-              }),
-              '&::-webkit-scrollbar-track': { background: 'transparent' },
+              minWidth: 132,
             }}
           >
             <ToggleButtonGroup
@@ -157,19 +147,22 @@ export function LayoutSettingsPanel({
                 });
               }}
               sx={{
-                width: 'max-content',
-                minWidth: '100%',
+                width: '100%',
+                minWidth: 0,
                 height: CONTROL_HEIGHT,
                 borderRadius: 1.5,
                 overflow: 'hidden',
                 border: (theme) => `1px solid ${theme.palette.divider}`,
                 '& .MuiToggleButton-root': {
+                  flex: 1,
+                  minWidth: 0,
                   height: CONTROL_HEIGHT,
                   border: 'none',
                   borderRadius: 0,
                   textTransform: 'none',
                   fontWeight: 500,
-                  px: 1.25,
+                  fontSize: '0.75rem',
+                  px: 0.75,
                   py: 0,
                   boxShadow: (theme) => `inset 1px 0 0 ${theme.palette.divider}`,
                   '&:first-of-type': { boxShadow: 'none' },

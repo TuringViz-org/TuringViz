@@ -342,9 +342,15 @@ export function parseYaml(editorstring: string): LineParseError[] {
   // Update the global state with the parsed machine definition and computed configurations
   useGlobalZustand
     .getState()
-    .setAll(states, startState, transitions, blank, numberOfTapes, initialConfigGraph);
-  useGlobalZustand.getState().setInput(newinput);
-  useGlobalZustand.getState().setTapes(JSON.parse(JSON.stringify(newinput))); // store a deep copy of initial tape contents
+    .setAll(
+      states,
+      startState,
+      transitions,
+      blank,
+      numberOfTapes,
+      newinput,
+      initialConfigGraph
+    );
 
   // Kick off a background job to expand the configuration graph without blocking the UI
   const jobId = ++latestConfigGraphJobId;

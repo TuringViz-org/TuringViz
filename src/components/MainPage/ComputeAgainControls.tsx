@@ -40,14 +40,39 @@ export function ComputeAgainControls({
       alignItems="center"
       sx={{
         minWidth: 0,
+        minHeight: 34,
         py: 0.25,
-        flexWrap: { xs: 'wrap', sm: 'nowrap' },
+        flexWrap: 'nowrap',
         justifyContent: 'flex-end',
-        rowGap: 0.75,
+        maxWidth: '100%',
+        overflowX: 'auto',
       }}
     >
+      {showCompressed && onCompressedChange ? (
+        <FormControlLabel
+          sx={{ m: 0, height: 34, whiteSpace: 'nowrap' }}
+          control={
+            <Checkbox
+              size="small"
+              checked={compressed}
+              disabled={disabled}
+              onChange={(event) => onCompressedChange(event.target.checked)}
+            />
+          }
+          label={
+            <Typography
+              variant="body2"
+              color="text.secondary"
+              sx={{ lineHeight: 1, fontWeight: 500 }}
+            >
+              Compressed
+            </Typography>
+          }
+        />
+      ) : null}
+
       <Box
-        sx={{ width: { xs: 120, sm: 220 }, display: 'flex', alignItems: 'center' }}
+        sx={{ width: { xs: 96, sm: 180, md: 220 }, display: 'flex', alignItems: 'center' }}
       >
         <Slider
           size="small"
@@ -67,7 +92,7 @@ export function ComputeAgainControls({
         variant="body2"
         color="text.secondary"
         sx={{
-          minWidth: { xs: 78, sm: 90 },
+          minWidth: { xs: 68, sm: 90 },
           textAlign: 'right',
           fontVariantNumeric: 'tabular-nums',
           fontWeight: 500,
@@ -75,25 +100,6 @@ export function ComputeAgainControls({
       >
         {targetNodes} Nodes
       </Typography>
-
-      {showCompressed && onCompressedChange ? (
-        <FormControlLabel
-          sx={{ mr: 0, my: 0 }}
-          control={
-            <Checkbox
-              size="small"
-              checked={compressed}
-              disabled={disabled}
-              onChange={(event) => onCompressedChange(event.target.checked)}
-            />
-          }
-          label={
-            <Typography variant="caption" color="text.secondary">
-              Compressed
-            </Typography>
-          }
-        />
-      ) : null}
 
       <Button
         size="small"

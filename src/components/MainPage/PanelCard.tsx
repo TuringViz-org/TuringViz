@@ -39,15 +39,26 @@ export function PanelCard(props: {
             sx={{
               px: 2,
               py: 1,
+              minHeight: 56,
               display: 'flex',
-              alignItems: { xs: 'flex-start', sm: 'center' },
+              alignItems: 'center',
               justifyContent: 'space-between',
-              flexWrap: { xs: 'wrap', sm: 'nowrap' },
-              rowGap: 0.75,
+              columnGap: 1,
+              flexWrap: 'nowrap',
               bgcolor: (t) => t.palette.background.default,
             }}
           >
-            <Typography variant="subtitle1" sx={{ fontWeight: 600, minWidth: 0 }}>
+            <Typography
+              variant="subtitle1"
+              sx={{
+                fontWeight: 600,
+                minWidth: 0,
+                flex: 1,
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+              }}
+            >
               {title}
             </Typography>
             {actions ? (
@@ -56,10 +67,10 @@ export function PanelCard(props: {
                 spacing={1}
                 alignItems="center"
                 sx={{
-                  width: { xs: '100%', sm: 'auto' },
+                  width: 'auto',
                   justifyContent: 'flex-end',
-                  flexWrap: { xs: 'wrap', sm: 'nowrap' },
-                  rowGap: 0.75,
+                  flexWrap: 'nowrap',
+                  flexShrink: 0,
                 }}
               >
                 {actions}
