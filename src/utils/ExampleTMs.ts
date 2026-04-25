@@ -89,6 +89,32 @@ table:
   done: {}`,
 };
 
+export const Fib: ExampleTM = {
+  name: 'Fib',
+  code: `# On input 1^n, this machine has exactly fib(n) accepting paths
+tapes: 1
+input: "1111111"
+blank: "_"
+startstate: start
+table:
+  start:
+    "_": { S: reject }
+    "1": { R: fib }
+
+  fib:
+    "_": { S: accept }
+    "1":
+      - { R: fib }
+      - { R: take2 }
+
+  take2:
+    "1": { R: fib }
+    "_": { S: reject }
+
+  accept: {}
+  reject: {}`,
+};
+
 export const DAG: ExampleTM = {
   name: 'DAG',
   code: `# Computing a config graph that is a DAG
@@ -444,6 +470,7 @@ ExampleTMs.push(NonDetSubSetSum);
 ExampleTMs.push(CheckEven);
 ExampleTMs.push(GCD);
 ExampleTMs.push(AllStrings);
+ExampleTMs.push(Fib);
 ExampleTMs.push(DAG);
 ExampleTMs.push(Circle);
 ExampleTMs.push(NonDetSAT);
