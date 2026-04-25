@@ -34,8 +34,8 @@ const distinctColors: string[] = [
 const acceptingStates = ['accept', 'accepted', 'done'];
 const rejectingStates = ['reject', 'rejected', 'error'];
 
-const acceptingColor = '#6fdd78ff'; // Matches theme.palette.success.light
-const rejectingColor = '#ff7777ff'; // Matches theme.palette.error.light
+const acceptingColor = '#00ff00ff'; // Matches theme.palette.success.light
+const rejectingColor = '#ff0000ff'; // Matches theme.palette.error.light
 
 export function getColorMatching(
   newstates: Set<string>,

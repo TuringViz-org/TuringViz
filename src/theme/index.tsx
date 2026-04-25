@@ -40,15 +40,15 @@ export const theme = createTheme({
       contrastText: '#fff',
     },
     success: {
-      light: '#6fdd78ff',
-      main: '#39d348ff',
+      light: '#00ff00ff',
+      main: '#00e600ff',
       dark: '#047857',
       contrastText: '#fff',
     },
     border: { main: grey.A400, dark: grey[600] },
     error: {
       main: '#f94952ff',
-      light: '#ff7777ff',
+      light: '#ff0000ff',
       dark: '#95242aff',
       contrastText: '#fff',
     },
