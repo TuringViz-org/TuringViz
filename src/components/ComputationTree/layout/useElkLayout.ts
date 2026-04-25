@@ -29,6 +29,15 @@ type FallbackLayoutParams = {
 
 const ELK_LAYOUT_TIMEOUT_MS = 12000;
 
+function isDocumentHidden(): boolean {
+  return typeof document !== 'undefined' && document.visibilityState === 'hidden';
+}
+
+function isElementHidden(element: Element | null | undefined): boolean {
+  if (!(element instanceof HTMLElement)) return false;
+  return element.clientWidth <= 0 || element.clientHeight <= 0;
+}
+
 function buildTopoKeyFromElements(rfNodes: RFNode[], rfEdges: RFEdge[]): string {
   const nIds = rfNodes
     .map((n) => String(n.id))
@@ -229,12 +238,16 @@ export function useElkLayout({
   const lastSizeKeyRef = useRef<string>('');
   const isRunningRef = useRef(false);
   const rerunRequestedRef = useRef(false);
+  const latestRequestIdRef = useRef(0);
+  const retryWhenVisibleRef = useRef(false);
+  const isMountedRef = useRef(true);
 
   // Create ELK instance once (kept across renders)
   if (!elkRef.current) elkRef.current = createElkWithWorker('computation-tree-elk-layout-worker');
 
   useEffect(
     () => () => {
+      isMountedRef.current = false;
       elkRef.current?.terminateWorker();
       elkRef.current = null;
       workerGraphKeyRef.current = '';
@@ -271,6 +284,12 @@ export function useElkLayout({
     lastDirectionRef.current = direction;
   }, [direction]);
 
+  const resetElkWorker = useCallback(() => {
+    elkRef.current?.terminateWorker();
+    elkRef.current = createElkWithWorker('computation-tree-elk-layout-worker');
+    workerGraphKeyRef.current = '';
+  }, []);
+
   // Topology key: only node IDs + (unique) source→target pairs
   // This keeps layout re-runs limited to actual structure changes.
   const topoKey = useMemo(() => {
@@ -304,13 +323,14 @@ export function useElkLayout({
   );
 
   const runLayout = useCallback(async () => {
+    latestRequestIdRef.current += 1;
     if (isRunningRef.current) {
       rerunRequestedRef.current = true;
       return;
     }
 
     isRunningRef.current = true;
-    setRunning(true);
+    if (isMountedRef.current) setRunning(true);
     try {
       while (true) {
         rerunRequestedRef.current = false;
@@ -318,6 +338,8 @@ export function useElkLayout({
         const rfNodes = nodesRef.current;
         const rfEdges = edgesRef.current;
         if (!rfNodes.length) break;
+        const topoKeyForRun = buildTopoKeyFromElements(rfNodes, rfEdges);
+        const requestIdForRun = latestRequestIdRef.current;
         // Match config-graph behavior: still compute a layout even when the
         // container is temporarily 0x0 (e.g. during tab/portal transitions on iPad).
         // This avoids leaving all nodes at (0,0), which visually looks like one node.
@@ -360,12 +382,17 @@ export function useElkLayout({
                   maxAxisScale,
                 })
               : manualPathPositions;
-          onLayoutRef.current?.(nextPositions);
+          const isCurrentRun =
+            isMountedRef.current &&
+            requestIdForRun === latestRequestIdRef.current &&
+            topoKeyForRun === buildTopoKeyFromElements(nodesRef.current, edgesRef.current);
+          if (isCurrentRun) {
+            retryWhenVisibleRef.current = false;
+            onLayoutRef.current?.(nextPositions);
+          }
           // Keep the running=true -> running=false transition observable by React effects.
           await new Promise<void>((resolve) => setTimeout(resolve, 0));
         } else {
-          const topoKeyForRun = buildTopoKeyFromElements(rfNodes, rfEdges);
-
           if (workerGraphKeyRef.current !== topoKeyForRun) {
             elkRef.current?.terminateWorker();
             elkRef.current = createElkWithWorker('computation-tree-elk-layout-worker');
@@ -442,16 +469,35 @@ export function useElkLayout({
                     maxAxisScale,
                   })
                 : posById;
-            onLayoutRef.current?.(nextPositions);
+            const isCurrentRun =
+              isMountedRef.current &&
+              requestIdForRun === latestRequestIdRef.current &&
+              topoKeyForRun === buildTopoKeyFromElements(nodesRef.current, edgesRef.current);
+            if (isCurrentRun) {
+              retryWhenVisibleRef.current = false;
+              onLayoutRef.current?.(nextPositions);
+            }
           } catch {
+            resetElkWorker();
+
+            if (!isMountedRef.current) break;
+
+            if (isDocumentHidden()) {
+              retryWhenVisibleRef.current = true;
+              break;
+            }
+
+            if (isElementHidden(containerRef?.current)) break;
+
+            const topologyChanged =
+              topoKeyForRun !== buildTopoKeyFromElements(nodesRef.current, edgesRef.current);
+            const supersededByNewerRun = requestIdForRun !== latestRequestIdRef.current;
+            if (topologyChanged || supersededByNewerRun) continue;
+
             if (lastFailureToastTopoKeyRef.current !== topoKeyForRun) {
               lastFailureToastTopoKeyRef.current = topoKeyForRun;
               toast.warning('Layout failed. Please try again with fewer nodes.');
             }
-            // Recreate worker so a stuck request cannot block future layouts.
-            elkRef.current?.terminateWorker();
-            elkRef.current = createElkWithWorker('computation-tree-elk-layout-worker');
-            workerGraphKeyRef.current = '';
             // ELK may throw on very deep/wide trees (e.g. self-loop-heavy examples).
             // Fall back to a deterministic layered layout so nodes stay visible.
             try {
@@ -461,6 +507,7 @@ export function useElkLayout({
                 padding,
                 direction: effectiveDirection,
               });
+              retryWhenVisibleRef.current = false;
               onLayoutRef.current?.(fallbackPositions);
             } catch {
               // Last-resort placement: keep nodes visible in a simple grid.
@@ -475,6 +522,7 @@ export function useElkLayout({
                   y: padding + Math.floor(i / columns) * spacingY,
                 });
               }
+              retryWhenVisibleRef.current = false;
               onLayoutRef.current?.(emergencyPositions);
             }
           }
@@ -484,7 +532,7 @@ export function useElkLayout({
       }
     } finally {
       isRunningRef.current = false;
-      setRunning(false);
+      if (isMountedRef.current) setRunning(false);
     }
   }, [
     algorithm,
@@ -500,7 +548,22 @@ export function useElkLayout({
     effectiveViewportWidth,
     effectiveViewportHeight,
     containerRef,
+    resetElkWorker,
   ]);
+
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState !== 'visible') return;
+      if (!retryWhenVisibleRef.current) return;
+      retryWhenVisibleRef.current = false;
+      void runLayout();
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [runLayout]);
 
   // Fit view after layout if requested
   const restart = () => {

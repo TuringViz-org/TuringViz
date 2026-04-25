@@ -30,7 +30,7 @@ export function useSharedMachineBootstrap(setCode: SetCodeFn) {
       }
 
       setCode(decoded, true, false);
-      toast.success('Shared Turing machine inserted into editor.');
+      toast.success('Shared Turing machine inserted into editor. Click "Load Machine" to load it.');
     };
 
     void load();

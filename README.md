@@ -22,9 +22,9 @@ TuringViz lets you define and run k-tape Turing machines in YAML and inspect the
 
 - Machine definitions are written in YAML.
 - Transition styles supported:
-  - movement-string shorthand (`L`, `R`, `S`)
-  - object form (optional `write` + movement -> next state)
-  - list form for nondeterministic choices
+  - movement-string shorthand (`L`, `R`, `S`, or slash-separated forms such as `R/S` and `L/L/R`)
+  - object form with optional `write` plus one movement key; the movement may point to a next state or stay in the current state when no target is given
+  - list form for nondeterministic choices, using movement strings and/or object actions
 - Schema/reference files in this repo:
   - `public/turingMachineSchema.json`
   - `YamlSchema.md`
@@ -113,6 +113,7 @@ The following examples are currently available in the "Load Examples" menu:
 - `CheckEven`: Accepts iff the number of `1` symbols in a binary input is even.
 - `GCD`: Computes the greatest common divisor of two unary numbers.
 - `AllStrings`: Nondeterministically generates all binary strings of a fixed input length.
+- `Fib`: On input `1^n`, this machine has exactly `fib(n)` accepting paths.
 - `DAG`: Example whose configuration graph is acyclic (a directed acyclic graph).
 - `Circle`: Produces a cyclic configuration graph (a simple loop/circle structure).
 - `NonDetSAT`: Nondeterministic SAT solver for CNF formulas (accepts iff satisfiable).
