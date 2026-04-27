@@ -961,14 +961,18 @@ function TMGraph() {
         const isAccepting = ['done', 'accept', 'accepted'].includes(label.toLowerCase());
         const isRejecting = ['error', 'reject', 'rejected'].includes(label.toLowerCase());
 
+        const stateStatusColor = isAccepting
+          ? normalizeColor(theme.palette.success.light)
+          : isRejecting
+            ? normalizeColor(theme.palette.error.light)
+            : undefined;
+
         const bgColor =
-          isCurrent || isLast
-            ? normalizeColor(theme.palette.background.paper)
-            : isAccepting
-              ? normalizeColor(theme.palette.success.light)
-              : isRejecting
-                ? normalizeColor(theme.palette.error.light)
-                : normalizeColor(theme.palette.background.paper);
+          isCurrent && stateStatusColor
+            ? stateStatusColor
+            : isCurrent || isLast
+              ? normalizeColor(theme.palette.background.paper)
+              : stateStatusColor ?? normalizeColor(theme.palette.background.paper);
 
         const classes = ['node'];
         if (isStart) classes.push('start');

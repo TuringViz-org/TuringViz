@@ -49,15 +49,19 @@ const StateNodeComponent = ({ data }: NodeProps<StateNode>) => {
       ? alpha(theme.palette.accent.light, 0.6)
       : 'transparent';
 
-  // Background color based on label
+  const stateStatusColor = isAccepting
+    ? theme.palette.success.light
+    : isRejecting
+      ? theme.palette.error.light
+      : undefined;
+
+  // Current accept/reject states keep their semantic color; other current/last states stay neutral.
   const backgroundColor =
-    isCurrent || isLast
-      ? theme.palette.background.paper
-      : isAccepting
-        ? theme.palette.success.light
-        : isRejecting
-          ? theme.palette.error.light
-          : theme.palette.background.paper;
+    isCurrent && stateStatusColor
+      ? stateStatusColor
+      : isCurrent || isLast
+        ? theme.palette.background.paper
+        : stateStatusColor ?? theme.palette.background.paper;
 
   const boxShadow =
     highlightColor !== 'transparent'
