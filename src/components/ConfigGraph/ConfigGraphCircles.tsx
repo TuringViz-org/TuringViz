@@ -84,6 +84,7 @@ import {
 import { useElkLayout } from '@components/ComputationTree/layout/useElkLayout';
 import { TreeLayoutSettingsPanel as LayoutSettingsPanel } from '@components/ComputationTree/layout/LayoutSettingsPanel';
 import { useDebouncedLayoutRestart } from '@hooks/useDebouncedLayoutRestart';
+import { useDeveloperControls } from '@hooks/useDeveloperControls';
 import { useGraphUI } from '@components/shared/GraphUIContext';
 import { useGlobalZustand } from '@zustands/GlobalZustand';
 import {
@@ -425,6 +426,7 @@ export function ConfigGraphCircles() {
   const [viewportReady, setViewportReady] = useState(false);
   const [autoResizeLayoutEnabled, setAutoResizeLayoutEnabled] = useState(true);
   const fitAfterLayoutRef = useRef(false);
+  const showDeveloperControls = useDeveloperControls();
   const pendingMachineLoadFitRef = useRef(false);
   const awaitingInitialRevealRef = useRef(false);
   const pendingRevealFitRef = useRef(false);
@@ -1355,39 +1357,40 @@ export function ConfigGraphCircles() {
         />
       )}
 
-      {/* Layout settings panel trigger button */}
-      <Box
-        sx={{
-          position: 'absolute',
-          top: 8,
-          right: 8,
-          zIndex: (t) => t.zIndex.appBar + 1,
-          pointerEvents: 'auto',
-        }}
-      >
-        <Tooltip title="Layout settings">
-          <Fab
-            size="small"
-            variant="extended"
-            color="primary"
-            onClick={() => setSettingsOpen((v) => !v)}
-            sx={{
-              textTransform: 'none',
-              boxShadow: (t) => `0 4px 12px ${alpha(t.palette.common.black, 0.2)}`,
-              '& .MuiSvgIcon-root': { mr: 0.75, fontSize: 18 },
-              px: 1.5,
-              minHeight: 32,
-            }}
-          >
-            <Tune />
-            Layout
-          </Fab>
-        </Tooltip>
-      </Box>
+      {showDeveloperControls && (
+        <Box
+          sx={{
+            position: 'absolute',
+            top: 8,
+            right: 8,
+            zIndex: (t) => t.zIndex.appBar + 1,
+            pointerEvents: 'auto',
+          }}
+        >
+          <Tooltip title="Layout settings">
+            <Fab
+              size="small"
+              variant="extended"
+              color="primary"
+              onClick={() => setSettingsOpen((v) => !v)}
+              sx={{
+                textTransform: 'none',
+                boxShadow: (t) => `0 4px 12px ${alpha(t.palette.common.black, 0.2)}`,
+                '& .MuiSvgIcon-root': { mr: 0.75, fontSize: 18 },
+                px: 1.5,
+                minHeight: 32,
+              }}
+            >
+              <Tune />
+              Layout
+            </Fab>
+          </Tooltip>
+        </Box>
+      )}
 
       {/* Layout settings panel */}
       <LayoutSettingsPanel
-        open={settingsOpen}
+        open={showDeveloperControls && settingsOpen}
         onClose={() => setSettingsOpen(false)}
         value={configGraphELKSettings}
         onChange={(next) => setConfigGraphELKSettings(next)}

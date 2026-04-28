@@ -82,6 +82,7 @@ import {
 import { useElkLayout } from './layout/useElkLayout';
 import { TreeLayoutSettingsPanel } from './layout/LayoutSettingsPanel';
 import { useDebouncedLayoutRestart } from '@hooks/useDebouncedLayoutRestart';
+import { useDeveloperControls } from '@hooks/useDeveloperControls';
 import { GraphUIProvider, useGraphUI } from '@components/shared/GraphUIContext';
 import {
   PORTAL_BRIDGE_BEFORE_SWITCH_EVENT,
@@ -554,6 +555,7 @@ function ComputationTreeCircles({ targetNodes, compressing = false, paused = fal
   const pendingLayoutViewportFitRef = useRef(false);
   const layoutPositionsAppliedRef = useRef(false);
   const pendingRevealFitRef = useRef(false);
+  const showDeveloperControls = useDeveloperControls();
   const handleAutoResizeLayout = useCallback(() => {
     if (nodes.length === 0) return;
     if (skipNextAutoResizeFitRef.current) {
@@ -1586,39 +1588,40 @@ function ComputationTreeCircles({ targetNodes, compressing = false, paused = fal
         <LoadingOverlay label={isComputing ? 'Computing tree...' : 'Calculating layout...'} />
       )}
 
-      {/* Layout settings panel trigger button */}
-      <Box
-        sx={{
-          position: 'absolute',
-          top: 8,
-          right: 8,
-          zIndex: (t) => t.zIndex.appBar + 1,
-          pointerEvents: 'auto',
-        }}
-      >
-        <Tooltip title="Layout settings">
-          <Fab
-            size="small"
-            variant="extended"
-            color="primary"
-            onClick={() => setSettingsOpen((v) => !v)}
-            sx={{
-              textTransform: 'none',
-              boxShadow: (t) => `0 4px 12px ${alpha(t.palette.common.black, 0.2)}`,
-              '& .MuiSvgIcon-root': { mr: 0.75, fontSize: 18 },
-              px: 1.5,
-              minHeight: 32,
-            }}
-          >
-            <Tune />
-            Layout
-          </Fab>
-        </Tooltip>
-      </Box>
+      {showDeveloperControls && (
+        <Box
+          sx={{
+            position: 'absolute',
+            top: 8,
+            right: 8,
+            zIndex: (t) => t.zIndex.appBar + 1,
+            pointerEvents: 'auto',
+          }}
+        >
+          <Tooltip title="Layout settings">
+            <Fab
+              size="small"
+              variant="extended"
+              color="primary"
+              onClick={() => setSettingsOpen((v) => !v)}
+              sx={{
+                textTransform: 'none',
+                boxShadow: (t) => `0 4px 12px ${alpha(t.palette.common.black, 0.2)}`,
+                '& .MuiSvgIcon-root': { mr: 0.75, fontSize: 18 },
+                px: 1.5,
+                minHeight: 32,
+              }}
+            >
+              <Tune />
+              Layout
+            </Fab>
+          </Tooltip>
+        </Box>
+      )}
 
       {/* Layout settings panel */}
       <TreeLayoutSettingsPanel
-        open={settingsOpen}
+        open={showDeveloperControls && settingsOpen}
         onClose={() => setSettingsOpen(false)}
         value={computationTreeELKSettings}
         onChange={(next) => setComputationTreeELKSettings(next)}
@@ -1843,6 +1846,7 @@ function ComputationTreeCards({ targetNodes, compressing = false, paused = false
   const [autoResizeLayoutEnabled, setAutoResizeLayoutEnabled] = useState(true);
   const fitAfterLayoutRef = useRef(false);
   const restoreAfterLayoutRef = useRef(false);
+  const showDeveloperControls = useDeveloperControls();
   const handleAutoResizeLayout = useCallback(() => {
     if (nodes.length === 0) return;
     restoreAfterLayoutRef.current = true;
@@ -2416,39 +2420,40 @@ function ComputationTreeCards({ targetNodes, compressing = false, paused = false
         onlyRenderVisibleElements
       >
 
-      {/* Layout settings panel trigger button */}
-      <Box
-        sx={{
-          position: 'absolute',
-          top: 8,
-          right: 8,
-          zIndex: (t) => t.zIndex.appBar + 1,
-          pointerEvents: 'auto',
-        }}
-      >
-        <Tooltip title="Layout settings">
-          <Fab
-            size="small"
-            variant="extended"
-            color="primary"
-            onClick={() => setSettingsOpen((v) => !v)}
-            sx={{
-              textTransform: 'none',
-              boxShadow: (t) => `0 4px 12px ${alpha(t.palette.common.black, 0.2)}`,
-              '& .MuiSvgIcon-root': { mr: 0.75, fontSize: 18 },
-              px: 1.5,
-              minHeight: 32,
-            }}
-          >
-            <Tune />
-            Layout
-          </Fab>
-        </Tooltip>
-      </Box>
+      {showDeveloperControls && (
+        <Box
+          sx={{
+            position: 'absolute',
+            top: 8,
+            right: 8,
+            zIndex: (t) => t.zIndex.appBar + 1,
+            pointerEvents: 'auto',
+          }}
+        >
+          <Tooltip title="Layout settings">
+            <Fab
+              size="small"
+              variant="extended"
+              color="primary"
+              onClick={() => setSettingsOpen((v) => !v)}
+              sx={{
+                textTransform: 'none',
+                boxShadow: (t) => `0 4px 12px ${alpha(t.palette.common.black, 0.2)}`,
+                '& .MuiSvgIcon-root': { mr: 0.75, fontSize: 18 },
+                px: 1.5,
+                minHeight: 32,
+              }}
+            >
+              <Tune />
+              Layout
+            </Fab>
+          </Tooltip>
+        </Box>
+      )}
 
       {/* Layout settings panel */}
       <TreeLayoutSettingsPanel
-        open={settingsOpen}
+        open={showDeveloperControls && settingsOpen}
         onClose={() => setSettingsOpen(false)}
         value={computationTreeELKSettings}
         onChange={(next) => setComputationTreeELKSettings(next)}
