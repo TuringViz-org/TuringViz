@@ -43,14 +43,14 @@ export const MIN_COMPUTATION_TREE_TARGET_NODES = 30;
 export const MAX_COMPUTATION_TREE_TARGET_NODES = 100000;
 // Max number of deterministic steps collapsed into one compressed edge.
 export const MAX_COMPRESSED_CHAIN_LENGTH = 1000;
-export const DEFAULT_TREE_DEPTH = 15000;
+export const DEFAULT_TREE_DEPTH = 17000;
 
 // Minimum/Default target node count for configuration graph computation
 export const MIN_CONFIG_GRAPH_TARGET_NODES = 30;
 export const MAX_CONFIG_GRAPH_TARGET_NODES = 100000;
 
 // Default target node count for configuration graph computation
-export const DEFAULT_CONFIG_GRAPH_TARGET_NODES = 15000;
+export const DEFAULT_CONFIG_GRAPH_TARGET_NODES = 17000;
 
 // Delay before showing hover poppers (in ms)
 export const HOVER_POPPER_DELAY_MS = 500;

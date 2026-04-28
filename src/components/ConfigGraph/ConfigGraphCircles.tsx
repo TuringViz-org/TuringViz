@@ -16,15 +16,10 @@ import {
   Popper,
   ClickAwayListener,
   Stack,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
 } from '@mui/material';
 import { alpha, useTheme } from '@mui/material/styles';
 import { Adjust, ViewAgenda, Tune, CenterFocusStrong } from '@mui/icons-material';
 import type { VirtualElement } from '@popperjs/core';
-import { toast } from 'sonner';
 import type { Edge as RFEdge, Node as RFNode } from '@xyflow/react';
 
 import { LegendPanel } from '@components/shared/LegendPanel';
@@ -37,7 +32,6 @@ import {
   CONFIG_CARD_WIDTH,
   CONFIG_NODE_DIAMETER,
   CONTROL_HEIGHT,
-  CARDS_LIMIT,
   COLOR_STATE_SWITCH,
 } from './util/constants';
 import type { ConfigGraph as ConfigGraphModel } from '@tmfunctions/ConfigGraph';
@@ -74,7 +68,6 @@ const resolveStateColor = (
 };
 import { buildConfigGraph } from './util/buildConfigGraph';
 import {
-  CARDS_CONFIRM_THRESHOLD,
   ConfigNodeMode,
   DEFAULT_GRAPH_CARDS_ELK_OPTS,
   DEFAULT_GRAPH_ELK_OPTS,
@@ -84,6 +77,7 @@ import {
 import { useElkLayout } from '@components/ComputationTree/layout/useElkLayout';
 import { TreeLayoutSettingsPanel as LayoutSettingsPanel } from '@components/ComputationTree/layout/LayoutSettingsPanel';
 import { useDebouncedLayoutRestart } from '@hooks/useDebouncedLayoutRestart';
+import { useDeveloperControls } from '@hooks/useDeveloperControls';
 import { useGraphUI } from '@components/shared/GraphUIContext';
 import { useGlobalZustand } from '@zustands/GlobalZustand';
 import {
@@ -420,11 +414,11 @@ export function ConfigGraphCircles() {
     reason: null,
   });
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [confirmCardsOpen, setConfirmCardsOpen] = useState(false);
   const [containerVisible, setContainerVisible] = useState(true);
   const [viewportReady, setViewportReady] = useState(false);
   const [autoResizeLayoutEnabled, setAutoResizeLayoutEnabled] = useState(true);
   const fitAfterLayoutRef = useRef(false);
+  const showDeveloperControls = useDeveloperControls();
   const pendingMachineLoadFitRef = useRef(false);
   const awaitingInitialRevealRef = useRef(false);
   const pendingRevealFitRef = useRef(false);
@@ -568,18 +562,7 @@ export function ConfigGraphCircles() {
     setViewportReady(false);
   }, [configGraphComputing]);
 
-  // Disable cards if too many nodes
   const nodeCount = model?.Graph?.size ?? 0;
-  const cardsDisabled = nodeCount > CARDS_LIMIT;
-
-  useEffect(() => {
-    if (configGraphNodeMode === ConfigNodeMode.CARDS && cardsDisabled) {
-      setConfigGraphNodeMode(ConfigNodeMode.NODES);
-      toast.warning(
-        `Cards are disabled when there are more than ${CARDS_LIMIT} nodes (current: ${nodeCount}).`
-      );
-    }
-  }, [cardsDisabled, configGraphNodeMode, nodeCount, setConfigGraphNodeMode]);
 
   // Hide labels when many nodes
   const hideLabels = nodeCount >= COLOR_STATE_SWITCH;
@@ -1293,22 +1276,9 @@ export function ConfigGraphCircles() {
 
   const requestNodeModeChange = useCallback(
     (nextMode: ConfigNodeMode) => {
-      if (nextMode === ConfigNodeMode.CARDS && cardsDisabled) {
-        toast.info(
-          `Cards are disabled when there are more than ${CARDS_LIMIT} nodes (current: ${nodeCount}).`
-        );
-        return;
-      }
-      if (
-        nextMode === ConfigNodeMode.CARDS &&
-        nodeCount > CARDS_CONFIRM_THRESHOLD
-      ) {
-        setConfirmCardsOpen(true);
-        return;
-      }
       setConfigGraphNodeMode(nextMode);
     },
-    [cardsDisabled, nodeCount, setConfigGraphNodeMode]
+    [setConfigGraphNodeMode]
   );
 
   const recalcLayout = useCallback(() => {
@@ -1355,39 +1325,40 @@ export function ConfigGraphCircles() {
         />
       )}
 
-      {/* Layout settings panel trigger button */}
-      <Box
-        sx={{
-          position: 'absolute',
-          top: 8,
-          right: 8,
-          zIndex: (t) => t.zIndex.appBar + 1,
-          pointerEvents: 'auto',
-        }}
-      >
-        <Tooltip title="Layout settings">
-          <Fab
-            size="small"
-            variant="extended"
-            color="primary"
-            onClick={() => setSettingsOpen((v) => !v)}
-            sx={{
-              textTransform: 'none',
-              boxShadow: (t) => `0 4px 12px ${alpha(t.palette.common.black, 0.2)}`,
-              '& .MuiSvgIcon-root': { mr: 0.75, fontSize: 18 },
-              px: 1.5,
-              minHeight: 32,
-            }}
-          >
-            <Tune />
-            Layout
-          </Fab>
-        </Tooltip>
-      </Box>
+      {showDeveloperControls && (
+        <Box
+          sx={{
+            position: 'absolute',
+            top: 8,
+            right: 8,
+            zIndex: (t) => t.zIndex.appBar + 1,
+            pointerEvents: 'auto',
+          }}
+        >
+          <Tooltip title="Layout settings">
+            <Fab
+              size="small"
+              variant="extended"
+              color="primary"
+              onClick={() => setSettingsOpen((v) => !v)}
+              sx={{
+                textTransform: 'none',
+                boxShadow: (t) => `0 4px 12px ${alpha(t.palette.common.black, 0.2)}`,
+                '& .MuiSvgIcon-root': { mr: 0.75, fontSize: 18 },
+                px: 1.5,
+                minHeight: 32,
+              }}
+            >
+              <Tune />
+              Layout
+            </Fab>
+          </Tooltip>
+        </Box>
+      )}
 
       {/* Layout settings panel */}
       <LayoutSettingsPanel
-        open={settingsOpen}
+        open={showDeveloperControls && settingsOpen}
         onClose={() => setSettingsOpen(false)}
         value={configGraphELKSettings}
         onChange={(next) => setConfigGraphELKSettings(next)}
@@ -1396,25 +1367,6 @@ export function ConfigGraphCircles() {
         running={layout.running}
         mode={configGraphNodeMode}
       />
-      <Dialog open={confirmCardsOpen} onClose={() => setConfirmCardsOpen(false)}>
-        <DialogTitle>Switch to card view?</DialogTitle>
-        <DialogContent>
-          Card view can be slow for graphs above {CARDS_CONFIRM_THRESHOLD} nodes
-          (current: {nodeCount}). Continue?
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setConfirmCardsOpen(false)}>Cancel</Button>
-          <Button
-            variant="contained"
-            onClick={() => {
-              setConfirmCardsOpen(false);
-              setConfigGraphNodeMode(ConfigNodeMode.CARDS);
-            }}
-          >
-            Continue
-          </Button>
-        </DialogActions>
-      </Dialog>
 
       {/* Top-left controls */}
       <Box
@@ -1482,29 +1434,12 @@ export function ConfigGraphCircles() {
               </Stack>
             </ToggleButton>
 
-            {cardsDisabled ? (
-              <Tooltip
-                title={`Cards are disabled for graphs with more than ${CARDS_LIMIT} nodes.`}
-                placement="top"
-                disableInteractive
-              >
-                <span>
-                  <ToggleButton value={ConfigNodeMode.CARDS} aria-label="card nodes" disabled>
-                    <Stack direction="row" spacing={0.75} alignItems="center">
-                      <ViewAgenda fontSize="small" />
-                      <span>Cards</span>
-                    </Stack>
-                  </ToggleButton>
-                </span>
-              </Tooltip>
-            ) : (
-              <ToggleButton value={ConfigNodeMode.CARDS} aria-label="card nodes">
-                <Stack direction="row" spacing={0.75} alignItems="center">
-                  <ViewAgenda fontSize="small" />
-                  <span>Cards</span>
-                </Stack>
-              </ToggleButton>
-            )}
+            <ToggleButton value={ConfigNodeMode.CARDS} aria-label="card nodes">
+              <Stack direction="row" spacing={0.75} alignItems="center">
+                <ViewAgenda fontSize="small" />
+                <span>Cards</span>
+              </Stack>
+            </ToggleButton>
           </ToggleButtonGroup>
         </Stack>
       </Box>

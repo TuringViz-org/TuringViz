@@ -41,6 +41,7 @@ import {
 } from '@components/MainPage/PortalBridge';
 import { reconcileEdges, reconcileNodes } from '@utils/reactflow';
 import { useDebouncedLayoutRestart } from '@hooks/useDebouncedLayoutRestart';
+import { useDeveloperControls } from '@hooks/useDeveloperControls';
 import { EdgeTooltip } from './edges/EdgeTooltip';
 import { LoadingOverlay } from '@components/shared/LoadingOverlay';
 import {
@@ -517,6 +518,7 @@ function TMGraph() {
   const suppressEdgeTooltipCloseUntilRef = useRef(0);
 
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const showDeveloperControls = useDeveloperControls();
   const [containerVisible, setContainerVisible] = useState(true);
   const [viewportReady, setViewportReady] = useState(false);
   const [cyReady, setCyReady] = useState(false);
@@ -1324,40 +1326,42 @@ function TMGraph() {
 
       {!viewportReady && <LoadingOverlay />}
 
-      <Box
-        sx={{
-          position: 'absolute',
-          top: 8,
-          right: 8,
-          zIndex: (t) => t.zIndex.appBar + 1,
-          pointerEvents: 'auto',
-        }}
-      >
-        <Tooltip title="Layout settings">
-          <Fab
-            size="small"
-            variant="extended"
-            color="primary"
-            onClick={(evt) => {
-              evt.stopPropagation();
-              setSettingsOpen((v) => !v);
-            }}
-            sx={{
-              textTransform: 'none',
-              boxShadow: (t) => `0 4px 12px ${alpha(t.palette.common.black, 0.2)}`,
-              '& .MuiSvgIcon-root': { mr: 0.75, fontSize: 18 },
-              px: 1.5,
-              minHeight: 32,
-            }}
-          >
-            <Tune />
-            Layout
-          </Fab>
-        </Tooltip>
-      </Box>
+      {showDeveloperControls && (
+        <Box
+          sx={{
+            position: 'absolute',
+            top: 8,
+            right: 8,
+            zIndex: (t) => t.zIndex.appBar + 1,
+            pointerEvents: 'auto',
+          }}
+        >
+          <Tooltip title="Layout settings">
+            <Fab
+              size="small"
+              variant="extended"
+              color="primary"
+              onClick={(evt) => {
+                evt.stopPropagation();
+                setSettingsOpen((v) => !v);
+              }}
+              sx={{
+                textTransform: 'none',
+                boxShadow: (t) => `0 4px 12px ${alpha(t.palette.common.black, 0.2)}`,
+                '& .MuiSvgIcon-root': { mr: 0.75, fontSize: 18 },
+                px: 1.5,
+                minHeight: 32,
+              }}
+            >
+              <Tune />
+              Layout
+            </Fab>
+          </Tooltip>
+        </Box>
+      )}
 
       <LayoutSettingsPanel
-        open={settingsOpen}
+        open={showDeveloperControls && settingsOpen}
         onClose={() => setSettingsOpen(false)}
         value={tmGraphELKSettings}
         onChange={(next) => setTMGraphELKSettings(next)}
@@ -1392,7 +1396,7 @@ function TMGraph() {
               px: 1.25,
             }}
           >
-            Recalculate layout
+            Reset Layout
           </Button>
         </Stack>
       </Box>

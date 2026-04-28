@@ -3,6 +3,7 @@ import { Box } from '@mui/material';
 import TapeCells from './TapeCells';
 import type { TapeContentSingleTape } from '@mytypes/TMTypes';
 import runTapeStyles from '@components/TapeList/TapeList.module.css';
+import { CELL_HEIGHT, CELL_WIDTH } from './constants';
 
 type Props = {
   tapeIndex: number;
@@ -25,19 +26,30 @@ export default function TapeRow({
 }: Props) {
   return (
     <Box sx={{ pb: 0.5 }}>
-      <Box className={runTapeStyles.scrollableTapeRow} sx={{ width: `${(maxR - minR + 1) * 50}px`, height: '50px' }}>
-        <Box 
+      <Box
+        className={runTapeStyles.scrollableTapeRow}
+        sx={{
+          width: `${(maxR - minR + 1) * CELL_WIDTH}px`,
+          height: `${CELL_HEIGHT}px`,
+        }}
+      >
+        <Box
           className={runTapeStyles.tapeTrackWrapper}
-          sx={{ 
-            height: '50px',
-            transform: `translateX(${headX - head * 50}px)` 
+          sx={{
+            height: `${CELL_HEIGHT}px`,
+            transform: `translateX(${headX - head * CELL_WIDTH}px)`,
           }}
         >
           <TapeCells tape={tape} head={head} blank={blank} minR={minR} maxR={maxR} />
         </Box>
-        <Box 
+        <Box
           className={runTapeStyles.scrollableTapeHeadOverlayNative}
-          sx={{ left: `${headX}px`, width: '50px', height: '50px', top: '0' }}
+          sx={{
+            left: `${headX}px`,
+            width: `${CELL_WIDTH}px`,
+            height: `${CELL_HEIGHT}px`,
+            top: '0',
+          }}
         />
       </Box>
     </Box>

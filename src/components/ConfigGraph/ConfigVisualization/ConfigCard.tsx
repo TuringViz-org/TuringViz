@@ -6,7 +6,6 @@ import {
   Card,
   CardContent,
   Chip,
-  Divider,
   Stack,
   useTheme,
   Tooltip,
@@ -42,6 +41,19 @@ type Props = {
   pendingInteractive?: boolean;
 };
 
+const normalizeColor = (color?: string) => {
+  if (!color) return undefined;
+  const m = /^#([0-9a-fA-F]{8})$/.exec(color);
+  if (!m) return color;
+
+  const hex = m[1];
+  const r = parseInt(hex.slice(0, 2), 16);
+  const g = parseInt(hex.slice(2, 4), 16);
+  const b = parseInt(hex.slice(4, 6), 16);
+  const a = parseInt(hex.slice(6, 8), 16) / 255;
+  return `rgba(${r}, ${g}, ${b}, ${a})`;
+};
+
 /**
  * Orchestrates the configuration visualization:
  * - Header with state/pending/selection controls
@@ -64,11 +76,13 @@ export default function ConfigCard(data: Props) {
   const blank = useGlobalZustand((s) => s.blank);
   const stateColorMatching = useGlobalZustand((s) => s.stateColorMatching);
 
-  // Node color point based on state
-  const nodeColor = useMemo(() => {
+  const stateColor = useMemo(() => {
     const key = String(config.state);
-    return stateColorMatching?.get?.(key) ?? undefined;
+    return normalizeColor(stateColorMatching?.get?.(key));
   }, [stateColorMatching, config.state]);
+  const headerColor = stateColor ?? theme.palette.primary.main;
+  const headerTextColor = theme.palette.getContrastText(headerColor);
+  const tapeTintColor = stateColor ?? theme.palette.primary.main;
 
   // Dialog state for computing more configurations
   const [pendingOpen, setPendingOpen] = useState(false);
@@ -98,7 +112,7 @@ export default function ConfigCard(data: Props) {
       const rightLen = tape[1]?.length ?? 0;
       const localMin = -leftLen;
       const localMax = rightLen - 1;
-      
+
       const relMin = Math.min(localMin - head, -HEAD_CONTEXT_RADIUS);
       const relMax = Math.max(localMax - head, HEAD_CONTEXT_RADIUS);
 
@@ -114,7 +128,7 @@ export default function ConfigCard(data: Props) {
   }, [config.tapes, config.heads]);
 
   const { minR, maxR } = sharedBounds;
-  
+
   // Unlike the main UI, we don't have dots on the side, so we don't need padding. Head aligns exactly at -minR cells.
   const headX = -minR * CELL_WIDTH;
 
@@ -149,8 +163,6 @@ export default function ConfigCard(data: Props) {
     };
   }, [headX]);
 
-
-
   return (
     <>
       <Card
@@ -170,185 +182,170 @@ export default function ConfigCard(data: Props) {
       >
         <CardContent
           sx={{
-            pt: 1.25,
-            px: 1.25,
-            pb: 1,
+            p: 0,
             position: 'relative',
-            '&:last-child': { pb: 1 },
+            '&:last-child': { pb: 0 },
           }}
         >
           {/* Header */}
-          <Stack
-            direction="row"
-            alignItems="center"
-            justifyContent="space-between"
-            sx={{ mb: 0.75 }}
-            spacing={1}
+          <Box
+            sx={{
+              px: 1.25,
+              py: 1,
+              bgcolor: headerColor,
+              color: headerTextColor,
+            }}
           >
-            <Stack direction="row" spacing={1} alignItems="center">
-              {/* State */}
-              <Chip
-                size="small"
-                color="primary"
-                variant="filled"
-                label={`${config.state}`}
-                sx={{
-                  transform: 'translateY(-2px)',
-                  '& .MuiChip-label': {
-                    py: 0,
-                    px: 0.75,
-                    lineHeight: 1.2,
-                    fontWeight: 600,
-                    letterSpacing: 0.2,
-                  },
-                }}
-              />
+            <Stack
+              direction="row"
+              alignItems="center"
+              justifyContent="space-between"
+              spacing={1}
+            >
+              <Stack direction="row" spacing={1} alignItems="center">
+                {/* State */}
+                <Chip
+                  size="small"
+                  variant="filled"
+                  label={`${config.state}`}
+                  sx={{
+                    bgcolor: alpha(headerTextColor, 0.14),
+                    color: headerTextColor,
+                    border: `1px solid ${alpha(headerTextColor, 0.24)}`,
+                    '& .MuiChip-label': {
+                      py: 0,
+                      px: 0.75,
+                      lineHeight: 1.2,
+                      fontWeight: 700,
+                    },
+                  }}
+                />
 
-              {/* Pending */}
-              {!computed &&
-                (pendingInteractive ? (
-                  // Interactive in ConfigGraph (default)
-                  <Tooltip
-                    arrow
-                    title="Compute more configurations from this state"
-                    placement="top"
-                  >
+                {/* Pending */}
+                {!computed &&
+                  (pendingInteractive ? (
+                    // Interactive in ConfigGraph (default)
+                    <Tooltip
+                      arrow
+                      title="Compute more configurations from this state"
+                      placement="top"
+                    >
+                      <Chip
+                        size="small"
+                        variant="outlined"
+                        icon={<HourglassEmpty sx={{ fontSize: 16 }} />}
+                        label="Pending"
+                        onClick={openPending}
+                        sx={{
+                          color: headerTextColor,
+                          borderColor: alpha(headerTextColor, 0.42),
+                          fontWeight: 500,
+                          cursor: 'pointer',
+                          '& .MuiChip-icon': { ml: 0.25, color: headerTextColor },
+                        }}
+                      />
+                    </Tooltip>
+                  ) : (
+                    // Read-only in ComputationTree
                     <Chip
                       size="small"
-                      color="default"
                       variant="outlined"
                       icon={<HourglassEmpty sx={{ fontSize: 16 }} />}
                       label="Pending"
-                      onClick={openPending}
                       sx={{
+                        color: headerTextColor,
+                        borderColor: alpha(headerTextColor, 0.42),
                         fontWeight: 500,
-                        cursor: 'pointer',
-                        '& .MuiChip-icon': { ml: 0.25 },
+                        cursor: 'default',
+                        '& .MuiChip-icon': { ml: 0.25, color: headerTextColor },
                       }}
                     />
-                  </Tooltip>
-                ) : (
-                  // Read-only in ComputationTree
-                  <Chip
-                    size="small"
-                    color="default"
-                    variant="outlined"
-                    icon={<HourglassEmpty sx={{ fontSize: 16 }} />}
-                    label="Pending"
-                    sx={{
-                      fontWeight: 500,
-                      cursor: 'default',
-                      '& .MuiChip-icon': { ml: 0.25 },
-                    }}
-                  />
-                ))}
+                  ))}
+              </Stack>
 
-              {/* Node color indicator */}
-              {nodeColor && (
+              {/* Select button */}
+              {showSelect && (
                 <Tooltip
                   arrow
                   placement="top"
-                  title={`Node color for "${config.state}"`}
+                  title="Set the Turing machine to this configuration"
                 >
-                  <Box
-                    aria-label={`Node color`}
+                  <Button
+                    size="small"
+                    variant="contained"
+                    onClick={onSelect}
+                    startIcon={<AltRoute />}
                     sx={{
+                      bgcolor: alpha(headerTextColor, 0.16),
+                      color: headerTextColor,
+                      border: `1px solid ${alpha(headerTextColor, 0.28)}`,
+                      boxShadow: 'none',
+                      textTransform: 'none',
+                      fontWeight: 600,
+                      px: 1.25,
+                      py: 0.25,
+                      lineHeight: 1.2,
                       display: 'inline-flex',
                       alignItems: 'center',
-                      justifyContent: 'center',
-                      p: 0.5,
-                      borderRadius: '999px',
-                      border: `1px solid ${alpha(nodeColor, 0.6)}`,
-                      bgcolor: alpha(nodeColor, 0.12),
-                      transform: 'translateY(-2px)',
+                      '&:hover': {
+                        bgcolor: alpha(headerTextColor, 0.24),
+                        boxShadow: 'none',
+                      },
+                      '& .MuiButton-startIcon': {
+                        m: 0,
+                        mr: 0.75,
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                      },
+                      '& .MuiButton-startIcon > *': {
+                        fontSize: 18,
+                        lineHeight: 1,
+                      },
                     }}
                   >
-                    <Box
-                      component="span"
-                      sx={{
-                        width: 14,
-                        height: 14,
-                        borderRadius: '50%',
-                        bgcolor: nodeColor,
-                        boxShadow: `inset 0 0 0 1px ${alpha(
-                          theme.palette.common.black,
-                          0.25
-                        )}`,
-                        flex: '0 0 14px',
-                      }}
-                    />
-                  </Box>
+                    Select
+                  </Button>
                 </Tooltip>
               )}
             </Stack>
+          </Box>
 
-            {/* Select button */}
-            {showSelect && (
-              <Tooltip
-                arrow
-                placement="top"
-                title="Set the Turing machine to this configuration"
-              >
-                <Button
-                  size="small"
-                  variant="contained"
-                  onClick={onSelect}
-                  startIcon={<AltRoute />}
-                  sx={{
-                    textTransform: 'none',
-                    fontWeight: 600,
-                    px: 1.25,
-                    py: 0.25,
-                    lineHeight: 1.2,
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    '& .MuiButton-startIcon': {
-                      m: 0,
-                      mr: 0.75,
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                    },
-                    '& .MuiButton-startIcon > *': {
-                      fontSize: 18,
-                      lineHeight: 1,
-                    },
-                  }}
-                >
-                  Select
-                </Button>
-              </Tooltip>
-            )}
-          </Stack>
-
-          <Divider sx={{ my: 1 }} />
-
-          {/* Tape rows + overlayed shared custom scrollbar */}
           <Box
-            ref={tapeContainerRef}
-            className={runTapeStyles.hiddenScrollbar}
             sx={{
-              overflowX: 'auto',
-              overflowY: 'hidden',
-              width: '100%',
-              backgroundColor: '#ffffff',
-              scrollbarWidth: 'none',
-              mt: 1,
+              px: 1.25,
+              py: 1,
+              backgroundColor: alpha(tapeTintColor, 0.12),
+              borderTop: `1px solid ${alpha(tapeTintColor, 0.28)}`,
             }}
           >
-            <Stack spacing={0}>
-              {config.tapes.map((tape, i) => (
-                <TapeRow
-                  key={i}
-                  tapeIndex={i}
-                  tape={tape}
-                  head={config.heads[i] ?? 0}
-                  blank={blank}
-                  minR={minR}
-                  maxR={maxR}
-                  headX={headX}
-                />
-              ))}
-            </Stack>
+            {/* Tape rows + overlayed shared custom scrollbar */}
+            <Box
+              ref={tapeContainerRef}
+              className={runTapeStyles.hiddenScrollbar}
+              sx={{
+                overflowX: 'auto',
+                overflowY: 'hidden',
+                width: '100%',
+                backgroundColor: 'transparent',
+                scrollbarWidth: 'none',
+                borderRadius: 1,
+              }}
+            >
+              <Stack spacing={0}>
+                {config.tapes.map((tape, i) => (
+                  <TapeRow
+                    key={i}
+                    tapeIndex={i}
+                    tape={tape}
+                    head={config.heads[i] ?? 0}
+                    blank={blank}
+                    minR={minR}
+                    maxR={maxR}
+                    headX={headX}
+                  />
+                ))}
+              </Stack>
+            </Box>
           </Box>
         </CardContent>
       </Card>
