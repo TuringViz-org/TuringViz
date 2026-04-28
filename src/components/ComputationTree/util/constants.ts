@@ -6,8 +6,8 @@ export const CONFIG_CARD_HEIGHT_ESTIMATE = 240;
 // Height of the control buttons in the Config graph
 export const CONTROL_HEIGHT = 32;
 
-// Maximum number of nodes to allow card mode
-export const CARDS_LIMIT = 1000;
+// Maximum number of nodes rendered in card mode
+export const CARDS_LIMIT = 360;
 
 export enum NodeType {
   CONFIG = 'config',

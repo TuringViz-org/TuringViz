@@ -23,10 +23,6 @@ import {
   ToggleButton,
   Tooltip,
   Fab,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
 } from '@mui/material';
 import {
   Adjust,
@@ -36,7 +32,6 @@ import {
 } from '@mui/icons-material';
 import { alpha, useTheme } from '@mui/material/styles';
 import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
-import { toast } from 'sonner';
 
 // Components
 import { ConfigNode } from './nodes/ConfigNode';
@@ -55,13 +50,11 @@ import {
   NodeType,
   EdgeType,
   CONTROL_HEIGHT,
-  CARDS_LIMIT,
   COLOR_STATE_SWITCH,
 } from './util/constants';
 import { useElkLayout } from './layout/useElkLayout';
 import { buildConfigGraph } from './util/buildConfigGraph';
 import {
-  CARDS_CONFIRM_THRESHOLD,
   ConfigNodeMode,
   DEFAULT_GRAPH_CARDS_ELK_OPTS,
   DEFAULT_GRAPH_ELK_OPTS,
@@ -612,22 +605,8 @@ function ConfigGraphCards() {
     });
   }, [configGraphNodeMode, setConfigGraphELKSettings]);
 
-  // Disable cards mode if too many nodes
-  const nodeCount = configGraph?.Graph.size ?? 0;
-  const cardsDisabled = nodeCount > CARDS_LIMIT;
-
-  useEffect(() => {
-    if (configGraphNodeMode === ConfigNodeMode.CARDS && cardsDisabled) {
-      setConfigGraphNodeMode(ConfigNodeMode.NODES);
-      toast.warning(
-        `Cards are disabled when there are more than ${CARDS_LIMIT} nodes (current: ${nodeCount}).`
-      );
-    }
-  }, [cardsDisabled, configGraphNodeMode, nodeCount, setConfigGraphNodeMode]);
-
   // Settings panel open state
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [confirmCardsOpen, setConfirmCardsOpen] = useState(false);
 
   // Legend (Color -> State) items
   // Build a sorted list for stable rendering
@@ -642,22 +621,9 @@ function ConfigGraphCards() {
 
   const requestNodeModeChange = useCallback(
     (nextMode: ConfigNodeMode) => {
-      if (nextMode === ConfigNodeMode.CARDS && cardsDisabled) {
-        toast.info(
-          `Cards are disabled when there are more than ${CARDS_LIMIT} nodes (current: ${nodeCount}).`
-        );
-        return;
-      }
-      if (
-        nextMode === ConfigNodeMode.CARDS &&
-        nodeCount > CARDS_CONFIRM_THRESHOLD
-      ) {
-        setConfirmCardsOpen(true);
-        return;
-      }
       setConfigGraphNodeMode(nextMode);
     },
-    [cardsDisabled, nodeCount, setConfigGraphNodeMode]
+    [setConfigGraphNodeMode]
   );
 
   return (
@@ -733,25 +699,6 @@ function ConfigGraphCards() {
         running={layout.running}
         mode={configGraphNodeMode}
       />
-      <Dialog open={confirmCardsOpen} onClose={() => setConfirmCardsOpen(false)}>
-        <DialogTitle>Switch to card view?</DialogTitle>
-        <DialogContent>
-          Card view can be slow for graphs above {CARDS_CONFIRM_THRESHOLD} nodes
-          (current: {nodeCount}). Continue?
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setConfirmCardsOpen(false)}>Cancel</Button>
-          <Button
-            variant="contained"
-            onClick={() => {
-              setConfirmCardsOpen(false);
-              setConfigGraphNodeMode(ConfigNodeMode.CARDS);
-            }}
-          >
-            Continue
-          </Button>
-        </DialogActions>
-      </Dialog>
       {/* Top-left controls panel (fit view and node mode switch) */}
       <Box
         sx={{
@@ -820,33 +767,12 @@ function ConfigGraphCards() {
               </Stack>
             </ToggleButton>
 
-            {cardsDisabled ? (
-              <Tooltip
-                title={`Cards are disabled for graphs with more than ${CARDS_LIMIT} nodes.`}
-                placement="top"
-                disableInteractive
-              >
-                <span>
-                  <ToggleButton
-                    value={ConfigNodeMode.CARDS}
-                    aria-label="card nodes"
-                    disabled
-                  >
-                    <Stack direction="row" spacing={0.75} alignItems="center">
-                      <ViewAgenda fontSize="small" />
-                      <span>Cards</span>
-                    </Stack>
-                  </ToggleButton>
-                </span>
-              </Tooltip>
-            ) : (
-              <ToggleButton value={ConfigNodeMode.CARDS} aria-label="card nodes">
-                <Stack direction="row" spacing={0.75} alignItems="center">
-                  <ViewAgenda fontSize="small" />
-                  <span>Cards</span>
-                </Stack>
-              </ToggleButton>
-            )}
+            <ToggleButton value={ConfigNodeMode.CARDS} aria-label="card nodes">
+              <Stack direction="row" spacing={0.75} alignItems="center">
+                <ViewAgenda fontSize="small" />
+                <span>Cards</span>
+              </Stack>
+            </ToggleButton>
           </ToggleButtonGroup>
         </Stack>
       </Box>
