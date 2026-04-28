@@ -8,6 +8,7 @@ import {
   EdgeType,
   CONFIG_NODE_DIAMETER,
   CONFIG_CARD_WIDTH,
+  CARDS_LIMIT,
 } from './constants';
 import { ConfigNodeMode } from '@utils/constants';
 import {
@@ -30,11 +31,16 @@ export function buildConfigGraph(
   const edges: Edge[] = [];
 
   const currentHash = currentConfig ? hashConfig(currentConfig) : null;
+  const isCardMode = mode === ConfigNodeMode.CARDS;
+  const maxNodes = isCardMode ? CARDS_LIMIT : Number.POSITIVE_INFINITY;
+  const includedNodeIds = new Set<string>();
 
   // --- Nodes ---
   cfgGraph.Graph.forEach((val, hash) => {
+    if (includedNodeIds.size >= maxNodes) return;
     const config = val.config;
-    const isCard = mode === ConfigNodeMode.CARDS;
+    const isCard = isCardMode;
+    includedNodeIds.add(hash);
 
     nodes.push({
       id: hash,
@@ -61,6 +67,7 @@ export function buildConfigGraph(
     const transitionList = transitionsByState.get(fromCfg.state) ?? [];
 
     for (const [toHash, tIdx] of val.next) {
+      if (!includedNodeIds.has(fromHash) || !includedNodeIds.has(toHash)) continue;
       const transition = transitionList[tIdx];
       const isLoop = fromHash === toHash;
       const edgeId = `${fromHash}→${toHash}#${tIdx}`;

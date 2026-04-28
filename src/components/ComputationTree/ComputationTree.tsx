@@ -29,10 +29,6 @@ import {
   Paper,
   Popper,
   ClickAwayListener,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
 } from '@mui/material';
 import { Adjust, ViewAgenda, Tune, CenterFocusStrong } from '@mui/icons-material';
 import { alpha, useTheme } from '@mui/material/styles';
@@ -70,7 +66,6 @@ import {
 } from '@zustands/GraphZustand';
 import { buildComputationTreeGraph } from './util/buildComputationTree';
 import {
-  CARDS_CONFIRM_THRESHOLD,
   ConfigNodeMode,
   DEFAULT_GRAPH_CARDS_ELK_OPTS,
   DEFAULT_GRAPH_ELK_OPTS,
@@ -430,13 +425,17 @@ function useComputationTreeData(
     setIsComputing(true);
     computeStartedAtRef.current = performance.now();
     pendingModelFromComputeRef.current = false;
+    const requestedTargetNodes =
+      nodeMode === ConfigNodeMode.CARDS
+        ? Math.min(targetNodes, CARDS_LIMIT)
+        : targetNodes;
     const effectiveDepth = compressing
       ? MAX_COMPUTATION_TREE_TARGET_NODES
-      : targetNodes;
+      : requestedTargetNodes;
 
     computeComputationTreeInWorker({
       depth: effectiveDepth,
-      targetNodes,
+      targetNodes: requestedTargetNodes,
       compressing,
       transitions,
       numberOfTapes,
@@ -459,7 +458,7 @@ function useComputationTreeData(
             effectiveDepth,
             compressing,
             (msg) => toast.warning(msg),
-            targetNodes
+            requestedTargetNodes
           );
           pendingModelFromComputeRef.current = true;
           setModel(tree);
@@ -483,6 +482,7 @@ function useComputationTreeData(
     numberOfTapes,
     startState,
     input,
+    nodeMode,
     paused,
   ]);
 
@@ -644,23 +644,7 @@ function ComputationTreeCircles({ targetNodes, compressing = false, paused = fal
     if (nodes.length === 0) setViewportReady(false);
   }, [nodes.length]);
 
-  // Disable cards mode if too many nodes
   const nodeCount = model?.nodes?.length ?? 0;
-  const cardsDisabled = nodeCount > CARDS_LIMIT;
-
-  useEffect(() => {
-    if (computationTreeNodeMode === ConfigNodeMode.CARDS && cardsDisabled) {
-      setComputationTreeNodeMode(ConfigNodeMode.NODES);
-      toast.warning(
-        `Cards are disabled when there are more than ${CARDS_LIMIT} nodes (current: ${nodeCount}).`
-      );
-    }
-  }, [
-    cardsDisabled,
-    computationTreeNodeMode,
-    nodeCount,
-    setComputationTreeNodeMode,
-  ]);
 
   // If too many nodes, hide labels and only show colors
   const hideLabels = nodeCount >= COLOR_STATE_SWITCH;
@@ -891,7 +875,6 @@ function ComputationTreeCircles({ targetNodes, compressing = false, paused = fal
     reason: null,
   });
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [confirmCardsOpen, setConfirmCardsOpen] = useState(false);
 
   const clearHoverTimer = useCallback(() => {
     if (hoverTimerRef.current != null) {
@@ -1526,22 +1509,9 @@ function ComputationTreeCircles({ targetNodes, compressing = false, paused = fal
 
   const requestNodeModeChange = useCallback(
     (nextMode: ConfigNodeMode) => {
-      if (nextMode === ConfigNodeMode.CARDS && cardsDisabled) {
-        toast.info(
-          `Cards are disabled when there are more than ${CARDS_LIMIT} nodes (current: ${nodeCount}).`
-        );
-        return;
-      }
-      if (
-        nextMode === ConfigNodeMode.CARDS &&
-        nodeCount > CARDS_CONFIRM_THRESHOLD
-      ) {
-        setConfirmCardsOpen(true);
-        return;
-      }
       setComputationTreeNodeMode(nextMode);
     },
-    [cardsDisabled, nodeCount, setComputationTreeNodeMode]
+    [setComputationTreeNodeMode]
   );
 
   const recalcLayout = useCallback(() => {
@@ -1627,25 +1597,6 @@ function ComputationTreeCircles({ targetNodes, compressing = false, paused = fal
         running={layout.running}
         mode={computationTreeNodeMode}
       />
-      <Dialog open={confirmCardsOpen} onClose={() => setConfirmCardsOpen(false)}>
-        <DialogTitle>Switch to card view?</DialogTitle>
-        <DialogContent>
-          Card view can be slow for trees above {CARDS_CONFIRM_THRESHOLD} nodes
-          (current: {nodeCount}). Continue?
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setConfirmCardsOpen(false)}>Cancel</Button>
-          <Button
-            variant="contained"
-            onClick={() => {
-              setConfirmCardsOpen(false);
-              setComputationTreeNodeMode(ConfigNodeMode.CARDS);
-            }}
-          >
-            Continue
-          </Button>
-        </DialogActions>
-      </Dialog>
 
       {/* Top-left controls panel (fit view and node mode switch) */}
       <Box
@@ -1713,33 +1664,12 @@ function ComputationTreeCircles({ targetNodes, compressing = false, paused = fal
               </Stack>
             </ToggleButton>
 
-            {cardsDisabled ? (
-              <Tooltip
-                title={`Cards are disabled for trees with more than ${CARDS_LIMIT} nodes.`}
-                placement="top"
-                disableInteractive
-              >
-                <span>
-                  <ToggleButton
-                    value={ConfigNodeMode.CARDS}
-                    aria-label="card nodes"
-                    disabled
-                  >
-                    <Stack direction="row" spacing={0.75} alignItems="center">
-                      <ViewAgenda fontSize="small" />
-                      <span>Cards</span>
-                    </Stack>
-                  </ToggleButton>
-                </span>
-              </Tooltip>
-            ) : (
-              <ToggleButton value={ConfigNodeMode.CARDS} aria-label="card nodes">
-                <Stack direction="row" spacing={0.75} alignItems="center">
-                  <ViewAgenda fontSize="small" />
-                  <span>Cards</span>
-                </Stack>
-              </ToggleButton>
-            )}
+            <ToggleButton value={ConfigNodeMode.CARDS} aria-label="card nodes">
+              <Stack direction="row" spacing={0.75} alignItems="center">
+                <ViewAgenda fontSize="small" />
+                <span>Cards</span>
+              </Stack>
+            </ToggleButton>
           </ToggleButtonGroup>
         </Stack>
       </Box>
@@ -1991,23 +1921,7 @@ function ComputationTreeCards({ targetNodes, compressing = false, paused = false
     return clearRevealQueue;
   }, [showLoadingOverlay]);
 
-  // Disable cards mode if too many nodes
   const nodeCount = model?.nodes?.length ?? 0;
-  const cardsDisabled = nodeCount > CARDS_LIMIT;
-
-  useEffect(() => {
-    if (computationTreeNodeMode === ConfigNodeMode.CARDS && cardsDisabled) {
-      setComputationTreeNodeMode(ConfigNodeMode.NODES);
-      toast.warning(
-        `Cards are disabled when there are more than ${CARDS_LIMIT} nodes (current: ${nodeCount}).`
-      );
-    }
-  }, [
-    cardsDisabled,
-    computationTreeNodeMode,
-    nodeCount,
-    setComputationTreeNodeMode,
-  ]);
 
   // If too many nodes, hide labels and only show colors
   const hideLabels = nodeCount >= COLOR_STATE_SWITCH;
@@ -2275,7 +2189,6 @@ function ComputationTreeCards({ targetNodes, compressing = false, paused = false
 
   // Handlers
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [confirmCardsOpen, setConfirmCardsOpen] = useState(false);
 
   const handlePaneClick = useCallback(() => {
     setSelected({ type: null, id: null });
@@ -2355,22 +2268,9 @@ function ComputationTreeCards({ targetNodes, compressing = false, paused = false
 
   const requestNodeModeChange = useCallback(
     (nextMode: ConfigNodeMode) => {
-      if (nextMode === ConfigNodeMode.CARDS && cardsDisabled) {
-        toast.info(
-          `Cards are disabled when there are more than ${CARDS_LIMIT} nodes (current: ${nodeCount}).`
-        );
-        return;
-      }
-      if (
-        nextMode === ConfigNodeMode.CARDS &&
-        nodeCount > CARDS_CONFIRM_THRESHOLD
-      ) {
-        setConfirmCardsOpen(true);
-        return;
-      }
       setComputationTreeNodeMode(nextMode);
     },
-    [cardsDisabled, nodeCount, setComputationTreeNodeMode]
+    [setComputationTreeNodeMode]
   );
 
   const recalcLayout = useCallback(() => {
@@ -2457,25 +2357,6 @@ function ComputationTreeCards({ targetNodes, compressing = false, paused = false
         running={layout.running}
         mode={computationTreeNodeMode}
       />
-      <Dialog open={confirmCardsOpen} onClose={() => setConfirmCardsOpen(false)}>
-        <DialogTitle>Switch to card view?</DialogTitle>
-        <DialogContent>
-          Card view can be slow for trees above {CARDS_CONFIRM_THRESHOLD} nodes
-          (current: {nodeCount}). Continue?
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setConfirmCardsOpen(false)}>Cancel</Button>
-          <Button
-            variant="contained"
-            onClick={() => {
-              setConfirmCardsOpen(false);
-              setComputationTreeNodeMode(ConfigNodeMode.CARDS);
-            }}
-          >
-            Continue
-          </Button>
-        </DialogActions>
-      </Dialog>
 
       {/* Top-left controls panel (fit view and node mode switch) */}
       <Box
@@ -2543,33 +2424,12 @@ function ComputationTreeCards({ targetNodes, compressing = false, paused = false
               </Stack>
             </ToggleButton>
 
-            {cardsDisabled ? (
-              <Tooltip
-                title={`Cards are disabled for trees with more than ${CARDS_LIMIT} nodes.`}
-                placement="top"
-                disableInteractive
-              >
-                <span>
-                  <ToggleButton
-                    value={ConfigNodeMode.CARDS}
-                    aria-label="card nodes"
-                    disabled
-                  >
-                    <Stack direction="row" spacing={0.75} alignItems="center">
-                      <ViewAgenda fontSize="small" />
-                      <span>Cards</span>
-                    </Stack>
-                  </ToggleButton>
-                </span>
-              </Tooltip>
-            ) : (
-              <ToggleButton value={ConfigNodeMode.CARDS} aria-label="card nodes">
-                <Stack direction="row" spacing={0.75} alignItems="center">
-                  <ViewAgenda fontSize="small" />
-                  <span>Cards</span>
-                </Stack>
-              </ToggleButton>
-            )}
+            <ToggleButton value={ConfigNodeMode.CARDS} aria-label="card nodes">
+              <Stack direction="row" spacing={0.75} alignItems="center">
+                <ViewAgenda fontSize="small" />
+                <span>Cards</span>
+              </Stack>
+            </ToggleButton>
           </ToggleButtonGroup>
         </Stack>
       </Box>
