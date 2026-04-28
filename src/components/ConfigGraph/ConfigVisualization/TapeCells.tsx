@@ -3,10 +3,7 @@ import { useMemo } from 'react';
 import { Box } from '@mui/material';
 
 import type { TapeContentSingleTape } from '@mytypes/TMTypes';
-import {
-  valueAtAbsolutePos,
-  hasCellAtAbsolutePos,
-} from './tapeUtils';
+import { valueAtAbsolutePos, hasCellAtAbsolutePos } from './tapeUtils';
 import { CELL_HEIGHT, CELL_WIDTH } from './constants';
 import runTapeStyles from '@components/TapeList/TapeList.module.css';
 
