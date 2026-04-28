@@ -1392,7 +1392,7 @@ function TMGraph() {
               px: 1.25,
             }}
           >
-            Recalculate layout
+            Reset Layout
           </Button>
         </Stack>
       </Box>
