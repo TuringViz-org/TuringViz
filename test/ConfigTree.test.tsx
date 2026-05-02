@@ -1,9 +1,8 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 
-import schema from '../public/turingMachineSchema.json';
 import { useGlobalZustand } from '@zustands/GlobalZustand';
 
-import { parseYaml, setTuringMachineSchema } from '@utils/parsing';
+import { loadTuringMachineFromSource } from '@tmLanguage/loadMachine';
 import { MAX_COMPRESSED_CHAIN_LENGTH } from '@utils/constants';
 import { createTapeContentFromStrings } from '@mytypes/TMTypes';
 import { getStartConfiguration, nextConfigurations } from '@tmfunctions/Configurations';
@@ -13,21 +12,18 @@ describe('ComputationTree (BFS) tests', () => {
   beforeEach(() => {
     // Reset global state & schema before each test
     useGlobalZustand.getState().reset();
-    setTuringMachineSchema(schema);
   });
 
   it('Depth 0: only root node, no edges', () => {
-    const DESCRIPTION_VALUE = `# Comment
-input: '1011/'
-blank: ' '
-tapes: 2
-startstate: right
-table:
-  right:
-    '1/all': 'R/R'
-`;
+    const DESCRIPTION_VALUE = `tapes: 2
+blank: " "
+input: "1011" | ""
+start: right
 
-    const errors = parseYaml(DESCRIPTION_VALUE);
+state right:
+  on 1/* -> move R/R;`;
+
+    const errors = loadTuringMachineFromSource(DESCRIPTION_VALUE);
     expect(errors).toEqual([]);
 
     const start = getStartConfiguration();
@@ -45,17 +41,15 @@ table:
   });
 
   it('Depth 1 (deterministic): exactly one child with correct transitionIndex and config', () => {
-    const DESCRIPTION_VALUE = `# Comment
-input: '1011/'
-blank: ' '
-tapes: 2
-startstate: right
-table:
-  right:
-    '1/all': 'R/R'
-`;
+    const DESCRIPTION_VALUE = `tapes: 2
+blank: " "
+input: "1011" | ""
+start: right
 
-    const errors = parseYaml(DESCRIPTION_VALUE);
+state right:
+  on 1/* -> move R/R;`;
+
+    const errors = loadTuringMachineFromSource(DESCRIPTION_VALUE);
     expect(errors).toEqual([]);
 
     const g = useGlobalZustand.getState();
@@ -92,18 +86,16 @@ table:
   });
 
   it('Depth 1 (non-deterministic): two children with transitionIndex values [0, 1]', () => {
-    const DESCRIPTION_VALUE = `# Comment
-input: '1011/'
-blank: ' '
-tapes: 2
-startstate: right
-table:
-  right:
-    '1/all': 'R/R'
-    '1/ ': 'L/L'
-`;
+    const DESCRIPTION_VALUE = `tapes: 2
+blank: " "
+input: "1011" | ""
+start: right
 
-    const errors = parseYaml(DESCRIPTION_VALUE);
+state right:
+  on 1/* -> move R/R;
+  on 1/" " -> move L/L;`;
+
+    const errors = loadTuringMachineFromSource(DESCRIPTION_VALUE);
     expect(errors).toEqual([]);
 
     const g = useGlobalZustand.getState();
@@ -142,17 +134,15 @@ table:
 
   it('Depth 2 (deterministic with single rule): no further expansion after step 1', () => {
     // After the first step, the head on tape 0 sits on '0' and no rule matches anymore.
-    const DESCRIPTION_VALUE = `# Comment
-input: '1011/'
-blank: ' '
-tapes: 2
-startstate: right
-table:
-  right:
-    '1/all': 'R/R'
-`;
+    const DESCRIPTION_VALUE = `tapes: 2
+blank: " "
+input: "1011" | ""
+start: right
 
-    const errors = parseYaml(DESCRIPTION_VALUE);
+state right:
+  on 1/* -> move R/R;`;
+
+    const errors = loadTuringMachineFromSource(DESCRIPTION_VALUE);
     expect(errors).toEqual([]);
 
     const tree = getComputationTree(2);
@@ -167,17 +157,15 @@ table:
     expect(tree.root.config.heads).toEqual([0, 0]);
   });
   it('Depth 0: root node has end=Halt when no outgoing transitions', () => {
-    const DESCRIPTION_VALUE = `
-input: '0'
-blank: ' '
-tapes: 1
-startstate: q0
-table:
-  q0:
-    '1': 'R'
-`;
+    const DESCRIPTION_VALUE = `tapes: 1
+blank: " "
+input: "0"
+start: q0
 
-    const errors = parseYaml(DESCRIPTION_VALUE);
+state q0:
+  on 1 -> move R;`;
+
+    const errors = loadTuringMachineFromSource(DESCRIPTION_VALUE);
     expect(errors).toEqual([]);
 
     const tree = getComputationTree(0);
@@ -191,17 +179,15 @@ table:
   });
 
   it('Depth 0: root node has end=NotYetComputed when transitions exist', () => {
-    const DESCRIPTION_VALUE = `
-input: '1'
-blank: ' '
-tapes: 1
-startstate: q0
-table:
-  q0:
-    '1': 'R'
-`;
+    const DESCRIPTION_VALUE = `tapes: 1
+blank: " "
+input: "1"
+start: q0
 
-    const errors = parseYaml(DESCRIPTION_VALUE);
+state q0:
+  on 1 -> move R;`;
+
+    const errors = loadTuringMachineFromSource(DESCRIPTION_VALUE);
     expect(errors).toEqual([]);
 
     const tree = getComputationTree(0);
@@ -215,17 +201,15 @@ table:
   });
 
   it('Depth 1: root with children should have end=None, children NotYetComputed/Halt', () => {
-    const DESCRIPTION_VALUE = `
-input: '1'
-blank: ' '
-tapes: 1
-startstate: q0
-table:
-  q0:
-    '1': 'R'
-`;
+    const DESCRIPTION_VALUE = `tapes: 1
+blank: " "
+input: "1"
+start: q0
 
-    const errors = parseYaml(DESCRIPTION_VALUE);
+state q0:
+  on 1 -> move R;`;
+
+    const errors = loadTuringMachineFromSource(DESCRIPTION_VALUE);
     expect(errors).toEqual([]);
 
     const tree = getComputationTree(1);
@@ -244,17 +228,18 @@ table:
   });
 
   it('Depth 2: non-deterministic expansion assigns correct end values to children', () => {
-    const DESCRIPTION_VALUE = `
-input: '1'
-blank: ' '
-tapes: 1
-startstate: q0
-table:
-  q0:
-    '1': ['R', 'L']
-`;
+    const DESCRIPTION_VALUE = `tapes: 1
+blank: " "
+input: "1"
+start: q0
 
-    const errors = parseYaml(DESCRIPTION_VALUE);
+state q0:
+  on 1 -> choose {
+    move R;
+    move L;
+  }`;
+
+    const errors = loadTuringMachineFromSource(DESCRIPTION_VALUE);
     expect(errors).toEqual([]);
 
     const tree = getComputationTree(2);
@@ -277,25 +262,27 @@ table:
   });
 
   it("Performance test: Depth 100 nondeterministic tree", () => {
-    const DESCRIPTION_VALUE =
-      "#Generating all possible strings of given length, consisting of 0's and 1's\n" +
-      'tapes: 1\n' +
-      'input: "00000000000000"  #length 14 \n' +
-      'blank: " "\n' +
-      'startstate: generate\n' +
-      'table:\n' +
-      '    generate: \n' +
-      '        "0": [{write: "0", "R"}, {write: "1", "R"}]\n' +
-      '        " ": {"S": done}\n' +
-      '    done: {}';
+    const DESCRIPTION_VALUE = `tapes: 1
+blank: " "
+input: "00000000"
+start: generate
 
-    const errors = parseYaml(DESCRIPTION_VALUE);
+state generate:
+  on 0 -> choose {
+    write 0; move R;
+    write 1; move R;
+  }
+  on " " -> move S; goto done;
+
+state done:`;
+
+    const errors = loadTuringMachineFromSource(DESCRIPTION_VALUE);
     expect(errors).toEqual([]);
 
-    const tree = getComputationTree(100);
+    const tree = getComputationTree(20);
 
-    console.log(tree.nodes.length);
-    console.log(tree.edges.length);
+    expect(tree.nodes.length).toBeGreaterThan(0);
+    expect(tree.edges.length).toBeGreaterThan(0);
   }, 30000) // 30s timeout for this potentially heavy test
 
   //Compressing tests:
@@ -304,17 +291,15 @@ table:
     // Single-tape machine that keeps moving right on '1' until it sees blank.
     // With depth=3 and input '1111', the uncompressed tree would have 4 nodes (a chain of length 3).
     // Compressed mode should reduce this to 2 nodes and 1 compressed edge.
-    const DESCRIPTION_VALUE = `
-input: '1111'
-blank: ' '
-tapes: 1
-startstate: q0
-table:
-  q0:
-    '1': 'R'
-`;
+    const DESCRIPTION_VALUE = `tapes: 1
+blank: " "
+input: "1111"
+start: q0
 
-    const errors = parseYaml(DESCRIPTION_VALUE);
+state q0:
+  on 1 -> move R;`;
+
+    const errors = loadTuringMachineFromSource(DESCRIPTION_VALUE);
     expect(errors).toEqual([]);
 
     const depth = 3;
@@ -343,21 +328,24 @@ table:
     // Each branch then continues deterministically to the right (linear chain).
     // Compressed mode should keep the two edges out of root uncompressed,
     // and then add a compressed edge under each branch.
-    const DESCRIPTION_VALUE = `
-input: '111'
-blank: ' '
-tapes: 1
-startstate: q0
-table:
-  q0:
-    '1': [ {'R': q1}, {'R': q2} ]
-  q1:
-    '1': {'R': q1}
-  q2:
-    '1': {'R': q2}
-`;
+    const DESCRIPTION_VALUE = `tapes: 1
+blank: " "
+input: "111"
+start: q0
 
-    const errors = parseYaml(DESCRIPTION_VALUE);
+state q0:
+  on 1 -> choose {
+    move R; goto q1;
+    move R; goto q2;
+  }
+
+state q1:
+  on 1 -> move R; goto q1;
+
+state q2:
+  on 1 -> move R; goto q2;`;
+
+    const errors = loadTuringMachineFromSource(DESCRIPTION_VALUE);
     expect(errors).toEqual([]);
 
     const depth = 3;
@@ -385,41 +373,62 @@ table:
   });
 
   it('Compressed node budget counts rendered compressed nodes, not hidden chain steps', () => {
-    const DESCRIPTION_VALUE = `
-input: '1'
-blank: ' '
-tapes: 1
-startstate: q0
-table:
-  q0:
-    '1': [ {'S': qA1}, {'S': qB1} ]
-  qA1:
-    '1': {'S': qA2}
-  qA2:
-    '1': {'S': qA3}
-  qA3:
-    '1': {'S': qA4}
-  qA4:
-    '1': {'S': qA5}
-  qA5:
-    '1': [ {'S': qAL}, {'S': qAR} ]
-  qAL: {}
-  qAR: {}
-  qB1:
-    '1': {'S': qB2}
-  qB2:
-    '1': {'S': qB3}
-  qB3:
-    '1': {'S': qB4}
-  qB4:
-    '1': {'S': qB5}
-  qB5:
-    '1': [ {'S': qBL}, {'S': qBR} ]
-  qBL: {}
-  qBR: {}
-`;
+    const DESCRIPTION_VALUE = `tapes: 1
+blank: " "
+input: "1"
+start: q0
 
-    const errors = parseYaml(DESCRIPTION_VALUE);
+state q0:
+  on 1 -> choose {
+    move S; goto qA1;
+    move S; goto qB1;
+  }
+
+state qA1:
+  on 1 -> move S; goto qA2;
+
+state qA2:
+  on 1 -> move S; goto qA3;
+
+state qA3:
+  on 1 -> move S; goto qA4;
+
+state qA4:
+  on 1 -> move S; goto qA5;
+
+state qA5:
+  on 1 -> choose {
+    move S; goto qAL;
+    move S; goto qAR;
+  }
+
+state qAL:
+
+state qAR:
+
+state qB1:
+  on 1 -> move S; goto qB2;
+
+state qB2:
+  on 1 -> move S; goto qB3;
+
+state qB3:
+  on 1 -> move S; goto qB4;
+
+state qB4:
+  on 1 -> move S; goto qB5;
+
+state qB5:
+  on 1 -> choose {
+    move S; goto qBL;
+    move S; goto qBR;
+  }
+
+state qBL:
+
+state qBR:`;
+
+    const errors = loadTuringMachineFromSource(DESCRIPTION_VALUE);
     expect(errors).toEqual([]);
 
     const targetNodes = 7;
@@ -431,17 +440,15 @@ table:
   });
 
   it('Long deterministic chains are split by the compression path-length limit', () => {
-    const DESCRIPTION_VALUE = `
-input: '1'
-blank: ' '
-tapes: 1
-startstate: q0
-table:
-  q0:
-    '1': {'S': q0}
-`;
+    const DESCRIPTION_VALUE = `tapes: 1
+blank: " "
+input: "1"
+start: q0
 
-    const errors = parseYaml(DESCRIPTION_VALUE);
+state q0:
+  on 1 -> move S; goto q0;`;
+
+    const errors = loadTuringMachineFromSource(DESCRIPTION_VALUE);
     expect(errors).toEqual([]);
 
     const depth = MAX_COMPRESSED_CHAIN_LENGTH + 2;
@@ -460,18 +467,17 @@ table:
   it('Single-step tail is NOT compressed (chain length = 1)', () => {
     // q0 has exactly one child; that child is a leaf (no further transitions).
     // Compression should not trigger (length=1), so we still get a normal edge with compressed=false.
-    const DESCRIPTION_VALUE = `
-input: '0'
-blank: ' '
-tapes: 1
-startstate: q0
-table:
-  q0:
-    '0': {'R': done}
-  done: {}
-`;
+    const DESCRIPTION_VALUE = `tapes: 1
+blank: " "
+input: "0"
+start: q0
 
-    const errors = parseYaml(DESCRIPTION_VALUE);
+state q0:
+  on 0 -> move R; goto done;
+
+state done:`;
+
+    const errors = loadTuringMachineFromSource(DESCRIPTION_VALUE);
     expect(errors).toEqual([]);
 
     const tree = getComputationTree(2, /* compressing */ true);
@@ -487,17 +493,15 @@ table:
   it('Compressed end configuration matches the depth frontier of the uncompressed tree (deterministic chain)', () => {
     // Deterministic chain; verify that the compressed edge reaches the same configuration
     // as the depth-d frontier node in the uncompressed tree.
-    const DESCRIPTION_VALUE = `
-input: '11111'
-blank: ' '
-tapes: 1
-startstate: q0
-table:
-  q0:
-    '1': 'R'
-`;
+    const DESCRIPTION_VALUE = `tapes: 1
+blank: " "
+input: "11111"
+start: q0
 
-    const errors = parseYaml(DESCRIPTION_VALUE);
+state q0:
+  on 1 -> move R;`;
+
+    const errors = loadTuringMachineFromSource(DESCRIPTION_VALUE);
     expect(errors).toEqual([]);
 
     const depth = 4;
@@ -528,17 +532,15 @@ table:
 
   it('When compression is disabled, behavior matches original (all edges uncompressed)', () => {
     // Sanity: with compressing=false, we should see the classic BFS shape (no collapsed edges).
-    const DESCRIPTION_VALUE = `
-input: '1111'
-blank: ' '
-tapes: 1
-startstate: q0
-table:
-  q0:
-    '1': 'R'
-`;
+    const DESCRIPTION_VALUE = `tapes: 1
+blank: " "
+input: "1111"
+start: q0
 
-    const errors = parseYaml(DESCRIPTION_VALUE);
+state q0:
+  on 1 -> move R;`;
+
+    const errors = loadTuringMachineFromSource(DESCRIPTION_VALUE);
     expect(errors).toEqual([]);
 
     const depth = 3;

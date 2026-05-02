@@ -112,7 +112,7 @@ export default function RecentMachinesMenu({
           <MenuItem disabled>
             <ListItemText
               primary="No recent machines yet"
-              secondary="Use Load Machine to store the current YAML"
+              secondary="Use Load Machine to store the current program"
             />
           </MenuItem>
         ) : (

@@ -2,7 +2,7 @@
 
 Interactive visualizer for deterministic and nondeterministic **k-tape Turing machines**.
 
-## LIVE WEBSITE (IMPORTANT)
+## LIVE WEBSITE
 
 # **https://turingviz.org**
 
@@ -10,29 +10,29 @@ The production website is hosted on **[turingviz.org](https://turingviz.org)**.
 
 ## What TuringViz does
 
-TuringViz lets you define and run k-tape Turing machines in YAML and inspect them from multiple angles:
+TuringViz lets you define and run k-tape Turing machines in the TuringViz DSL and inspect them from multiple angles:
 
 - **State Graph**: machine-level transition graph.
 - **Configuration Graph**: reachable configurations including tape contents and head positions.
 - **Computation Tree**: unfolded nondeterministic branching over time, with optional compression.
 - **Execution controls**: step-by-step execution, auto-run, and manual choice of nondeterministic branches.
-- **YAML editor**: Monaco-based editor with schema-backed validation.
+- **DSL editor**: Monaco-based editor with custom syntax highlighting, hovers, and diagnostics.
 
 ## Input format
 
-- Machine definitions are written in YAML.
+- Machine definitions are written in the TuringViz machine language.
 - Transition styles supported:
-  - movement-string shorthand (`L`, `R`, `S`, or slash-separated forms such as `R/S` and `L/L/R`)
-  - object form with optional `write` plus one movement key; the movement may point to a next state or stay in the current state when no target is given
-  - list form for nondeterministic choices, using movement strings and/or object actions
-- Schema/reference files in this repo:
-  - `public/turingMachineSchema.json`
-  - `YamlSchema.md`
+  - compact read rules such as `on 1/0 -> move R/S;`
+  - optional `write` and `goto` actions, with `same` for unchanged tape symbols
+  - `choose { ... }` blocks for nondeterministic choices
+  - readable `if ... then ...` rules for tape-specific conditions
+- Language reference:
+  - `src/tmLanguage/turingviz-machine-language.md`
 
 ## Sharing and loading machines
 
 - **Share links**: generated links encode the current machine in the URL hash (`#tm=...`).
-- **Gist import**: machine YAML can be loaded from GitHub Gists via `?gist=...`.
+- **Gist import**: machine programs can be loaded from GitHub Gists via `?gist=...`.
 - **Examples menu**: built-in machine examples for quick exploration.
 - **Recent machines**: recently loaded machines are available in the UI.
 
@@ -84,7 +84,7 @@ npm run test:coverage
 
 - React + TypeScript + Vite
 - Material UI
-- Monaco Editor + `monaco-yaml`
+- Monaco Editor with the custom TuringViz language adapter
 - Cytoscape + React Flow + ELK layout
 - Zustand state management
 - Vitest + Testing Library

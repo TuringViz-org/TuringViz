@@ -1,10 +1,8 @@
-// src/components/Footer/YamlLegend.tsx
 import { Paper, Stack, Typography, Box } from '@mui/material';
 
 type Item = { k: string; d: string; ex?: string };
 
-// A legend explaining the YAML configuration options
-export function YamlLegend(props: { title: string; items: Item[] }) {
+export function LanguageLegend(props: { title: string; items: Item[] }) {
   const { title, items } = props;
 
   return (

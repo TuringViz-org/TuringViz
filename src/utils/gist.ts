@@ -14,11 +14,11 @@ type FetchGistOptions = {
   signal?: AbortSignal;
 };
 
-const YAML_EXTENSIONS = ['.yaml', '.yml'];
+const MACHINE_EXTENSIONS = ['.tvm', '.tm', '.txt'];
 
-function isYamlFile(filename: string): boolean {
+function isMachineFile(filename: string): boolean {
   const lower = filename.toLowerCase();
-  return YAML_EXTENSIONS.some((ext) => lower.endsWith(ext));
+  return MACHINE_EXTENSIONS.some((ext) => lower.endsWith(ext));
 }
 
 function tryParseUrl(raw: string): URL | null {
@@ -68,7 +68,7 @@ function pickGistFile(
     return files[fileName] ?? list.find((file) => file.filename === fileName) ?? null;
   }
 
-  return list.find((file) => isYamlFile(file.filename)) ?? list[0];
+  return list.find((file) => isMachineFile(file.filename)) ?? list[0];
 }
 
 export async function fetchGistContent(

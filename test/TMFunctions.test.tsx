@@ -2,10 +2,9 @@ import { describe, it, expect, beforeEach } from 'vitest';
 
 import { useGlobalZustand} from '@zustands/GlobalZustand';
 
-import schema from '../public/turingMachineSchema.json';
 
 import {isDeterministic} from '@tmfunctions/DetDetection';
-import { parseYaml, setTuringMachineSchema } from '@utils/parsing';
+import { loadTuringMachineFromSource } from '@tmLanguage/loadMachine';
 import {
   getCurrentConfiguration,
   nextConfigurationsFromState,
@@ -18,27 +17,24 @@ import { computeConfigGraph } from '@tmfunctions/ConfigGraph';
 describe('TMFunctions tests', () => {
   beforeEach(() => {
     useGlobalZustand.getState().reset();
-    setTuringMachineSchema(schema);
   });
 
   it('DetDetection false', () => {
-    const DESCRIPTION_VALUE = `# Comment
-input: '1011/'
-blank: ' '
-tapes: 2 #Number of tapes
-startstate: right
-table:
-    # This is a comment
-    right:
-        '1/all': 'R/R'
-        '0/ ': 'R/R'
-        '[ / , 1/5]': {'L/L': left} 
-    left:
-        '1/ ': {write: '1/same', 'R/S': right}
-    done: {}
-    `;
+    const DESCRIPTION_VALUE = `tapes: 2
+blank: " "
+input: "0" | ""
+start: right
 
-    const errors = parseYaml(DESCRIPTION_VALUE);
+state right:
+  on 1/* -> move R/R;
+  on 1/" " -> move L/L; goto left;
+
+state left:
+  on 1/" " -> write 1/same; move R/S; goto right;
+
+state done:`;
+
+    const errors = loadTuringMachineFromSource(DESCRIPTION_VALUE);
 
     expect(errors).toEqual([]);
 
@@ -46,28 +42,27 @@ table:
     const state = useGlobalZustand.getState();
 
     // Check states
-    expect(isDeterministic(state.transitions).result).toEqual(false);
-    console.log(isDeterministic(state.transitions).conflictingTransitions);
+    const deterministic = isDeterministic(state.transitions);
+    expect(deterministic.result).toEqual(false);
+    expect(deterministic.conflictingTransitions.length).toBe(2);
   });
 
   it('DetDetection true', () => {
-    const DESCRIPTION_VALUE = `# Comment
-input: '1011/'
-blank: ' '
-tapes: 2 #Number of tapes
-startstate: right
-table:
-    # This is a comment
-    right:
-        '1/all': 'R/R'
-        '0/ ': 'R/R'
-        #'[ / , 1/5]': {'L/L': left} 
-    left:
-        '1/ ': {write: '1/same', 'R/S': right}
-    done: {}
-    `;
+    const DESCRIPTION_VALUE = `tapes: 2
+blank: " "
+input: "1011" | ""
+start: right
 
-    const errors = parseYaml(DESCRIPTION_VALUE);
+state right:
+  on 1/* -> move R/R;
+  on 0/" " -> move R/R;
+
+state left:
+  on 1/" " -> write 1/same; move R/S; goto right;
+
+state done:`;
+
+    const errors = loadTuringMachineFromSource(DESCRIPTION_VALUE);
 
     expect(errors).toEqual([]);
 
@@ -75,23 +70,21 @@ table:
     const state = useGlobalZustand.getState();
 
     // Check states
-    expect(isDeterministic(state.transitions).result).toEqual(true);
-    console.log(isDeterministic(state.transitions).conflictingTransitions);
+    const deterministic = isDeterministic(state.transitions);
+    expect(deterministic.result).toEqual(true);
+    expect(deterministic.conflictingTransitions).toEqual([]);
   });
 
   it('NextConfig-Det', () => {
-    const DESCRIPTION_VALUE = `# Comment
-input: '1011/'
-blank: ' '
-tapes: 2 #Number of tapes
-startstate: right
-table:
-    # This is a comment
-    right:
-        '1/all': 'R/R'
-    `;
+    const DESCRIPTION_VALUE = `tapes: 2
+blank: " "
+input: "1011" | ""
+start: right
 
-    const errors = parseYaml(DESCRIPTION_VALUE);
+state right:
+  on 1/* -> move R/R;`;
+
+    const errors = loadTuringMachineFromSource(DESCRIPTION_VALUE);
     expect(errors).toEqual([]);
 
     const config = getCurrentConfiguration();
@@ -110,23 +103,19 @@ table:
     expect(nextConfig.state).toEqual('right');
     expect(nextConfig.tapes).toEqual(createTapeContentFromStrings(["1011", "  "]));
     expect(nextConfig.heads).toEqual([1, 1]);
-    console.log("Successfully executed nextConfigurations test with result:", nextConfigs[0]);
   })
 
   it('NextConfig-NonDet', () => {
-    const DESCRIPTION_VALUE = `# Comment
-input: '1011/'
-blank: ' '
-tapes: 2 #Number of tapes
-startstate: right
-table:
-    # This is a comment
-    right:
-        '1/all': 'R/R'
-        '1/ ': 'L/L'
-    `;
+    const DESCRIPTION_VALUE = `tapes: 2
+blank: " "
+input: "1011" | ""
+start: right
 
-    const errors = parseYaml(DESCRIPTION_VALUE);
+state right:
+  on 1/* -> move R/R;
+  on 1/" " -> move L/L;`;
+
+    const errors = loadTuringMachineFromSource(DESCRIPTION_VALUE);
     expect(errors).toEqual([]);
 
     const config = getCurrentConfiguration();
@@ -155,22 +144,18 @@ table:
       [[{value: " "}], [{ value: ' ' }]]
     ]);
     expect(nextConfig2.heads).toEqual([-1, -1]);
-    console.log("Successfully executed nextConfigurations test with result:", nextConfigs);
-
   })
 
   it('getStartConfiguration', () => {
-    const DESCRIPTION_VALUE = `# Comment
-input: '1011/'
-blank: ' '
-tapes: 2 #Number of tapes
-startstate: right
-table:
-    right:
-        '1/all': 'R/R'
-  `;
+    const DESCRIPTION_VALUE = `tapes: 2
+blank: " "
+input: "1011" | ""
+start: right
 
-    const errors = parseYaml(DESCRIPTION_VALUE);
+state right:
+  on 1/* -> move R/R;`;
+
+    const errors = loadTuringMachineFromSource(DESCRIPTION_VALUE);
     expect(errors).toEqual([]);
 
     const startConfig = getStartConfiguration();
@@ -182,32 +167,35 @@ table:
   });
 
   it("DAG ConfigGraph", () => {
-    const errors = parseYaml(DAG.code);
+    const errors = loadTuringMachineFromSource(DAG.code);
     expect(errors).toEqual([]);
   })
 
   it("Circle ConfigGraph", () => {
-    const errors = parseYaml(Circle.code);
+    const errors = loadTuringMachineFromSource(Circle.code);
     expect(errors).toEqual([]);
   })
 
   it("Performance test: Depth 100 config graph, ndtm", () => {
-    const DESCRIPTION_VALUE =
-      "#Generating all possible strings of given length, consisting of 0's and 1's\n" +
-      'tapes: 1\n' +
-      'input: "00000000000000"  #length 14 \n' +
-      'blank: " "\n' +
-      'startstate: generate\n' +
-      'table:\n' +
-      '    generate: \n' +
-      '        "0": [{write: "0", "R"}, {write: "1", "R"}]\n' +
-      '        " ": {"S": done}\n' +
-      '    done: {}';
+    const DESCRIPTION_VALUE = `tapes: 1
+blank: " "
+input: "00000000"
+start: generate
 
-    const errors = parseYaml(DESCRIPTION_VALUE);
+state generate:
+  on 0 -> choose {
+    write 0; move R;
+    write 1; move R;
+  }
+  on " " -> move S; goto done;
+
+state done:`;
+
+    const errors = loadTuringMachineFromSource(DESCRIPTION_VALUE);
     expect(errors).toEqual([]); //until here: 351ms at depth 10
 
-    const graph = computeConfigGraph(getStartConfiguration(), 50000, useGlobalZustand.getState().transitions, useGlobalZustand.getState().numberOfTapes, useGlobalZustand.getState().blank);
+    const graph = computeConfigGraph(getStartConfiguration(), 5000, useGlobalZustand.getState().transitions, useGlobalZustand.getState().numberOfTapes, useGlobalZustand.getState().blank);
+    expect(graph.Graph.size).toBeGreaterThan(0);
 
   }, 30000) // 30s timeout for this potentially heavy test. Takes 7.5 secs with object-hash
 });

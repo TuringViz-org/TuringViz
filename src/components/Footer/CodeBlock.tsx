@@ -5,7 +5,7 @@ import { ContentCopy, Check } from '@mui/icons-material';
 
 type Props = {
   code: string;
-  language?: 'yaml' | 'json' | 'ts' | 'tsx' | 'js' | 'css' | 'text';
+  language?: 'tvm' | 'json' | 'ts' | 'tsx' | 'js' | 'css' | 'text';
   rounded?: boolean;
 };
 
