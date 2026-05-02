@@ -60,8 +60,9 @@ on 1/0 -> move L/S;
       <>
         <Divider sx={{ my: 2 }} />
         <Typography variant="body2" sx={{ mb: 1 }}>
-          Add <code>write</code> before <code>move</code> and <code>goto</code> after
-          it. Use <code>same</code> to keep the current symbol.
+          Combine <code>write</code>, <code>move</code>, and <code>goto</code> in any
+          order. Use <code>same</code> to keep the current symbol. If{' '}
+          <code>goto</code> is omitted, the transition loops in the current state.
         </Typography>
         <CodeBlock
           language="tvm"
@@ -88,6 +89,11 @@ on " "/0 -> write 1/same; move S/R; goto carry;
           code={`on 0 -> choose {
   write 0; move R; goto next;
   write 1; move R; goto next;
+}
+
+if t1 = _ then choose {
+  write 0; move S; goto accept;
+  write 1; move S; goto accept;
 }
 `}
         />
@@ -394,27 +400,32 @@ function MachineLanguageSection({
                 items={[
                   {
                     k: 'tapes',
-                    d: 'Integer 1…6 (number of tapes).',
+                    d: 'Integer 1…6. Controls how many read, write, move, and input segments are expected.',
                     ex: 'tapes: 2',
                   },
                   {
-                    k: 'input',
-                    d: 'Initial content; use | between tapes; omitted tapes start blank.',
-                    ex: 'input: "1011" | "01"',
+                    k: 'blank',
+                    d: 'Single character used for empty tape cells. Include it in alphabet when alphabet is declared.',
+                    ex: 'blank: _',
                   },
                   {
-                    k: 'blank',
-                    d: 'Single character for blank cells. Often a space " ".',
-                    ex: 'blank: " "',
+                    k: 'input',
+                    d: 'Initial content; use | between tapes. Fewer segments are allowed, omitted tapes start blank.',
+                    ex: 'input: "1011" | ""',
+                  },
+                  {
+                    k: 'alphabet',
+                    d: 'Optional symbol set for validation. Required for complement matchers such as !0, !=, and not in.',
+                    ex: 'alphabet: {0, 1, #, _}',
                   },
                   {
                     k: 'start',
-                    d: 'Initial state name.',
+                    d: 'Initial state name. The referenced state must be declared.',
                     ex: 'start: q0',
                   },
                   {
                     k: 'state',
-                    d: 'Starts a state block. A state with no rules is halting.',
+                    d: 'Starts a state block. A state with no transitions is terminal/halting.',
                     ex: 'state accept:',
                   },
                 ]}
@@ -431,12 +442,15 @@ function MachineLanguageSection({
                 <CodeBlock
                   language="tvm"
                   code={`tapes: 1
-input: ""
-blank: " "
+blank: _
+alphabet: {0, 1, _}
+input: "101"
 start: q0
 
 state q0:
-  on " " -> move S; goto accept;
+  on 0 -> move R;
+  on 1 -> move R;
+  on _ -> move S; goto accept;
 
 state accept:
 `}
@@ -464,28 +478,39 @@ state accept:
                   Conditions
                 </Typography>
                 <Typography variant="body2" sx={{ mb: 1 }}>
-                  A condition describes symbols under the heads. For multiple tapes
-                  use <strong>/</strong>. Use <code>*</code> as wildcard; bracket
-                  groups for options.
+                  A condition describes symbols under the heads. Use compact{' '}
+                  <code>on</code> patterns for direct matching or readable{' '}
+                  <code>if</code> conditions with tape references such as{' '}
+                  <code>t1</code>.
                 </Typography>
                 <CodeBlock
                   language="tvm"
                   code={`-- 1 tape
 on 0 -> move R;
 on [0, 1] -> move R;
-on " " -> move S;
+on _ -> move S;
 
 -- 2 tapes
 on 1/0 -> move L/S;
-on */" " -> move S/R;
+on */_ -> move S/R;
 on [0/0, 1/1] -> move R/R;
 
 -- 3 tapes
-on 1/" "/0 -> move R/S/L;
+on 1/_/0 -> move R/S/L;
+
+-- matchers with alphabet
+on 1/!0 -> move R/S;
+on {0,1}/_ -> move R/S;
+
+-- readable conditions
+if t1 = 1 and t2 != 0 then move R/S;
+if t1 in {0,1} and t2 not in {#,_} then move R/L;
+if (t1 = 0 and t2 = 0) or (t1 = 1 and t2 = 1) then move R/R;
 `}
                 />
                 <Typography variant="caption" color="text.secondary">
-                  Tip: quote whitespace and punctuation symbols such as <code>" "</code>
+                  Tip: quote whitespace and punctuation symbols such as{' '}
+                  <code>" "</code>
                   or <code>"("</code>.
                 </Typography>
               </Paper>
@@ -509,32 +534,90 @@ on 1/" "/0 -> move R/S/L;
       >
         <AccordionSummary expandIcon={<ExpandMore />}>
           <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
-            Conventions & Tips
+            More DSL Features
           </Typography>
         </AccordionSummary>
         <AccordionDetails>
           <Grid container spacing={2}>
+            <Grid size={{ xs: 12, md: 6 }}>
+              <LanguageLegend
+                title="Readable transition syntax"
+                items={[
+                  {
+                    k: 'if ... then',
+                    d: 'Alternative to compact on-patterns. Conditions can use and/or; parentheses make alternatives clear.',
+                    ex: 'if t1 = 1 and t2 = _ then move R/S;',
+                  },
+                  {
+                    k: 'in / not in',
+                    d: 'Match membership in a set of one-character symbols. not in requires an alphabet header.',
+                    ex: 'if t1 in {0,1} then move R;',
+                  },
+                  {
+                    k: 'any tN',
+                    d: 'Explicit wildcard for one tape in readable conditions. Unmentioned tapes are treated as any.',
+                    ex: 'if any t1 and t2 = # then move S/L;',
+                  },
+                  {
+                    k: 'choose',
+                    d: 'Groups nondeterministic action alternatives that share the same read condition.',
+                    ex: 'on _ -> choose { ... }',
+                  },
+                ]}
+              />
+            </Grid>
+            <Grid size={{ xs: 12, md: 6 }}>
+              <LanguageLegend
+                title="Matcher and action shortcuts"
+                items={[
+                  {
+                    k: '*',
+                    d: 'Wildcard in compact read patterns.',
+                    ex: 'on 1/* -> move R/S;',
+                  },
+                  {
+                    k: '!x',
+                    d: 'Any symbol except x in compact read patterns. Requires alphabet.',
+                    ex: 'on 1/!0 -> move R/S;',
+                  },
+                  {
+                    k: '{...}',
+                    d: 'Set matcher in compact patterns or readable conditions.',
+                    ex: 'on {0,1}/_ -> move R/S;',
+                  },
+                  {
+                    k: 'same',
+                    d: 'Write action value that keeps the current tape symbol unchanged.',
+                    ex: 'write same/1/_;',
+                  },
+                ]}
+              />
+            </Grid>
             <Grid size={{ xs: 12, md: 7 }}>
-              <Stack spacing={0.75}>
-                <Bullet>
-                  Quote symbols with spaces or punctuation (e.g. <code>" "</code>).
-                </Bullet>
-                <Bullet>
-                  Use <strong>/</strong> to separate per-tape symbols and per-tape
-                  movements.
-                </Bullet>
-                <Bullet>
-                  Multi-tape <code>write</code> must have one segment per tape (use{' '}
-                  <code>same</code> to leave unchanged).
-                </Bullet>
-                <Bullet>
-                  Halting states are state blocks without transitions:{' '}
-                  <code>state accept:</code>
-                </Bullet>
-                <Bullet>
-                  Omitting <code>goto</code> keeps the transition in the current state.
-                </Bullet>
-              </Stack>
+              <Paper
+                variant="outlined"
+                sx={{ p: 2, borderRadius: 2, height: '100%' }}
+              >
+                <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1 }}>
+                  Comments and Symbols
+                </Typography>
+                <CodeBlock
+                  language="tvm"
+                  code={`-- line comment
+/* block comment */
+
+alphabet: {0, 1, #, " ", _}
+
+state q0:
+  on " " -> write _; move R;
+  if t1 = # then move S; goto accept;
+`}
+                />
+                <Typography variant="caption" color="text.secondary">
+                  Every concrete tape symbol is exactly one character. Quote
+                  whitespace, punctuation, or reserved words when they are symbols.
+                </Typography>
+              </Paper>
             </Grid>
             <Grid size={{ xs: 12, md: 5 }}>
               <Paper
@@ -542,7 +625,7 @@ on 1/" "/0 -> move R/S/L;
                 sx={{ p: 2, borderRadius: 2, height: '100%' }}
               >
                 <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1 }}>
-                  Small Checklist
+                  Validation Checklist
                 </Typography>
                 <Stack spacing={0.75}>
                   <Bullet>
@@ -550,12 +633,21 @@ on 1/" "/0 -> move R/S/L;
                     movements?
                   </Bullet>
                   <Bullet>
-                    Is the blank symbol consistent in conditions and writes?
+                    Does every transition contain exactly one <code>move</code>{' '}
+                    action?
                   </Bullet>
                   <Bullet>
-                    Did you quote symbols like <code>" "</code> and <code>")"</code>?
+                    If you use <code>!x</code>, <code>!=</code>, or{' '}
+                    <code>not in</code>, did you declare <code>alphabet</code>?
                   </Bullet>
-                  <Bullet>Leave halting state blocks empty.</Bullet>
+                  <Bullet>
+                    Are all concrete symbols one character and included in{' '}
+                    <code>alphabet</code> when declared?
+                  </Bullet>
+                  <Bullet>
+                    Are all <code>goto</code> targets and the <code>start</code>{' '}
+                    state declared?
+                  </Bullet>
                 </Stack>
               </Paper>
             </Grid>
