@@ -2,7 +2,7 @@
 
 Interactive visualizer for deterministic and nondeterministic **k-tape Turing machines**.
 
-## LIVE WEBSITE (IMPORTANT)
+## LIVE WEBSITE
 
 # **https://turingviz.org**
 
