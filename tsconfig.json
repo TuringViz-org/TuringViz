@@ -19,6 +19,7 @@
       "@utils/*": ["src/utils/*"],
       "@zustands/*": ["src/zustands/*"],
       "@mytypes/*": ["src/mytypes/*"],
+      "@tmLanguage/*": ["src/tmLanguage/*"],
       "@tmfunctions/*": ["src/tmfunctions/*"],
       "@theme": ["src/theme/index.tsx"],
       "@theme/*": ["src/theme/*"]

@@ -29,7 +29,7 @@ import {
 } from '@mui/icons-material';
 
 import { CodeBlock } from './CodeBlock';
-import { YamlLegend } from './YamlLegend';
+import { LanguageLegend } from './LanguageLegend';
 import { extractGistId } from '@utils/gist';
 import type { AppTab } from '@components/MainPage/appTabs';
 
@@ -38,57 +38,57 @@ const GITHUB_REPO_URL = 'https://github.com/TuringViz-org/TuringViz';
 
 const ACTION_TABS: ActionTab[] = [
   {
-    label: 'A) Movement string',
+    label: 'A) Move only',
     render: () => (
       <>
         <Typography variant="body2" sx={{ mb: 1 }}>
-          Movement string (stay in same state): <code>L</code>, <code>R</code>,{' '}
-          <code>S</code> (per tape).
+          A transition must contain a <code>move</code> action. If <code>goto</code>{' '}
+          is omitted, the machine stays in the current state.
         </Typography>
         <CodeBlock
-          language="yaml"
-          code={`"0": "R"           # move Right, remain in current state
-"1/0": "L/S"       # tape1 Left, tape2 Stay
+          language="tvm"
+          code={`on 0 -> move R;
+on 1/0 -> move L/S;
 `}
         />
       </>
     ),
   },
   {
-    label: 'B) Object form',
+    label: 'B) Write + goto',
     render: () => (
       <>
         <Divider sx={{ my: 2 }} />
         <Typography variant="body2" sx={{ mb: 1 }}>
-          Object with optional <code>write</code> and one movement key (points to
-          next state). Use <code>same</code> to keep a symbol.
+          Add <code>write</code> before <code>move</code> and <code>goto</code> after
+          it. Use <code>same</code> to keep the current symbol.
         </Typography>
         <CodeBlock
-          language="yaml"
-          code={`"1": { R: next }                           # keep symbol, move R, goto next
-"2": { write: "0", L: next }               # write 0, move L, goto next
-"0/1": { write: "same/same", R/L: step2 }  # keep both, R on tape1, L on tape2
-" /0": { write: "1/same", S/R: carry }     # write 1 on tape1, keep tape2
+          language="tvm"
+          code={`on 1 -> move R; goto next;
+on 2 -> write 0; move L; goto next;
+on 0/1 -> write same/same; move R/L; goto step2;
+on " "/0 -> write 1/same; move S/R; goto carry;
 `}
         />
       </>
     ),
   },
   {
-    label: 'C) Nondet. list',
+    label: 'C) Nondet. choose',
     render: () => (
       <>
         <Divider sx={{ my: 2 }} />
         <Typography variant="body2" sx={{ mb: 1 }}>
-          List of actions (nondeterminism): you choose the next configuration during
-          execution.
+          Use <code>choose</code> to create nondeterministic action alternatives for
+          the same read condition.
         </Typography>
         <CodeBlock
-          language="yaml"
-          code={`"0":
-  - { write: "0", R: next }
-  - { write: "1", R: next }
-"1": [{ write: "1", R: next }, { write: "0", R: next }]
+          language="tvm"
+          code={`on 0 -> choose {
+  write 0; move R; goto next;
+  write 1; move R; goto next;
+}
 `}
         />
       </>
@@ -147,7 +147,7 @@ function FooterIntro() {
         <SectionTitle
           icon={<MenuBookOutlined />}
           title="Learn • Build • Visualize"
-          subtitle="A compact guide to Turing Machines, Configuration Graphs, Computation Trees, and the YAML format used on this site."
+          subtitle="A compact guide to Turing Machines, Configuration Graphs, Computation Trees, and the TuringViz machine language."
         />
       </Grid>
       <Grid size={{ xs: 12, md: 4 }}>
@@ -168,7 +168,7 @@ function FooterIntro() {
             size="small"
             color="primary"
             variant="outlined"
-            label="YAML-powered"
+            label="DSL-powered"
           />
         </Stack>
       </Grid>
@@ -331,7 +331,7 @@ function TheoryGrid({ activeTab }: { activeTab: AppTab }) {
   );
 }
 
-function YamlActionsTabs({
+function MachineActionsTabs({
   value,
   onChange,
 }: {
@@ -357,7 +357,7 @@ function YamlActionsTabs({
   );
 }
 
-function YamlSection({
+function MachineLanguageSection({
   actionTab,
   onActionTabChange,
 }: {
@@ -368,12 +368,12 @@ function YamlSection({
     <Box sx={{ mt: 3 }}>
       <SectionTitle
         icon={<DataObjectOutlined />}
-        title="YAML Format (Author your machines)"
+        title="Machine Language (Author your machines)"
       />
       <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
         Define multi-tape Turing machines for visualization, execution, configuration
-        graph, and computation tree. Below is the complete schema, patterns, and
-        examples. The editor supports helpful diagnostics.
+        graph, and computation tree. The editor validates the TuringViz DSL directly
+        and reports syntax or semantic diagnostics inline.
       </Typography>
 
       <Accordion
@@ -383,14 +383,14 @@ function YamlSection({
       >
         <AccordionSummary expandIcon={<ExpandMore />}>
           <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
-            Top-Level Keys
+            Program Header
           </Typography>
         </AccordionSummary>
         <AccordionDetails>
           <Grid container spacing={2}>
             <Grid size={{ xs: 12, md: 6 }}>
-              <YamlLegend
-                title="Required keys"
+              <LanguageLegend
+                title="Required declarations"
                 items={[
                   {
                     k: 'tapes',
@@ -399,8 +399,8 @@ function YamlSection({
                   },
                   {
                     k: 'input',
-                    d: 'Initial content; use “/” between tapes; empty segment → blank.',
-                    ex: 'input: "1011/01"',
+                    d: 'Initial content; use | between tapes; omitted tapes start blank.',
+                    ex: 'input: "1011" | "01"',
                   },
                   {
                     k: 'blank',
@@ -408,14 +408,14 @@ function YamlSection({
                     ex: 'blank: " "',
                   },
                   {
-                    k: 'startstate',
-                    d: 'Initial state name (avoid spaces and special chars).',
-                    ex: 'startstate: start',
+                    k: 'start',
+                    d: 'Initial state name.',
+                    ex: 'start: q0',
                   },
                   {
-                    k: 'table',
-                    d: 'Map from state → transitions. Empty map means halting state.',
-                    ex: 'accept: {}',
+                    k: 'state',
+                    d: 'Starts a state block. A state with no rules is halting.',
+                    ex: 'state accept:',
                   },
                 ]}
               />
@@ -429,15 +429,16 @@ function YamlSection({
                   Minimal Template
                 </Typography>
                 <CodeBlock
-                  language="yaml"
+                  language="tvm"
                   code={`tapes: 1
 input: ""
 blank: " "
-startstate: start
-table:
-  start:
-    " ": { S: accept }
-  accept: {}
+start: q0
+
+state q0:
+  on " " -> move S; goto accept;
+
+state accept:
 `}
                 />
               </Paper>
@@ -464,28 +465,28 @@ table:
                 </Typography>
                 <Typography variant="body2" sx={{ mb: 1 }}>
                   A condition describes symbols under the heads. For multiple tapes
-                  use <strong>/</strong>. Use <code>all</code> as wildcard; bracket
+                  use <strong>/</strong>. Use <code>*</code> as wildcard; bracket
                   groups for options.
                 </Typography>
                 <CodeBlock
-                  language="yaml"
-                  code={`# 1 tape
-"0": ...
-"[0, 1]": ...
-" ": ...
+                  language="tvm"
+                  code={`-- 1 tape
+on 0 -> move R;
+on [0, 1] -> move R;
+on " " -> move S;
 
-# 2 tapes
-"1/0": ...
-"all/ ": ...
-"[0/0, 1/1]": ...
+-- 2 tapes
+on 1/0 -> move L/S;
+on */" " -> move S/R;
+on [0/0, 1/1] -> move R/R;
 
-# 3 tapes
-"1/ /0": ...
+-- 3 tapes
+on 1/" "/0 -> move R/S/L;
 `}
                 />
                 <Typography variant="caption" color="text.secondary">
-                  Tip: Always quote keys containing spaces (e.g. the blank symbol "
-                  ").
+                  Tip: quote whitespace and punctuation symbols such as <code>" "</code>
+                  or <code>"("</code>.
                 </Typography>
               </Paper>
             </Grid>
@@ -495,7 +496,7 @@ table:
                 <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1 }}>
                   Actions
                 </Typography>
-                <YamlActionsTabs value={actionTab} onChange={onActionTabChange} />
+                <MachineActionsTabs value={actionTab} onChange={onActionTabChange} />
               </Paper>
             </Grid>
           </Grid>
@@ -516,8 +517,7 @@ table:
             <Grid size={{ xs: 12, md: 7 }}>
               <Stack spacing={0.75}>
                 <Bullet>
-                  Quote condition keys and any value with spaces or special
-                  characters (e.g. <code>" "</code>).
+                  Quote symbols with spaces or punctuation (e.g. <code>" "</code>).
                 </Bullet>
                 <Bullet>
                   Use <strong>/</strong> to separate per-tape symbols and per-tape
@@ -528,12 +528,11 @@ table:
                   <code>same</code> to leave unchanged).
                 </Bullet>
                 <Bullet>
-                  Halting states are empty mappings:{' '}
-                  <code>accept: &#123;&#125;</code>
+                  Halting states are state blocks without transitions:{' '}
+                  <code>state accept:</code>
                 </Bullet>
                 <Bullet>
-                  Movement-only strings keep you in the <em>current</em> state;
-                  object form jumps to a named next state.
+                  Omitting <code>goto</code> keeps the transition in the current state.
                 </Bullet>
               </Stack>
             </Grid>
@@ -554,10 +553,9 @@ table:
                     Is the blank symbol consistent in conditions and writes?
                   </Bullet>
                   <Bullet>
-                    Did you quote keys like <code>" "</code> and combos like{' '}
-                    <code>"1/ all"</code>?
+                    Did you quote symbols like <code>" "</code> and <code>")"</code>?
                   </Bullet>
-                  <Bullet>Empty map for halting states.</Bullet>
+                  <Bullet>Leave halting state blocks empty.</Bullet>
                 </Stack>
               </Paper>
             </Grid>
@@ -599,7 +597,7 @@ function GistGuide() {
           </Typography>
           <CodeBlock language="text" code={gistUrl} />
           <Typography variant="caption" color="text.secondary">
-            Optional: add <code>&amp;file=machine.yaml</code> to pick a specific file
+            Optional: add <code>&amp;file=machine.tvm</code> to pick a specific file
             inside the gist.
           </Typography>
         </Stack>
@@ -694,7 +692,7 @@ function GithubDiscoverCta() {
 
 export default function SiteFooter({ activeTab }: { activeTab: AppTab }) {
   const [actionTab, setActionTab] = useState(0);
-  const showYaml = activeTab === 'input';
+  const showMachineLanguage = activeTab === 'input';
 
   return (
     <Box
@@ -714,9 +712,12 @@ export default function SiteFooter({ activeTab }: { activeTab: AppTab }) {
         <FooterIntro />
         <Divider sx={{ my: 2 }} />
         <TheoryGrid activeTab={activeTab} />
-        {showYaml ? (
+        {showMachineLanguage ? (
           <>
-            <YamlSection actionTab={actionTab} onActionTabChange={setActionTab} />
+            <MachineLanguageSection
+              actionTab={actionTab}
+              onActionTabChange={setActionTab}
+            />
             <GistGuide />
           </>
         ) : null}

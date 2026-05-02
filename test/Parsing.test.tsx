@@ -2,35 +2,32 @@ import { describe, it, expect, beforeEach } from 'vitest';
 
 import { useGlobalZustand} from '@zustands/GlobalZustand';
 
-import schema from '../public/turingMachineSchema.json';
 
 import { Move, Transition, TapeContent, createTapeContent } from '@mytypes/TMTypes';
-import { parseYaml, setTuringMachineSchema } from '@utils/parsing';
+import { loadTuringMachineFromSource } from '@tmLanguage/loadMachine';
 
 describe('Parsing Test', () => {
   beforeEach(() => {
     useGlobalZustand.getState().reset();
-    setTuringMachineSchema(schema);
   });
 
   it('Parse the TMDescription and check wether everything is correctly passed to state', () => {
-    const DESCRIPTION_VALUE = `# Comment
-input: '1011/'
-blank: ' '
-tapes: 2 #Number of tapes
-startstate: right
-table:
-    # This is a comment
-    right:
-        '1/all': 'R/R'
-        '0/ ': 'R/R'
-        '[ / , 1/5]': {'L/L': left} 
-    left:
-        '1/ ': {write: '1/same', 'R/S': right}
-    done: {}
-    `;
+    const DESCRIPTION_VALUE = `tapes: 2
+blank: " "
+input: "1011" | ""
+start: right
 
-    const errors = parseYaml(DESCRIPTION_VALUE);
+state right:
+  on 1/* -> move R/R;
+  on 0/" " -> move R/R;
+  on [" "/" ", 1/5] -> move L/L; goto left;
+
+state left:
+  on 1/" " -> write 1/same; move R/S; goto right;
+
+state done:`;
+
+    const errors = loadTuringMachineFromSource(DESCRIPTION_VALUE);
 
     expect(errors).toEqual([]);
 
@@ -112,18 +109,20 @@ table:
   });
 
   it('parses nondeterministic array of movement strings for 1-tape', () => {
-    const DESCRIPTION_VALUE = `
-input: ''
-blank: ' '
-tapes: 1
-startstate: s
-table:
-  s:
-    '1': ['R', 'L']
-  done: {}
-`;
+    const DESCRIPTION_VALUE = `tapes: 1
+blank: " "
+input: ""
+start: s
 
-    const errors = parseYaml(DESCRIPTION_VALUE);
+state s:
+  on 1 -> choose {
+    move R;
+    move L;
+  }
+
+state done:`;
+
+    const errors = loadTuringMachineFromSource(DESCRIPTION_VALUE);
     expect(errors).toEqual([]);
 
     const state = useGlobalZustand.getState();
@@ -150,19 +149,22 @@ table:
   });
 
   it('parses nondeterministic array of action objects for 2-tapes', () => {
-    const DESCRIPTION_VALUE = `
-input: '/'
-blank: ' '
-tapes: 2
-startstate: right
-table:
-  right:
-    ' /all': [{'L/R': carry}, {write: ' / ', 'S/S': done}]
-  carry: {}
-  done: {}
-`;
+    const DESCRIPTION_VALUE = `tapes: 2
+blank: " "
+input: "" | ""
+start: right
 
-    const errors = parseYaml(DESCRIPTION_VALUE);
+state right:
+  on " "/* -> choose {
+    move L/R; goto carry;
+    write " "/" "; move S/S; goto done;
+  }
+
+state carry:
+
+state done:`;
+
+    const errors = loadTuringMachineFromSource(DESCRIPTION_VALUE);
     expect(errors).toEqual([]);
 
     const state = useGlobalZustand.getState();
@@ -192,18 +194,20 @@ table:
   });
 
   it('parses mixed arrays (string + object) with bracketed keys for 3-tapes', () => {
-    const DESCRIPTION_VALUE = `
-input: '//'
-blank: ' '
-tapes: 3
-startstate: q
-table:
-  q:
-    '[a/b/c, all/all/all]': ['R/S/L', {write: 'same/x/same', 'S/S/S': done}]
-  done: {}
-`;
+    const DESCRIPTION_VALUE = `tapes: 3
+blank: " "
+input: "" | "" | ""
+start: q
 
-    const errors = parseYaml(DESCRIPTION_VALUE);
+state q:
+  on [a/b/c, */*/*] -> choose {
+    move R/S/L;
+    write same/x/same; move S/S/S; goto done;
+  }
+
+state done:`;
+
+    const errors = loadTuringMachineFromSource(DESCRIPTION_VALUE);
     expect(errors).toEqual([]);
 
     const state = useGlobalZustand.getState();

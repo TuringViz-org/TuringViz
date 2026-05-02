@@ -5,7 +5,7 @@ export default defineConfig({
   plugins: [react()],
   base: '/',
   build: {
-    // Worker bundles (ELK/YAML) are intentionally large and isolated already.
+    // Worker bundles (ELK/Monaco) are intentionally large and isolated already.
     chunkSizeWarningLimit: 2500,
     rollupOptions: {
       output: {
@@ -16,8 +16,8 @@ export default defineConfig({
             return 'monaco-editor-vendor';
           }
 
-          if (id.includes('@monaco-editor') || id.includes('monaco-yaml')) {
-            return 'monaco-yaml-vendor';
+          if (id.includes('@monaco-editor')) {
+            return 'monaco-react-vendor';
           }
 
           if (
@@ -44,10 +44,6 @@ export default defineConfig({
             return 'ui-vendor';
           }
 
-          if (id.includes('yaml') || id.includes('ajv')) {
-            return 'yaml-vendor';
-          }
-
           return 'vendor';
         },
       },
@@ -69,6 +65,7 @@ export default defineConfig({
       '@utils': '/src/utils',
       '@zustands': '/src/zustands',
       '@mytypes': '/src/mytypes',
+      '@tmLanguage': '/src/tmLanguage',
       '@tmfunctions': '/src/tmfunctions',
       '@theme': '/src/theme',
     },
