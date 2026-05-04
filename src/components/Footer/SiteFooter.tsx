@@ -443,7 +443,6 @@ function MachineLanguageSection({
                   language="tvm"
                   code={`tapes: 1
 blank: _
-alphabet: {0, 1, _}
 input: "101"
 start: q0
 
