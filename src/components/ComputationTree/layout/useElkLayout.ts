@@ -192,6 +192,7 @@ export type Options = {
 export type LayoutAPI = {
   restart: () => void; // Recalculate layout now
   running: boolean; // Is ELK currently computing?
+  completedLayouts: number; // Increments after a current layout result was applied
 };
 
 export function useElkLayout({
@@ -227,6 +228,7 @@ export function useElkLayout({
 
   const elkRef = useRef<InstanceType<typeof Elk> | null>(null);
   const [running, setRunning] = useState(false);
+  const [completedLayouts, setCompletedLayouts] = useState(0);
   const lastTopoKeyRef = useRef<string>('');
   const workerGraphKeyRef = useRef<string>('');
   const lastFailureToastTopoKeyRef = useRef<string>('');
@@ -389,8 +391,9 @@ export function useElkLayout({
           if (isCurrentRun) {
             retryWhenVisibleRef.current = false;
             onLayoutRef.current?.(nextPositions);
+            setCompletedLayouts((count) => count + 1);
           }
-          // Keep the running=true -> running=false transition observable by React effects.
+          // Yield once so synchronous manual layouts still expose a busy state to controls.
           await new Promise<void>((resolve) => setTimeout(resolve, 0));
         } else {
           if (workerGraphKeyRef.current !== topoKeyForRun) {
@@ -476,6 +479,7 @@ export function useElkLayout({
             if (isCurrentRun) {
               retryWhenVisibleRef.current = false;
               onLayoutRef.current?.(nextPositions);
+              setCompletedLayouts((count) => count + 1);
             }
           } catch {
             resetElkWorker();
@@ -509,6 +513,7 @@ export function useElkLayout({
               });
               retryWhenVisibleRef.current = false;
               onLayoutRef.current?.(fallbackPositions);
+              setCompletedLayouts((count) => count + 1);
             } catch {
               // Last-resort placement: keep nodes visible in a simple grid.
               const emergencyPositions = new Map<string, { x: number; y: number }>();
@@ -524,6 +529,7 @@ export function useElkLayout({
               }
               retryWhenVisibleRef.current = false;
               onLayoutRef.current?.(emergencyPositions);
+              setCompletedLayouts((count) => count + 1);
             }
           }
         }
@@ -596,5 +602,5 @@ export function useElkLayout({
     void runLayout();
   }, [autoDirection, autoResizeLayoutEnabled, viewportSizeKey, runLayout]);
 
-  return { restart, running };
+  return { restart, running, completedLayouts };
 }

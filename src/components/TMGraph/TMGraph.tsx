@@ -949,7 +949,7 @@ function TMGraph() {
 
   const lastLaidOutTopoKeyRef = useRef<string | null>(null);
   const fitAfterLayoutRef = useRef(false);
-  const prevRunningRef = useRef(layout.running);
+  const lastHandledCompletedLayoutsRef = useRef(layout.completedLayouts);
   const structureReadyForLayout =
     nodes.length > 0 &&
     expectedNodeKey.length > 0 &&
@@ -976,19 +976,15 @@ function TMGraph() {
   }, [nodes.length, topoKey, scheduleLayoutRestart, structureReadyForLayout]);
 
   useEffect(() => {
-    const justFinished = prevRunningRef.current && !layout.running;
-    if (justFinished) {
-      if (fitAfterLayoutRef.current && nodes.length > 0) {
-        fitAfterLayoutRef.current = false;
-        runFitView(() => {
-          setViewportReady(true);
-        });
-      }
+    if (lastHandledCompletedLayoutsRef.current === layout.completedLayouts) return;
+    lastHandledCompletedLayoutsRef.current = layout.completedLayouts;
+    if (!fitAfterLayoutRef.current || nodes.length === 0) return;
 
-    }
-
-    prevRunningRef.current = layout.running;
-  }, [layout.running, nodes.length, runFitView]);
+    fitAfterLayoutRef.current = false;
+    runFitView(() => {
+      setViewportReady(true);
+    });
+  }, [layout.completedLayouts, nodes.length, runFitView]);
 
   useEffect(() => {
     const cy = cyRef.current;

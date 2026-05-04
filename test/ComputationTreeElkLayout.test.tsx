@@ -33,6 +33,7 @@ vi.mock('@components/shared/layout/elkUtils', async () => {
 type HarnessProps = {
   restartVersion: number;
   onLayout: (positions: Map<string, { x: number; y: number }>) => void;
+  onCompletedLayoutsChange?: (completedLayouts: number) => void;
 };
 
 function deferredPromise<T>() {
@@ -45,9 +46,9 @@ function deferredPromise<T>() {
   return { promise, resolve, reject };
 }
 
-function Harness({ restartVersion, onLayout }: HarnessProps) {
+function Harness({ restartVersion, onLayout, onCompletedLayoutsChange }: HarnessProps) {
   const lastRestartVersionRef = useRef(0);
-  const { restart } = useElkLayout({
+  const { restart, completedLayouts } = useElkLayout({
     nodes: [
       { id: 'a', position: { x: 0, y: 0 }, data: {} },
       { id: 'b', position: { x: 0, y: 0 }, data: {} },
@@ -67,6 +68,10 @@ function Harness({ restartVersion, onLayout }: HarnessProps) {
     lastRestartVersionRef.current = restartVersion;
     restart();
   }, [restartVersion, restart]);
+
+  useEffect(() => {
+    onCompletedLayoutsChange?.(completedLayouts);
+  }, [completedLayouts, onCompletedLayoutsChange]);
 
   return null;
 }
@@ -116,5 +121,29 @@ describe('Computation tree ELK layout', () => {
     expect(toastWarningMock).toHaveBeenCalledWith(
       'Layout failed. Please try again with fewer nodes.'
     );
+  });
+
+  it('increments the completion counter after applying the current layout', async () => {
+    const onLayout = vi.fn();
+    const onCompletedLayoutsChange = vi.fn();
+
+    runElkLayoutWithTimeoutMock.mockResolvedValueOnce({
+      children: [
+        { id: 'a', x: 10, y: 20 },
+        { id: 'b', x: 30, y: 40 },
+        { id: 'c', x: 50, y: 60 },
+      ],
+    });
+
+    render(
+      <Harness
+        restartVersion={1}
+        onLayout={onLayout}
+        onCompletedLayoutsChange={onCompletedLayoutsChange}
+      />
+    );
+
+    await waitFor(() => expect(onLayout).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(onCompletedLayoutsChange).toHaveBeenLastCalledWith(1));
   });
 });
