@@ -39,7 +39,7 @@ export const GCD: ExampleTM = {
  */
 tapes: 4
 blank: " "
-input: "000000#0000" | "" | "" | ""
+input: "000000#0000"
 start: copy_first
 
 state copy_first:
