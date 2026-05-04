@@ -1,5 +1,5 @@
 // src/components/TMGraph/TMGraph.tsx
-import { useMemo, useEffect, useRef, useState, useCallback } from 'react';
+import { useMemo, useEffect, useLayoutEffect, useRef, useState, useCallback } from 'react';
 import cytoscape, {
   type Core as CyCore,
   type EventObject,
@@ -272,7 +272,7 @@ function useTMGraphData({
   const [nodes, setNodes] = useState<TMGraphNode[]>(rawNodes);
   const [edges, setEdges] = useState<TMGraphEdge[]>(rawEdges);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     setNodes((prev) =>
       reconcileNodes(prev, rawNodes, (node) => ({
         ...(node.data as any),
@@ -956,7 +956,7 @@ function TMGraph() {
     currentNodeKey === expectedNodeKey &&
     currentEdgeKey === expectedEdgeKey;
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (nodes.length === 0) {
       lastLaidOutTopoKeyRef.current = null;
       setViewportReady(true);
@@ -1098,7 +1098,7 @@ function TMGraph() {
           inset: 0,
           opacity: viewportReady ? 1 : 0,
           pointerEvents: viewportReady ? 'auto' : 'none',
-          transition: 'opacity 120ms ease',
+          transition: 'none',
         }}
       />
 
