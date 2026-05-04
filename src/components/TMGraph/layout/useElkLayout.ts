@@ -1,6 +1,6 @@
 // src/components/TMGraph/layout/useElkLayout.ts
 import { useRef, useState } from 'react';
-import Elk, { ElkNode, ElkExtendedEdge } from 'elkjs/lib/elk.bundled.js';
+import Elk, { ElkNode, ElkExtendedEdge } from 'elkjs/lib/elk-api.js';
 import { Node as RFNode, useReactFlow } from '@xyflow/react';
 
 import { STATE_NODE_DIAMETER } from '../util/constants';

@@ -1,6 +1,6 @@
 // src/components/ComputationTree/layout/useElkLayout.ts
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import Elk, { ElkExtendedEdge, ElkNode } from 'elkjs/lib/elk.bundled.js';
+import Elk, { ElkExtendedEdge, ElkNode } from 'elkjs/lib/elk-api.js';
 import type { Edge as RFEdge, Node as RFNode } from '@xyflow/react';
 import { toast } from 'sonner';
 

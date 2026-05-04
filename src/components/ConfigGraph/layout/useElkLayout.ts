@@ -1,6 +1,6 @@
 // src/components/ConfigGraph/layout/useElkLayout.ts
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import Elk, { ElkNode, ElkExtendedEdge } from 'elkjs/lib/elk.bundled.js';
+import Elk, { ElkNode, ElkExtendedEdge } from 'elkjs/lib/elk-api.js';
 import {
   useNodesInitialized,
   useReactFlow,
