@@ -27,18 +27,12 @@ import { useGlobalZustand } from '@zustands/GlobalZustand';
 import {
   useTMGraphELKSettings,
   useGraphZustand,
-  type TMGraphLayoutSnapshot,
-  type TMGraphViewportSnapshot,
 } from '@zustands/GraphZustand';
 import { buildTMGraph } from './util/buildTMGraph';
 import { CONTROL_HEIGHT, STATE_NODE_DIAMETER } from './util/constants';
 import { DEFAULT_ELK_OPTS, HOVER_POPPER_DELAY_MS } from '@utils/constants';
 import { GraphUIProvider, useGraphUI } from '@components/shared/GraphUIContext';
 import type { Transition } from '@mytypes/TMTypes';
-import {
-  PORTAL_BRIDGE_SWITCH_EVENT,
-  type PortalBridgeSwitchDetail,
-} from '@components/MainPage/PortalBridge';
 import { reconcileEdges, reconcileNodes } from '@utils/reactflow';
 import { useDebouncedLayoutRestart } from '@hooks/useDebouncedLayoutRestart';
 import { useDeveloperControls } from '@hooks/useDeveloperControls';
@@ -257,79 +251,30 @@ const getCyStyles = (theme: any): any[] => {
   ];
 };
 
-function applySnapshotPositions(
-  nodes: TMGraphNode[],
-  positions: TMGraphLayoutSnapshot['positions']
-): TMGraphNode[] {
-  return nodes.map((node) => {
-    const saved = positions[node.id];
-    if (!saved) return node;
-    const same = node.position.x === saved.x && node.position.y === saved.y;
-    return same ? node : { ...node, position: saved };
-  });
-}
-
-function isDegenerateSnapshot(
-  nodes: TMGraphNode[],
-  positions: TMGraphLayoutSnapshot['positions']
-): boolean {
-  if (nodes.length <= 1) return false;
-  const points = new Set<string>();
-
-  for (const node of nodes) {
-    const pos = positions[node.id];
-    if (!pos) return true;
-    points.add(`${Math.round(pos.x)}:${Math.round(pos.y)}`);
-    if (points.size > 1) return false;
-  }
-
-  return true;
-}
-
 function useTMGraphData({
   states,
   transitions,
   startState,
   currentState,
   lastState,
-  machineLoadVersion,
-  snapshot,
 }: {
   states: BuildTMGraphArgs[0];
   transitions: BuildTMGraphArgs[1];
   startState: string;
   currentState: string;
   lastState: string;
-  machineLoadVersion: number;
-  snapshot: TMGraphLayoutSnapshot | null;
 }) {
   const { nodes: rawNodes, edges: rawEdges, topoKey } = useMemo(
     () => buildTMGraph(states, transitions),
     [states, transitions]
   );
 
-  const applicableSnapshot = useMemo(() => {
-    if (!snapshot) return null;
-    if (snapshot.machineLoadVersion !== machineLoadVersion) return null;
-    if (snapshot.topoKey !== topoKey) return null;
-    if (isDegenerateSnapshot(rawNodes, snapshot.positions)) return null;
-    return snapshot;
-  }, [snapshot, machineLoadVersion, topoKey, rawNodes]);
-
-  const baseNodes = useMemo(
-    () =>
-      applicableSnapshot
-        ? applySnapshotPositions(rawNodes, applicableSnapshot.positions)
-        : rawNodes,
-    [rawNodes, applicableSnapshot]
-  );
-
-  const [nodes, setNodes] = useState<TMGraphNode[]>(baseNodes);
+  const [nodes, setNodes] = useState<TMGraphNode[]>(rawNodes);
   const [edges, setEdges] = useState<TMGraphEdge[]>(rawEdges);
 
   useEffect(() => {
     setNodes((prev) =>
-      reconcileNodes(prev, baseNodes, (node) => ({
+      reconcileNodes(prev, rawNodes, (node) => ({
         ...(node.data as any),
         isStart: node.id === startState,
         isCurrent: node.id === currentState,
@@ -337,7 +282,7 @@ function useTMGraphData({
       })) as TMGraphNode[]
     );
     setEdges((prev) => reconcileEdges(prev, rawEdges) as TMGraphEdge[]);
-  }, [baseNodes, rawEdges, startState, currentState, lastState]);
+  }, [rawNodes, rawEdges, startState, currentState, lastState]);
 
   return {
     nodes,
@@ -352,7 +297,6 @@ function useTMGraphData({
       .map((e) => e.id)
       .sort((a, b) => a.localeCompare(b))
       .join('|'),
-    restoredSnapshot: applicableSnapshot,
   };
 }
 
@@ -456,7 +400,6 @@ function TMGraph() {
   const lastState = useGlobalZustand((s) => s.lastState);
   const lastTransition = useGlobalZustand((s) => s.lastTransition);
   const lastTransitionTrigger = useGlobalZustand((s) => s.lastTransitionTrigger);
-  const machineLoadVersion = useGlobalZustand((s) => s.machineLoadVersion);
   const runSpeedMs = useGlobalZustand((s) => s.runSpeedMs);
   const runChoiceHighlightedTMEdges = useGlobalZustand(
     (s) => s.runChoiceHighlightedTMEdges
@@ -464,13 +407,8 @@ function TMGraph() {
 
   const tmGraphELKSettings = useTMGraphELKSettings();
   const setTMGraphELKSettings = useGraphZustand((s) => s.setTMGraphELKSettings);
-  const setTMGraphLayoutSnapshot = useGraphZustand((s) => s.setTMGraphLayoutSnapshot);
 
   const { highlightedEdgeId, setHighlightedEdgeId, selected, setSelected } = useGraphUI();
-
-  const initialSnapshotRef = useRef<TMGraphLayoutSnapshot | null>(
-    useGraphZustand.getState().tmGraphLayoutSnapshot
-  );
 
   const {
     nodes,
@@ -479,15 +417,12 @@ function TMGraph() {
     topoKey,
     expectedNodeKey,
     expectedEdgeKey,
-    restoredSnapshot,
   } = useTMGraphData({
     states,
     transitions,
     startState,
     currentState,
     lastState,
-    machineLoadVersion,
-    snapshot: initialSnapshotRef.current,
   });
 
   useHighlightedTransition({
@@ -501,8 +436,6 @@ function TMGraph() {
 
   const cyRef = useRef<CyCore | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const nodesRef = useRef(nodes);
-  const topoKeyRef = useRef(topoKey);
   const edgeTooltipRef = useRef<EdgeTooltipState>({
     id: null,
     anchor: null,
@@ -511,17 +444,14 @@ function TMGraph() {
   const nodeHintRef = useRef<NodeHintState>({ id: null, text: null, anchor: null });
 
   const edgeMapRef = useRef<Map<string, TMGraphEdge>>(new Map());
-  const nodeMapRef = useRef<Map<string, TMGraphNode>>(new Map());
 
   const hoverTimerRef = useRef<number | null>(null);
-  const persistTimerRef = useRef<number | null>(null);
   const suppressEdgeTooltipCloseUntilRef = useRef(0);
 
   const [settingsOpen, setSettingsOpen] = useState(false);
   const showDeveloperControls = useDeveloperControls();
   const [containerVisible, setContainerVisible] = useState(true);
   const [viewportReady, setViewportReady] = useState(false);
-  const [cyReady, setCyReady] = useState(false);
   const [edgeTooltip, setEdgeTooltip] = useState<EdgeTooltipState>({
     id: null,
     anchor: null,
@@ -534,14 +464,6 @@ function TMGraph() {
   });
 
   useEffect(() => {
-    nodesRef.current = nodes;
-  }, [nodes]);
-
-  useEffect(() => {
-    topoKeyRef.current = topoKey;
-  }, [topoKey]);
-
-  useEffect(() => {
     edgeTooltipRef.current = edgeTooltip;
   }, [edgeTooltip]);
   useEffect(() => {
@@ -551,10 +473,6 @@ function TMGraph() {
   useEffect(() => {
     edgeMapRef.current = new Map(edges.map((e) => [e.id, e]));
   }, [edges]);
-
-  useEffect(() => {
-    nodeMapRef.current = new Map(nodes.map((n) => [n.id, n]));
-  }, [nodes]);
 
   const setEdgeTooltipState = useCallback((next: EdgeTooltipState) => {
     edgeTooltipRef.current = next;
@@ -615,65 +533,6 @@ function TMGraph() {
     }
     setEdgeTooltipState({ ...current, anchor });
   }, [getAnchorFromElement, setEdgeTooltipState]);
-
-  const persistLayoutSnapshot = useCallback(() => {
-    const cy = cyRef.current;
-    if (!cy) return;
-    if (nodesRef.current.length === 0) return;
-    if (!topoKeyRef.current) return;
-
-    const positions: TMGraphLayoutSnapshot['positions'] = {};
-
-    cy.nodes().forEach((node) => {
-      const pos = node.position();
-      positions[node.id()] = { x: pos.x, y: pos.y };
-    });
-
-    for (const node of nodesRef.current) {
-      if (!positions[node.id]) {
-        positions[node.id] = { x: node.position.x, y: node.position.y };
-      }
-    }
-
-    if (isDegenerateSnapshot(nodesRef.current, positions)) return;
-
-    const pan = cy.pan();
-    const zoom = cy.zoom();
-
-    const viewportSnapshot: TMGraphViewportSnapshot = {
-      x: pan.x,
-      y: pan.y,
-      zoom,
-    };
-
-    setTMGraphLayoutSnapshot({
-      machineLoadVersion,
-      topoKey: topoKeyRef.current,
-      positions,
-      viewport: viewportSnapshot,
-    });
-  }, [machineLoadVersion, setTMGraphLayoutSnapshot]);
-
-  const schedulePersistLayoutSnapshot = useCallback(() => {
-    if (persistTimerRef.current != null) {
-      window.clearTimeout(persistTimerRef.current);
-    }
-
-    persistTimerRef.current = window.setTimeout(() => {
-      persistTimerRef.current = null;
-      persistLayoutSnapshot();
-    }, 180);
-  }, [persistLayoutSnapshot]);
-
-  useEffect(() => {
-    return () => {
-      if (persistTimerRef.current != null) {
-        window.clearTimeout(persistTimerRef.current);
-        persistTimerRef.current = null;
-      }
-      persistLayoutSnapshot();
-    };
-  }, [persistLayoutSnapshot]);
 
   const layout = useElkLayout({
     nodes,
@@ -736,11 +595,10 @@ function TMGraph() {
           cy.fit(cy.elements(), 30);
         }
 
-        schedulePersistLayoutSnapshot();
         onDone?.();
       });
     },
-    [schedulePersistLayoutSnapshot]
+    []
   );
 
   const isContainerVisible = useCallback(() => {
@@ -863,7 +721,6 @@ function TMGraph() {
 
     const onViewportChanged = () => {
       refreshSelectedEdgeTooltipAnchor();
-      schedulePersistLayoutSnapshot();
     };
 
     const onNodeDragFree = (evt: EventObjectNode) => {
@@ -878,7 +735,6 @@ function TMGraph() {
         })
       );
 
-      schedulePersistLayoutSnapshot();
     };
 
     cy.on('tap', onPaneTap);
@@ -894,7 +750,6 @@ function TMGraph() {
     cy.on('pan zoom', onViewportChanged);
 
     cyRef.current = cy;
-    setCyReady(true);
 
     return () => {
       clearHoverTimer();
@@ -909,7 +764,6 @@ function TMGraph() {
       cy.off('mouseout', 'node', onNodeMouseOut);
       cy.off('dragfree', 'node', onNodeDragFree);
       cy.off('pan zoom', onViewportChanged);
-      setCyReady(false);
       cy.destroy();
       cyRef.current = null;
     };
@@ -919,7 +773,6 @@ function TMGraph() {
     getAnchorFromEvent,
     refreshSelectedEdgeTooltipAnchor,
     setEdgeTooltipState,
-    schedulePersistLayoutSnapshot,
     setSelected,
     setNodes,
   ]);
@@ -1094,12 +947,9 @@ function TMGraph() {
     lastHighlightedSetRef.current = nextSet;
   }, [highlightedEdgeId, runChoiceHighlightedTMEdges]);
 
-  const didInitialLayoutRef = useRef(false);
-  const lastTopoKeyRef = useRef<string | null>(null);
-  const lastHandledMachineLoadRef = useRef<number>(machineLoadVersion);
+  const lastLaidOutTopoKeyRef = useRef<string | null>(null);
   const fitAfterLayoutRef = useRef(false);
   const prevRunningRef = useRef(layout.running);
-  const restoredViewportAppliedRef = useRef(false);
   const structureReadyForLayout =
     nodes.length > 0 &&
     expectedNodeKey.length > 0 &&
@@ -1108,6 +958,7 @@ function TMGraph() {
 
   useEffect(() => {
     if (nodes.length === 0) {
+      lastLaidOutTopoKeyRef.current = null;
       setViewportReady(true);
       return;
     }
@@ -1116,41 +967,13 @@ function TMGraph() {
       return;
     }
 
-    if (!didInitialLayoutRef.current) {
-      didInitialLayoutRef.current = true;
-      lastTopoKeyRef.current = topoKey;
+    if (lastLaidOutTopoKeyRef.current === topoKey) return;
 
-      if (restoredSnapshot) {
-        setViewportReady(false);
-        return;
-      }
-
-      setViewportReady(false);
-      scheduleLayoutRestart();
-      fitAfterLayoutRef.current = true;
-      return;
-    }
-
-    if (lastTopoKeyRef.current === topoKey) return;
-
-    lastTopoKeyRef.current = topoKey;
-    restoredViewportAppliedRef.current = false;
+    lastLaidOutTopoKeyRef.current = topoKey;
     setViewportReady(false);
     scheduleLayoutRestart();
     fitAfterLayoutRef.current = true;
-  }, [nodes.length, topoKey, restoredSnapshot, scheduleLayoutRestart, structureReadyForLayout]);
-
-  useEffect(() => {
-    if (nodes.length === 0) return;
-    if (!structureReadyForLayout) return;
-    if (lastHandledMachineLoadRef.current === machineLoadVersion) return;
-
-    lastHandledMachineLoadRef.current = machineLoadVersion;
-    restoredViewportAppliedRef.current = false;
-    setViewportReady(false);
-    scheduleLayoutRestart();
-    fitAfterLayoutRef.current = true;
-  }, [machineLoadVersion, nodes.length, scheduleLayoutRestart, structureReadyForLayout]);
+  }, [nodes.length, topoKey, scheduleLayoutRestart, structureReadyForLayout]);
 
   useEffect(() => {
     const justFinished = prevRunningRef.current && !layout.running;
@@ -1162,31 +985,10 @@ function TMGraph() {
         });
       }
 
-      schedulePersistLayoutSnapshot();
     }
 
     prevRunningRef.current = layout.running;
-  }, [layout.running, nodes.length, runFitView, schedulePersistLayoutSnapshot]);
-
-  useEffect(() => {
-    if (restoredViewportAppliedRef.current) return;
-
-    const viewport = restoredSnapshot?.viewport;
-    const cy = cyRef.current;
-
-    if (!viewport || !cy || !cyReady || nodes.length === 0) return;
-
-    restoredViewportAppliedRef.current = true;
-
-    requestAnimationFrame(() => {
-      cy.viewport({
-        zoom: viewport.zoom,
-        pan: { x: viewport.x, y: viewport.y },
-      });
-
-      setViewportReady(true);
-    });
-  }, [restoredSnapshot, nodes.length, cyReady]);
+  }, [layout.running, nodes.length, runFitView]);
 
   useEffect(() => {
     const cy = cyRef.current;
@@ -1206,30 +1008,6 @@ function TMGraph() {
     ro.observe(el);
     return () => ro.disconnect();
   }, [isContainerVisible, refreshSelectedEdgeTooltipAnchor]);
-
-  const refreshViewportAfterSwitch = useCallback(() => {
-    const cy = cyRef.current;
-    if (!cy) return;
-
-    requestAnimationFrame(() => {
-      cy.resize();
-      refreshSelectedEdgeTooltipAnchor();
-      schedulePersistLayoutSnapshot();
-    });
-  }, [refreshSelectedEdgeTooltipAnchor, schedulePersistLayoutSnapshot]);
-
-  useEffect(() => {
-    const handler: EventListener = (event) => {
-      const detail = (event as CustomEvent<PortalBridgeSwitchDetail>).detail;
-      if (!detail || detail.id !== 'tmGraph') return;
-      refreshViewportAfterSwitch();
-    };
-
-    window.addEventListener(PORTAL_BRIDGE_SWITCH_EVENT, handler);
-    return () => {
-      window.removeEventListener(PORTAL_BRIDGE_SWITCH_EVENT, handler);
-    };
-  }, [refreshViewportAfterSwitch]);
 
   useEffect(() => {
     let rafId: number | null = null;

@@ -129,12 +129,6 @@ export default function App() {
     </Button>
   );
 
-  const tmGraphEnabled =
-    activeTab === 'input' ||
-    activeTab === 'run' ||
-    tmFullscreen.open ||
-    tmFullscreen.render;
-
   const configGraphEnabled =
     configTabActive ||
     hasMountedConfigGraph ||
@@ -156,12 +150,12 @@ export default function App() {
         fallbackRef: tmPanelRef,
         fullscreenRef: tmFullscreenRef,
         actions: <RunControls />,
-        enabled: tmGraphEnabled,
-        content: tmGraphEnabled ? (
+        enabled: true,
+        content: (
           <Suspense fallback={graphLoader}>
             <LazyTMGraphWrapper />
           </Suspense>
-        ) : null,
+        ),
       },
       {
         id: 'configGraph',
@@ -206,7 +200,6 @@ export default function App() {
       tmFullscreen.closeFullscreen,
       tmFullscreen.render,
       tmFullscreen.setRender,
-      tmGraphEnabled,
       configFullscreen.open,
       configFullscreen.closeFullscreen,
       configFullscreen.render,
