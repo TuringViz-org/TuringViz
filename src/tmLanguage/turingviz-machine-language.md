@@ -18,7 +18,7 @@ Example:
 tapes: 4
 blank: _
 alphabet: {0, 1, #, _}
-input: "1010" | "" | "" | ""
+input: "1010"
 start: q0
 
 state q0:
