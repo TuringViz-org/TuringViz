@@ -100,6 +100,7 @@ import {
   GRAPH_EDGE_COMPRESSED_WIDTH,
   GRAPH_EDGE_HOVER_WIDTH,
 } from '@components/shared/edgeVisualConstants';
+import { normalizeColor, resolveStateColor } from '@components/shared/stateColors';
 
 type Anchor = { top: number; left: number };
 
@@ -154,38 +155,6 @@ function makeVirtualAnchor(anchor: Anchor | null): VirtualElement {
       }) as DOMRect,
   };
 }
-
-const acceptingStates = ['accept', 'accepted', 'done'];
-const rejectingStates = ['reject', 'rejected', 'error'];
-
-const normalizeColor = (color?: string) => {
-  if (!color) return undefined;
-  // Convert 8-digit hex (#RRGGBBAA) to rgba() because Cytoscape can be picky.
-  const m = /^#([0-9a-fA-F]{8})$/.exec(color);
-  if (m) {
-    const hex = m[1];
-    const r = parseInt(hex.slice(0, 2), 16);
-    const g = parseInt(hex.slice(2, 4), 16);
-    const b = parseInt(hex.slice(4, 6), 16);
-    const a = parseInt(hex.slice(6, 8), 16) / 255;
-    return `rgba(${r}, ${g}, ${b}, ${a})`;
-  }
-  return color;
-};
-
-const resolveStateColor = (
-  stateName: string | undefined,
-  mapping: Map<string, string>
-) => {
-  const key = (stateName ?? '').trim();
-  if (!key) return undefined;
-  const direct = mapping.get(key) ?? mapping.get(String(key));
-  if (direct) return normalizeColor(direct);
-  const lower = key.toLowerCase();
-  if (acceptingStates.includes(lower)) return 'accept'; // sentinel
-  if (rejectingStates.includes(lower)) return 'reject'; // sentinel
-  return undefined;
-};
 
 const getCyStyles = (theme: any): any[] => [
     {
@@ -549,6 +518,7 @@ function ComputationTreeCircles({ targetNodes, compressing = false, paused = fal
   const [structureKey, setStructureKey] = useState('');
   const [containerVisible, setContainerVisible] = useState(true);
   const [viewportReady, setViewportReady] = useState(false);
+  const [readyTopologyKey, setReadyTopologyKey] = useState('');
   const [autoResizeLayoutEnabled, setAutoResizeLayoutEnabled] = useState(true);
   const fitAfterLayoutRef = useRef(false);
   const skipNextAutoResizeFitRef = useRef(false);
@@ -557,12 +527,13 @@ function ComputationTreeCircles({ targetNodes, compressing = false, paused = fal
   const pendingRevealFitRef = useRef(false);
   const showDeveloperControls = useDeveloperControls();
   const handleAutoResizeLayout = useCallback(() => {
-    if (nodes.length === 0) return;
+    if (nodes.length === 0) return false;
     if (skipNextAutoResizeFitRef.current) {
       skipNextAutoResizeFitRef.current = false;
-      return;
+      return false;
     }
     fitAfterLayoutRef.current = true;
+    return true;
   }, [nodes.length]);
 
   // Keep node/edge lookup maps for quick access in event handlers
@@ -642,6 +613,17 @@ function ComputationTreeCircles({ targetNodes, compressing = false, paused = fal
   const pendingMachineLoadFitRef = useRef(false);
   const awaitingInitialRevealRef = useRef(false);
   const lastHandledMachineLoadRef = useRef<number>(-1);
+  const currentTopologyKeyRef = useRef(base.topoKey);
+
+  useEffect(() => {
+    currentTopologyKeyRef.current = base.topoKey;
+  }, [base.topoKey]);
+
+  const revealViewport = useCallback(() => {
+    awaitingInitialRevealRef.current = false;
+    setReadyTopologyKey(currentTopologyKeyRef.current);
+    setViewportReady(true);
+  }, []);
   useEffect(() => {
     if (nodes.length === 0) setViewportReady(false);
   }, [nodes.length]);
@@ -816,15 +798,14 @@ function ComputationTreeCircles({ targetNodes, compressing = false, paused = fal
       runFitView(() => {
         pendingMachineLoadFitRef.current = false;
         if (awaitingInitialRevealRef.current) {
-          awaitingInitialRevealRef.current = false;
-          setViewportReady(true);
+          revealViewport();
         }
       });
     } else {
       // Layout finished while tab is hidden — defer reveal until visible
       pendingRevealFitRef.current = true;
     }
-  }, [layout.running, runFitView, isContainerVisible]);
+  }, [layout.running, runFitView, isContainerVisible, revealViewport]);
 
   useEffect(() => {
     const justFinished = prevRunningRef.current && !layout.running;
@@ -1398,8 +1379,7 @@ function ComputationTreeCircles({ targetNodes, compressing = false, paused = fal
         pendingMachineLoadFitRef.current = false;
         runFitView(() => {
           if (awaitingInitialRevealRef.current) {
-            awaitingInitialRevealRef.current = false;
-            setViewportReady(true);
+            revealViewport();
           }
           pendingRevealFitRef.current = false;
           refreshSelectedAnchors();
@@ -1412,8 +1392,7 @@ function ComputationTreeCircles({ targetNodes, compressing = false, paused = fal
         runFitView(() => {
           pendingMachineLoadFitRef.current = false;
           if (awaitingInitialRevealRef.current) {
-            awaitingInitialRevealRef.current = false;
-            setViewportReady(true);
+            revealViewport();
           }
           refreshSelectedAnchors();
         });
@@ -1447,6 +1426,7 @@ function ComputationTreeCircles({ targetNodes, compressing = false, paused = fal
     refreshSelectedAnchors,
     viewportReady,
     scheduleLayoutRestart,
+    revealViewport,
   ]);
 
   // Portal switch fit handling
@@ -1507,7 +1487,11 @@ function ComputationTreeCircles({ targetNodes, compressing = false, paused = fal
   const showLegend = legendItems.length > 0 && (model?.nodes?.length ?? 0) > 0;
   const structureSyncPending = base.topoKey !== structureKey;
   const loadingMaskVisible =
-    !viewportReady || layout.running || isComputing || structureSyncPending;
+    !viewportReady ||
+    readyTopologyKey !== base.topoKey ||
+    layout.running ||
+    isComputing ||
+    structureSyncPending;
 
   const requestNodeModeChange = useCallback(
     (nextMode: ConfigNodeMode) => {

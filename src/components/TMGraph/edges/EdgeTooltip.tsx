@@ -162,22 +162,20 @@ export function EdgeTooltip({
                         overflow: 'hidden',
                       }}
                     >
-                      {transitions!.length > 1 && (
-                        <Box
-                          sx={{
-                            px: 1,
-                            py: 0.5,
-                            bgcolor: (th) => th.palette.primary.light,
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                          }}
-                        >
-                          <Typography variant="caption" sx={{ fontWeight: 600 }}>
-                            Transition {idx + 1}
-                          </Typography>
-                        </Box>
-                      )}
+                      <Box
+                        sx={{
+                          px: 1,
+                          py: 0.5,
+                          bgcolor: (th) => th.palette.primary.light,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                        }}
+                      >
+                        <Typography variant="caption" sx={{ fontWeight: 600 }}>
+                          Transition {idx + 1}
+                        </Typography>
+                      </Box>
 
                       <Box sx={{ px: 1, py: 0.5 }}>
                         <Box

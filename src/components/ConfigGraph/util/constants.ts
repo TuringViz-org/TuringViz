@@ -1,21 +1,10 @@
-// src/components/ConfigGraph/util/constants.ts
-export const CONFIG_NODE_DIAMETER = 64;
-export const CONFIG_CARD_WIDTH = 330;
-export const CONFIG_CARD_HEIGHT_ESTIMATE = 240;
-
-// Height of the control buttons in the Config graph
-export const CONTROL_HEIGHT = 32;
-
-// Maximum number of nodes rendered in card mode
-export const CARDS_LIMIT = 360;
-export const COLOR_STATE_SWITCH = 10;
-
-export enum NodeType {
-  CONFIG = 'config',
-  CONFIG_CARD = 'configCard',
-}
-
-export enum EdgeType {
-  FLOATING = 'floating',
-  LOOP = 'loop',
-}
+export {
+  CARDS_LIMIT,
+  COLOR_STATE_SWITCH,
+  CONFIG_CARD_HEIGHT_ESTIMATE,
+  CONFIG_CARD_WIDTH,
+  CONFIG_NODE_DIAMETER,
+  CONTROL_HEIGHT,
+  EdgeType,
+  NodeType,
+} from '@components/shared/configGraphConstants';

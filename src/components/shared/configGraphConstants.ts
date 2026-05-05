@@ -1,0 +1,20 @@
+export const CONFIG_NODE_DIAMETER = 64;
+export const CONFIG_CARD_WIDTH = 330;
+export const CONFIG_CARD_HEIGHT_ESTIMATE = 240;
+
+// Height of the control buttons in configuration-style graphs.
+export const CONTROL_HEIGHT = 32;
+
+// Maximum number of nodes rendered in card mode.
+export const CARDS_LIMIT = 360;
+export const COLOR_STATE_SWITCH = 10;
+
+export enum NodeType {
+  CONFIG = 'config',
+  CONFIG_CARD = 'configCard',
+}
+
+export enum EdgeType {
+  FLOATING = 'floating',
+  LOOP = 'loop',
+}

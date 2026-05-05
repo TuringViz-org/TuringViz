@@ -54,6 +54,7 @@ import {
 } from './util/constants';
 import { useElkLayout } from './layout/useElkLayout';
 import { buildConfigGraph } from './util/buildConfigGraph';
+import { useDebouncedLayoutRestart } from '@hooks/useDebouncedLayoutRestart';
 import {
   ConfigNodeMode,
   DEFAULT_GRAPH_CARDS_ELK_OPTS,
@@ -71,37 +72,7 @@ import {
 } from '@components/MainPage/PortalBridge';
 import { ConfigGraphCircles } from './ConfigGraphCircles';
 import { LoadingOverlay } from '@components/shared/LoadingOverlay';
-
-const acceptingStates = ['accept', 'accepted', 'done'];
-const rejectingStates = ['reject', 'rejected', 'error'];
-
-const normalizeColor = (color?: string) => {
-  if (!color) return undefined;
-  const m = /^#([0-9a-fA-F]{8})$/.exec(color);
-  if (m) {
-    const hex = m[1];
-    const r = parseInt(hex.slice(0, 2), 16);
-    const g = parseInt(hex.slice(2, 4), 16);
-    const b = parseInt(hex.slice(4, 6), 16);
-    const a = parseInt(hex.slice(6, 8), 16) / 255;
-    return `rgba(${r}, ${g}, ${b}, ${a})`;
-  }
-  return color;
-};
-
-const resolveStateColor = (
-  stateName: string | undefined,
-  mapping: Map<string, string>
-) => {
-  const key = (stateName ?? '').trim();
-  if (!key) return undefined;
-  const direct = mapping.get(key) ?? mapping.get(String(key));
-  if (direct) return direct;
-  const lower = key.toLowerCase();
-  if (acceptingStates.includes(lower)) return 'accept';
-  if (rejectingStates.includes(lower)) return 'reject';
-  return undefined;
-};
+import { normalizeColor, resolveStateColor } from '@components/shared/stateColors';
 
 const nodeTypes = {
   [NodeType.CONFIG]: ConfigNode,
@@ -163,8 +134,38 @@ function ConfigGraphCards() {
 
   const { hoveredState, setHoveredState, selected, setSelected } = useGraphUI();
 
+  // Performance measurement
+  const nodesCountRef = useRef(0);
+
+  const nodesReady = useNodesInitialized();
+  const didInitialLayoutRef = useRef(false); // Track initial ELK run
+  const lastTopoKeyRef = useRef<string | null>(null); // Structural change detection
+  const fitAfterLayoutRef = useRef(false); // Request fit after ELK run
+  const restoreAfterLayoutRef = useRef(false);
+  const showDeveloperControls = useDeveloperControls();
+  const manualFitPendingRef = useRef(false);
+  const awaitingInitialRevealRef = useRef(false);
+  const lastHandledMachineLoadRef = useRef<number>(-1);
+  const [viewportReady, setViewportReady] = useState(false);
+  const pendingReFitRef = useRef(false);
+  const viewportWidth = useStore((s: ReactFlowState) => s.width);
+  const viewportHeight = useStore((s: ReactFlowState) => s.height);
+  const viewportRef = useRef<Viewport | null>(null);
+  const viewportVisibleRef = useRef(false);
+  const initialViewportSettledRef = useRef(false);
+  const [contentVisible, setContentVisible] = useState(false);
+  const revealRaf1Ref = useRef<number | null>(null);
+  const revealRaf2Ref = useRef<number | null>(null);
+  const revealTimeoutRef = useRef<number | null>(null);
+  const handleAutoResizeLayout = useCallback(() => {
+    if (nodes.length === 0) return;
+    restoreAfterLayoutRef.current = true;
+  }, [nodes.length]);
+
   // ELK Layout Hook (sole positioning engine)
   const layout = useElkLayout({
+    nodes,
+    edges,
     algorithm: configGraphELKSettings.algorithm,
     nodeSep: configGraphELKSettings.nodeSep,
     rankSep: configGraphELKSettings.rankSep,
@@ -175,8 +176,24 @@ function ConfigGraphCards() {
     autoDirection: configGraphELKSettings.autoDirection ?? true,
     scaleToFit: true,
     maxAxisScale: configGraphNodeMode === ConfigNodeMode.CARDS ? undefined : 1.45,
+    viewportWidth,
+    viewportHeight,
+    topoKeyOverride: structureKey,
+    autoRun: false,
     autoResizeLayoutEnabled,
+    onAutoResizeLayout: handleAutoResizeLayout,
+    onLayout: (positions) => {
+      setNodes((prev) =>
+        prev.map((n) => {
+          const p = positions.get(n.id);
+          if (!p) return n;
+          const same = n.position?.x === p.x && n.position?.y === p.y;
+          return same ? n : { ...n, position: p };
+        })
+      );
+    },
   });
+  const scheduleLayoutRestart = useDebouncedLayoutRestart(layout);
 
   // Apply mode-specific layout defaults when node mode changes
   useEffect(() => {
@@ -200,30 +217,9 @@ function ConfigGraphCards() {
     });
   }, [configGraphNodeMode, configGraphELKSettings, setConfigGraphELKSettings]);
 
-  // Performance measurement
-  const nodesCountRef = useRef(0);
-
-  const nodesReady = useNodesInitialized();
-  const didInitialLayoutRef = useRef(false); // Track initial ELK run
-  const lastTopoKeyRef = useRef<string | null>(null); // Structural change detection
-  const fitAfterLayoutRef = useRef(false); // Request fit after ELK run
-  const showDeveloperControls = useDeveloperControls();
   const layoutRunningRef = useRef(layout.running);
   const nodesReadyRef = useRef(nodesReady);
   const prevRunningRef = useRef(layout.running); // Detect running -> idle
-  const manualFitPendingRef = useRef(false);
-  const awaitingInitialRevealRef = useRef(false);
-  const lastHandledMachineLoadRef = useRef<number>(-1);
-  const [viewportReady, setViewportReady] = useState(false);
-  const pendingReFitRef = useRef(false);
-  const viewportWidth = useStore((s: ReactFlowState) => s.width);
-  const viewportHeight = useStore((s: ReactFlowState) => s.height);
-  const viewportRef = useRef<Viewport | null>(null);
-  const viewportVisibleRef = useRef(false);
-  const [contentVisible, setContentVisible] = useState(false);
-  const revealRaf1Ref = useRef<number | null>(null);
-  const revealRaf2Ref = useRef<number | null>(null);
-  const revealTimeoutRef = useRef<number | null>(null);
 
   useEffect(() => {
     nodesCountRef.current = nodes.length;
@@ -235,17 +231,28 @@ function ConfigGraphCards() {
     nodesReadyRef.current = nodesReady;
   }, [nodesReady]);
   useEffect(() => {
-    if (nodes.length === 0) setViewportReady(false);
+    if (nodes.length === 0) {
+      initialViewportSettledRef.current = false;
+      setViewportReady(false);
+    }
   }, [nodes.length]);
   useEffect(() => {
     if (!configGraphComputing) return;
     awaitingInitialRevealRef.current = true;
+    initialViewportSettledRef.current = false;
     setViewportReady(false);
   }, [configGraphComputing]);
 
   // Sync builder output into RF state; keep previous size/data; ELK will set positions afterwards
   useEffect(() => {
     const nodeCount = base.nodes.length;
+    const topologyChanged = base.topoKey !== structureKey;
+    if (topologyChanged) {
+      awaitingInitialRevealRef.current = true;
+      initialViewportSettledRef.current = false;
+      setViewportReady(false);
+    }
+
     // If too many nodes, hide labels and only show colors
     const hideLabels = nodeCount >= COLOR_STATE_SWITCH;
 
@@ -268,8 +275,11 @@ function ConfigGraphCards() {
     base.nodes,
     base.edges,
     base.topoKey,
+    structureKey,
     stateColorMatching,
     resolveColorForState,
+    setNodes,
+    setEdges,
   ]);
 
   // Initial/structural layout + fit handling (ELK)
@@ -320,11 +330,12 @@ function ConfigGraphCards() {
     if (!didInitialLayoutRef.current && nodesReady && nodes.length > 0) {
       didInitialLayoutRef.current = true;
       awaitingInitialRevealRef.current = true;
+      initialViewportSettledRef.current = false;
       setViewportReady(false);
-      layout.restart();
+      scheduleLayoutRestart();
       fitAfterLayoutRef.current = true;
     }
-  }, [nodesReady, nodes.length, layout]);
+  }, [nodesReady, nodes.length, scheduleLayoutRestart]);
 
   // Start ELK on structural changes
   useEffect(() => {
@@ -337,19 +348,21 @@ function ConfigGraphCards() {
     lastTopoKeyRef.current = topoKey;
 
     awaitingInitialRevealRef.current = true;
+    initialViewportSettledRef.current = false;
     setViewportReady(false);
-    layout.restart();
+    scheduleLayoutRestart();
     fitAfterLayoutRef.current = true;
-  }, [topoKey, nodesReady, nodes.length, layout]);
+  }, [topoKey, nodesReady, nodes.length, scheduleLayoutRestart]);
 
   // Start ELK when nodeMode changes
   useEffect(() => {
     if (nodes.length === 0) return;
     awaitingInitialRevealRef.current = true;
+    initialViewportSettledRef.current = false;
     setViewportReady(false);
-    layout.restart();
+    scheduleLayoutRestart();
     fitAfterLayoutRef.current = true;
-  }, [configGraphNodeMode]);
+  }, [configGraphNodeMode, scheduleLayoutRestart, nodes.length]);
 
   // Re-center on every successful "Load Machine".
   useEffect(() => {
@@ -357,10 +370,11 @@ function ConfigGraphCards() {
     if (lastHandledMachineLoadRef.current === machineLoadVersion) return;
     lastHandledMachineLoadRef.current = machineLoadVersion;
     awaitingInitialRevealRef.current = true;
+    initialViewportSettledRef.current = false;
     setViewportReady(false);
-    layout.restart();
+    scheduleLayoutRestart();
     fitAfterLayoutRef.current = true;
-  }, [machineLoadVersion, nodesReady, nodes.length]);
+  }, [machineLoadVersion, nodesReady, nodes.length, scheduleLayoutRestart]);
 
   // Fit after ELK transitions from running -> idle
   const storeViewport = useCallback(
@@ -430,6 +444,7 @@ function ConfigGraphCards() {
   }, [rf, storeViewport, ensureStartNodeVisibleInRF]);
 
   const restoreViewport = useCallback((onDone?: () => void) => {
+    if (!initialViewportSettledRef.current) return false;
     const viewport = viewportRef.current;
     if (!viewport) return false;
     requestAnimationFrame(() => {
@@ -448,6 +463,11 @@ function ConfigGraphCards() {
     },
     [restoreViewport, runFitView]
   );
+
+  const revealViewport = useCallback(() => {
+    initialViewportSettledRef.current = true;
+    setViewportReady(true);
+  }, []);
 
   const handleMoveEnd = useCallback(
     (_event: unknown, viewport: Viewport) => {
@@ -470,7 +490,6 @@ function ConfigGraphCards() {
         if (isHidden) {
           // Layout finished while tab is hidden — defer reveal until visible
           pendingReFitRef.current = true;
-          // Still set viewportReady so the loading state tracks correctly
           if (awaitingInitialRevealRef.current) {
             awaitingInitialRevealRef.current = false;
           }
@@ -478,7 +497,7 @@ function ConfigGraphCards() {
           runFitView(() => {
             if (awaitingInitialRevealRef.current) {
               awaitingInitialRevealRef.current = false;
-              setViewportReady(true);
+              revealViewport();
             }
           });
         }
@@ -487,7 +506,14 @@ function ConfigGraphCards() {
       if (manualFitPendingRef.current && nodesCountRef.current > 0) {
         manualFitPendingRef.current = false;
         restoreViewportOrFit(() => {
-          setViewportReady(true);
+          revealViewport();
+        });
+      }
+
+      if (restoreAfterLayoutRef.current && nodesCountRef.current > 0) {
+        restoreAfterLayoutRef.current = false;
+        restoreViewportOrFit(() => {
+          revealViewport();
         });
       }
     }
@@ -495,6 +521,7 @@ function ConfigGraphCards() {
   }, [
     layout.running,
     nodes.length,
+    revealViewport,
     restoreViewportOrFit,
     runFitView,
     viewportWidth,
@@ -507,9 +534,9 @@ function ConfigGraphCards() {
     if (viewportWidth <= 0 || viewportHeight <= 0) return;
     pendingReFitRef.current = false;
     runFitView(() => {
-      setViewportReady(true);
+      revealViewport();
     });
-  }, [viewportWidth, viewportHeight, runFitView]);
+  }, [viewportWidth, viewportHeight, runFitView, revealViewport]);
 
   useEffect(() => {
     const visible = viewportWidth > 0 && viewportHeight > 0;
@@ -522,9 +549,9 @@ function ConfigGraphCards() {
       return;
     }
     restoreViewportOrFit(() => {
-      setViewportReady(true);
+      revealViewport();
     });
-  }, [viewportWidth, viewportHeight, restoreViewportOrFit]);
+  }, [viewportWidth, viewportHeight, restoreViewportOrFit, revealViewport]);
 
   // --- Handlers ---
   const handleNodeClick = useCallback(
@@ -558,9 +585,9 @@ function ConfigGraphCards() {
 
   // Manual ELK restart via button; fit handled by running->idle effect
   const recalcLayout = useCallback(() => {
-    layout.restart();
+    scheduleLayoutRestart();
     fitAfterLayoutRef.current = true;
-  }, [layout]);
+  }, [scheduleLayoutRestart]);
 
   const scheduleViewportAfterSwitch = useCallback(() => {
     if (!nodesReadyRef.current || nodesCountRef.current === 0) return;
@@ -574,9 +601,9 @@ function ConfigGraphCards() {
       if (awaitingInitialRevealRef.current) {
         awaitingInitialRevealRef.current = false;
       }
-      setViewportReady(true);
+      revealViewport();
     });
-  }, [restoreViewportOrFit]);
+  }, [restoreViewportOrFit, revealViewport]);
 
   useEffect(() => {
     const handleBeforeSwitch: EventListener = (event) => {

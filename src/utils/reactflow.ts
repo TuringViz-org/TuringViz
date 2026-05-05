@@ -42,6 +42,8 @@ export function reconcileNodes(
     return { ...n, data: dataNext, position: old?.position ?? n.position };
   });
 
+  if (next.length !== prev.length) changed = true;
+
   return changed ? next : prev;
 }
 
