@@ -549,6 +549,7 @@ function ComputationTreeCircles({ targetNodes, compressing = false, paused = fal
   const [structureKey, setStructureKey] = useState('');
   const [containerVisible, setContainerVisible] = useState(true);
   const [viewportReady, setViewportReady] = useState(false);
+  const [readyTopologyKey, setReadyTopologyKey] = useState('');
   const [autoResizeLayoutEnabled, setAutoResizeLayoutEnabled] = useState(true);
   const fitAfterLayoutRef = useRef(false);
   const skipNextAutoResizeFitRef = useRef(false);
@@ -557,12 +558,13 @@ function ComputationTreeCircles({ targetNodes, compressing = false, paused = fal
   const pendingRevealFitRef = useRef(false);
   const showDeveloperControls = useDeveloperControls();
   const handleAutoResizeLayout = useCallback(() => {
-    if (nodes.length === 0) return;
+    if (nodes.length === 0) return false;
     if (skipNextAutoResizeFitRef.current) {
       skipNextAutoResizeFitRef.current = false;
-      return;
+      return false;
     }
     fitAfterLayoutRef.current = true;
+    return true;
   }, [nodes.length]);
 
   // Keep node/edge lookup maps for quick access in event handlers
@@ -642,6 +644,17 @@ function ComputationTreeCircles({ targetNodes, compressing = false, paused = fal
   const pendingMachineLoadFitRef = useRef(false);
   const awaitingInitialRevealRef = useRef(false);
   const lastHandledMachineLoadRef = useRef<number>(-1);
+  const currentTopologyKeyRef = useRef(base.topoKey);
+
+  useEffect(() => {
+    currentTopologyKeyRef.current = base.topoKey;
+  }, [base.topoKey]);
+
+  const revealViewport = useCallback(() => {
+    awaitingInitialRevealRef.current = false;
+    setReadyTopologyKey(currentTopologyKeyRef.current);
+    setViewportReady(true);
+  }, []);
   useEffect(() => {
     if (nodes.length === 0) setViewportReady(false);
   }, [nodes.length]);
@@ -816,15 +829,14 @@ function ComputationTreeCircles({ targetNodes, compressing = false, paused = fal
       runFitView(() => {
         pendingMachineLoadFitRef.current = false;
         if (awaitingInitialRevealRef.current) {
-          awaitingInitialRevealRef.current = false;
-          setViewportReady(true);
+          revealViewport();
         }
       });
     } else {
       // Layout finished while tab is hidden — defer reveal until visible
       pendingRevealFitRef.current = true;
     }
-  }, [layout.running, runFitView, isContainerVisible]);
+  }, [layout.running, runFitView, isContainerVisible, revealViewport]);
 
   useEffect(() => {
     const justFinished = prevRunningRef.current && !layout.running;
@@ -1398,8 +1410,7 @@ function ComputationTreeCircles({ targetNodes, compressing = false, paused = fal
         pendingMachineLoadFitRef.current = false;
         runFitView(() => {
           if (awaitingInitialRevealRef.current) {
-            awaitingInitialRevealRef.current = false;
-            setViewportReady(true);
+            revealViewport();
           }
           pendingRevealFitRef.current = false;
           refreshSelectedAnchors();
@@ -1412,8 +1423,7 @@ function ComputationTreeCircles({ targetNodes, compressing = false, paused = fal
         runFitView(() => {
           pendingMachineLoadFitRef.current = false;
           if (awaitingInitialRevealRef.current) {
-            awaitingInitialRevealRef.current = false;
-            setViewportReady(true);
+            revealViewport();
           }
           refreshSelectedAnchors();
         });
@@ -1447,6 +1457,7 @@ function ComputationTreeCircles({ targetNodes, compressing = false, paused = fal
     refreshSelectedAnchors,
     viewportReady,
     scheduleLayoutRestart,
+    revealViewport,
   ]);
 
   // Portal switch fit handling
@@ -1507,7 +1518,11 @@ function ComputationTreeCircles({ targetNodes, compressing = false, paused = fal
   const showLegend = legendItems.length > 0 && (model?.nodes?.length ?? 0) > 0;
   const structureSyncPending = base.topoKey !== structureKey;
   const loadingMaskVisible =
-    !viewportReady || layout.running || isComputing || structureSyncPending;
+    !viewportReady ||
+    readyTopologyKey !== base.topoKey ||
+    layout.running ||
+    isComputing ||
+    structureSyncPending;
 
   const requestNodeModeChange = useCallback(
     (nextMode: ConfigNodeMode) => {

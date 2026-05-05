@@ -186,7 +186,7 @@ export type Options = {
   topoKeyOverride?: string;
   autoRun?: boolean;
   autoResizeLayoutEnabled?: boolean;
-  onAutoResizeLayout?: () => void;
+  onAutoResizeLayout?: () => boolean | void;
 };
 
 export type LayoutAPI = {
@@ -587,18 +587,23 @@ export function useElkLayout({
 
   useEffect(() => {
     if (!autoDirection) return;
-    if (!autoResizeLayoutEnabled) return;
     if (nodesRef.current.length === 0) return;
     const hasViewportSnapshot =
       typeof viewportWidth === 'number' && typeof viewportHeight === 'number';
     if (hasViewportSnapshot && (viewportWidth <= 0 || viewportHeight <= 0)) return;
+
+    if (!autoResizeLayoutEnabled) {
+      lastSizeKeyRef.current = viewportSizeKey;
+      return;
+    }
 
     if (lastSizeKeyRef.current === viewportSizeKey) return;
     const hadPreviousSize = lastSizeKeyRef.current !== '';
     lastSizeKeyRef.current = viewportSizeKey;
     if (!hadPreviousSize) return;
 
-    onAutoResizeLayoutRef.current?.();
+    const shouldRunLayout = onAutoResizeLayoutRef.current?.() !== false;
+    if (!shouldRunLayout) return;
     void runLayout();
   }, [autoDirection, autoResizeLayoutEnabled, viewportSizeKey, runLayout]);
 

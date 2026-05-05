@@ -416,6 +416,7 @@ export function ConfigGraphCircles() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [containerVisible, setContainerVisible] = useState(true);
   const [viewportReady, setViewportReady] = useState(false);
+  const [readyTopologyKey, setReadyTopologyKey] = useState('');
   const [autoResizeLayoutEnabled, setAutoResizeLayoutEnabled] = useState(true);
   const fitAfterLayoutRef = useRef(false);
   const showDeveloperControls = useDeveloperControls();
@@ -427,9 +428,10 @@ export function ConfigGraphCircles() {
   const handleAutoResizeLayout = useCallback(() => {
     if (skipNextAutoResizeFitRef.current) {
       skipNextAutoResizeFitRef.current = false;
-      return;
+      return false;
     }
     fitAfterLayoutRef.current = true;
+    return true;
   }, []);
 
   const clearHoverTimer = useCallback(() => {
@@ -482,6 +484,17 @@ export function ConfigGraphCircles() {
       ConfigNodeMode.NODES
     );
   }, [configGraph, transitions]);
+  const currentTopologyKeyRef = useRef(base.topoKey);
+
+  useEffect(() => {
+    currentTopologyKeyRef.current = base.topoKey;
+  }, [base.topoKey]);
+
+  const revealViewport = useCallback(() => {
+    awaitingInitialRevealRef.current = false;
+    setReadyTopologyKey(currentTopologyKeyRef.current);
+    setViewportReady(true);
+  }, []);
 
   const [nodes, setNodes] = useState<RFNode[]>(base.nodes);
   const [edges, setEdges] = useState<RFEdge[]>(base.edges);
@@ -557,10 +570,27 @@ export function ConfigGraphCircles() {
     if (nodes.length === 0) setViewportReady(false);
   }, [nodes.length]);
   useEffect(() => {
-    if (!configGraphComputing) return;
+    if (!configGraphComputing) {
+      if (
+        awaitingInitialRevealRef.current &&
+        !layout.running &&
+        base.topoKey === structureKey &&
+        readyTopologyKey === base.topoKey
+      ) {
+        revealViewport();
+      }
+      return;
+    }
     awaitingInitialRevealRef.current = true;
     setViewportReady(false);
-  }, [configGraphComputing]);
+  }, [
+    configGraphComputing,
+    layout.running,
+    base.topoKey,
+    structureKey,
+    readyTopologyKey,
+    revealViewport,
+  ]);
 
   const nodeCount = model?.Graph?.size ?? 0;
 
@@ -570,6 +600,11 @@ export function ConfigGraphCircles() {
   // Sync builder output
   useEffect(() => {
     if (!configGraph) return;
+    const topologyChanged = base.topoKey !== structureKey;
+    if (topologyChanged) {
+      awaitingInitialRevealRef.current = true;
+      setViewportReady(false);
+    }
 
     setNodes((prev) =>
       reconcileNodes(prev, base.nodes, (node) => {
@@ -591,6 +626,7 @@ export function ConfigGraphCircles() {
     base.nodes,
     base.edges,
     base.topoKey,
+    structureKey,
     hideLabels,
     stateColorMatching,
   ]);
@@ -599,7 +635,11 @@ export function ConfigGraphCircles() {
   const topoKey = structureKey;
   const structureSyncPending = base.topoKey !== structureKey;
   const showLoadingOverlay =
-    !viewportReady || layout.running || configGraphComputing || structureSyncPending;
+    !viewportReady ||
+    readyTopologyKey !== base.topoKey ||
+    layout.running ||
+    configGraphComputing ||
+    structureSyncPending;
 
   // Layout triggers
   useEffect(() => {
@@ -728,8 +768,7 @@ export function ConfigGraphCircles() {
           runFitView(undefined, () => {
             pendingMachineLoadFitRef.current = false;
             if (awaitingInitialRevealRef.current) {
-              awaitingInitialRevealRef.current = false;
-              setViewportReady(true);
+              revealViewport();
             }
           });
         } else {
@@ -739,7 +778,7 @@ export function ConfigGraphCircles() {
       }
     }
     prevRunningRef.current = layout.running;
-  }, [layout.running, nodes.length, runFitView, isContainerVisible]);
+  }, [layout.running, nodes.length, runFitView, isContainerVisible, revealViewport]);
 
   // Event helpers
   const getAnchorFromEvent = useCallback(
@@ -1180,8 +1219,7 @@ export function ConfigGraphCircles() {
         pendingMachineLoadFitRef.current = false;
         runFitView(undefined, () => {
           if (awaitingInitialRevealRef.current) {
-            awaitingInitialRevealRef.current = false;
-            setViewportReady(true);
+            revealViewport();
           }
           pendingRevealFitRef.current = false;
           refreshSelectedAnchors();
@@ -1194,8 +1232,7 @@ export function ConfigGraphCircles() {
         runFitView(undefined, () => {
           pendingMachineLoadFitRef.current = false;
           if (awaitingInitialRevealRef.current) {
-            awaitingInitialRevealRef.current = false;
-            setViewportReady(true);
+            revealViewport();
           }
           refreshSelectedAnchors();
         });
@@ -1215,7 +1252,7 @@ export function ConfigGraphCircles() {
     });
     ro.observe(el);
     return () => ro.disconnect();
-  }, [restoreViewport, runFitView, nodes.length, isContainerVisible, refreshSelectedAnchors, viewportReady, layout.running, scheduleLayoutRestart]);
+  }, [restoreViewport, runFitView, nodes.length, isContainerVisible, refreshSelectedAnchors, viewportReady, layout.running, scheduleLayoutRestart, revealViewport]);
 
   // Portal switch fit
   const scheduleFitAfterSwitch = useCallback(() => {
