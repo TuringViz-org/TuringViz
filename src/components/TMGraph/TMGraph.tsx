@@ -447,6 +447,8 @@ function TMGraph() {
 
   const hoverTimerRef = useRef<number | null>(null);
   const suppressEdgeTooltipCloseUntilRef = useRef(0);
+  const pendingFitViewRef = useRef(false);
+  const pendingFitViewDoneRef = useRef<(() => void) | null>(null);
 
   const [settingsOpen, setSettingsOpen] = useState(false);
   const showDeveloperControls = useDeveloperControls();
@@ -583,12 +585,40 @@ function TMGraph() {
 
   const scheduleLayoutRestart = useDebouncedLayoutRestart(layout);
 
+  const isContainerVisible = useCallback(() => {
+    const el = containerRef.current;
+    return !!el && el.clientWidth > 0 && el.clientHeight > 0;
+  }, []);
+
+  const deferFitViewUntilVisible = useCallback((onDone?: () => void) => {
+    pendingFitViewRef.current = true;
+    if (!onDone) return;
+
+    const previous = pendingFitViewDoneRef.current;
+    pendingFitViewDoneRef.current = previous
+      ? () => {
+          previous();
+          onDone();
+        }
+      : onDone;
+  }, []);
+
   const runFitView = useCallback(
     (onDone?: () => void) => {
       const cy = cyRef.current;
       if (!cy) return;
 
+      if (!isContainerVisible()) {
+        deferFitViewUntilVisible(onDone);
+        return;
+      }
+
       requestAnimationFrame(() => {
+        if (!isContainerVisible()) {
+          deferFitViewUntilVisible(onDone);
+          return;
+        }
+
         cy.resize();
 
         if (cy.elements().length > 0) {
@@ -598,13 +628,17 @@ function TMGraph() {
         onDone?.();
       });
     },
-    []
+    [deferFitViewUntilVisible, isContainerVisible]
   );
 
-  const isContainerVisible = useCallback(() => {
-    const el = containerRef.current;
-    return !!el && el.clientWidth > 0 && el.clientHeight > 0;
-  }, []);
+  const flushDeferredFitView = useCallback(() => {
+    if (!pendingFitViewRef.current) return;
+
+    const onDone = pendingFitViewDoneRef.current ?? undefined;
+    pendingFitViewRef.current = false;
+    pendingFitViewDoneRef.current = null;
+    runFitView(onDone);
+  }, [runFitView]);
 
   useEffect(() => {
     setContainerVisible(isContainerVisible());
@@ -753,6 +787,8 @@ function TMGraph() {
 
     return () => {
       clearHoverTimer();
+      pendingFitViewRef.current = false;
+      pendingFitViewDoneRef.current = null;
       cy.off('tap', onPaneTap);
       cy.off('tap', 'node', onNodeTap);
       cy.off('tap', 'edge', onEdgeTap);
@@ -997,13 +1033,14 @@ function TMGraph() {
       cy.resize();
 
       if (visible) {
+        flushDeferredFitView();
         refreshSelectedEdgeTooltipAnchor();
       }
     });
 
     ro.observe(el);
     return () => ro.disconnect();
-  }, [isContainerVisible, refreshSelectedEdgeTooltipAnchor]);
+  }, [flushDeferredFitView, isContainerVisible, refreshSelectedEdgeTooltipAnchor]);
 
   useEffect(() => {
     let rafId: number | null = null;
