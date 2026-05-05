@@ -71,37 +71,7 @@ import {
 } from '@components/MainPage/PortalBridge';
 import { ConfigGraphCircles } from './ConfigGraphCircles';
 import { LoadingOverlay } from '@components/shared/LoadingOverlay';
-
-const acceptingStates = ['accept', 'accepted', 'done'];
-const rejectingStates = ['reject', 'rejected', 'error'];
-
-const normalizeColor = (color?: string) => {
-  if (!color) return undefined;
-  const m = /^#([0-9a-fA-F]{8})$/.exec(color);
-  if (m) {
-    const hex = m[1];
-    const r = parseInt(hex.slice(0, 2), 16);
-    const g = parseInt(hex.slice(2, 4), 16);
-    const b = parseInt(hex.slice(4, 6), 16);
-    const a = parseInt(hex.slice(6, 8), 16) / 255;
-    return `rgba(${r}, ${g}, ${b}, ${a})`;
-  }
-  return color;
-};
-
-const resolveStateColor = (
-  stateName: string | undefined,
-  mapping: Map<string, string>
-) => {
-  const key = (stateName ?? '').trim();
-  if (!key) return undefined;
-  const direct = mapping.get(key) ?? mapping.get(String(key));
-  if (direct) return direct;
-  const lower = key.toLowerCase();
-  if (acceptingStates.includes(lower)) return 'accept';
-  if (rejectingStates.includes(lower)) return 'reject';
-  return undefined;
-};
+import { normalizeColor, resolveStateColor } from '@components/shared/stateColors';
 
 const nodeTypes = {
   [NodeType.CONFIG]: ConfigNode,
@@ -163,8 +133,37 @@ function ConfigGraphCards() {
 
   const { hoveredState, setHoveredState, selected, setSelected } = useGraphUI();
 
+  // Performance measurement
+  const nodesCountRef = useRef(0);
+
+  const nodesReady = useNodesInitialized();
+  const didInitialLayoutRef = useRef(false); // Track initial ELK run
+  const lastTopoKeyRef = useRef<string | null>(null); // Structural change detection
+  const fitAfterLayoutRef = useRef(false); // Request fit after ELK run
+  const showDeveloperControls = useDeveloperControls();
+  const manualFitPendingRef = useRef(false);
+  const awaitingInitialRevealRef = useRef(false);
+  const lastHandledMachineLoadRef = useRef<number>(-1);
+  const [viewportReady, setViewportReady] = useState(false);
+  const pendingReFitRef = useRef(false);
+  const viewportWidth = useStore((s: ReactFlowState) => s.width);
+  const viewportHeight = useStore((s: ReactFlowState) => s.height);
+  const viewportRef = useRef<Viewport | null>(null);
+  const viewportVisibleRef = useRef(false);
+  const [contentVisible, setContentVisible] = useState(false);
+  const revealRaf1Ref = useRef<number | null>(null);
+  const revealRaf2Ref = useRef<number | null>(null);
+  const revealTimeoutRef = useRef<number | null>(null);
+  const handleAutoResizeLayout = useCallback(() => {
+    if (nodes.length === 0) return false;
+    fitAfterLayoutRef.current = true;
+    return true;
+  }, [nodes.length]);
+
   // ELK Layout Hook (sole positioning engine)
   const layout = useElkLayout({
+    nodes,
+    edges,
     algorithm: configGraphELKSettings.algorithm,
     nodeSep: configGraphELKSettings.nodeSep,
     rankSep: configGraphELKSettings.rankSep,
@@ -175,7 +174,22 @@ function ConfigGraphCards() {
     autoDirection: configGraphELKSettings.autoDirection ?? true,
     scaleToFit: true,
     maxAxisScale: configGraphNodeMode === ConfigNodeMode.CARDS ? undefined : 1.45,
+    viewportWidth,
+    viewportHeight,
+    topoKeyOverride: structureKey,
+    autoRun: false,
     autoResizeLayoutEnabled,
+    onAutoResizeLayout: handleAutoResizeLayout,
+    onLayout: (positions) => {
+      setNodes((prev) =>
+        prev.map((n) => {
+          const p = positions.get(n.id);
+          if (!p) return n;
+          const same = n.position?.x === p.x && n.position?.y === p.y;
+          return same ? n : { ...n, position: p };
+        })
+      );
+    },
   });
 
   // Apply mode-specific layout defaults when node mode changes
@@ -200,30 +214,9 @@ function ConfigGraphCards() {
     });
   }, [configGraphNodeMode, configGraphELKSettings, setConfigGraphELKSettings]);
 
-  // Performance measurement
-  const nodesCountRef = useRef(0);
-
-  const nodesReady = useNodesInitialized();
-  const didInitialLayoutRef = useRef(false); // Track initial ELK run
-  const lastTopoKeyRef = useRef<string | null>(null); // Structural change detection
-  const fitAfterLayoutRef = useRef(false); // Request fit after ELK run
-  const showDeveloperControls = useDeveloperControls();
   const layoutRunningRef = useRef(layout.running);
   const nodesReadyRef = useRef(nodesReady);
   const prevRunningRef = useRef(layout.running); // Detect running -> idle
-  const manualFitPendingRef = useRef(false);
-  const awaitingInitialRevealRef = useRef(false);
-  const lastHandledMachineLoadRef = useRef<number>(-1);
-  const [viewportReady, setViewportReady] = useState(false);
-  const pendingReFitRef = useRef(false);
-  const viewportWidth = useStore((s: ReactFlowState) => s.width);
-  const viewportHeight = useStore((s: ReactFlowState) => s.height);
-  const viewportRef = useRef<Viewport | null>(null);
-  const viewportVisibleRef = useRef(false);
-  const [contentVisible, setContentVisible] = useState(false);
-  const revealRaf1Ref = useRef<number | null>(null);
-  const revealRaf2Ref = useRef<number | null>(null);
-  const revealTimeoutRef = useRef<number | null>(null);
 
   useEffect(() => {
     nodesCountRef.current = nodes.length;

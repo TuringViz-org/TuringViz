@@ -35,37 +35,7 @@ import {
   COLOR_STATE_SWITCH,
 } from './util/constants';
 import type { ConfigGraph as ConfigGraphModel } from '@tmfunctions/ConfigGraph';
-
-const acceptingStates = ['accept', 'accepted', 'done'];
-const rejectingStates = ['reject', 'rejected', 'error'];
-
-const normalizeColor = (color?: string) => {
-  if (!color) return undefined;
-  const m = /^#([0-9a-fA-F]{8})$/.exec(color);
-  if (m) {
-    const hex = m[1];
-    const r = parseInt(hex.slice(0, 2), 16);
-    const g = parseInt(hex.slice(2, 4), 16);
-    const b = parseInt(hex.slice(4, 6), 16);
-    const a = parseInt(hex.slice(6, 8), 16) / 255;
-    return `rgba(${r}, ${g}, ${b}, ${a})`;
-  }
-  return color;
-};
-
-const resolveStateColor = (
-  stateName: string | undefined,
-  mapping: Map<string, string>
-) => {
-  const key = (stateName ?? '').trim();
-  if (!key) return undefined;
-  const direct = mapping.get(key) ?? mapping.get(String(key));
-  if (direct) return normalizeColor(direct);
-  const lower = key.toLowerCase();
-  if (acceptingStates.includes(lower)) return 'accept';
-  if (rejectingStates.includes(lower)) return 'reject';
-  return undefined;
-};
+import { normalizeColor, resolveStateColor } from '@components/shared/stateColors';
 import { buildConfigGraph } from './util/buildConfigGraph';
 import {
   ConfigNodeMode,
@@ -74,8 +44,8 @@ import {
   DEFAULT_GRAPH_NODES_ELK_OPTS,
   HOVER_POPPER_DELAY_MS,
 } from '@utils/constants';
-import { useElkLayout } from '@components/ComputationTree/layout/useElkLayout';
-import { TreeLayoutSettingsPanel as LayoutSettingsPanel } from '@components/ComputationTree/layout/LayoutSettingsPanel';
+import { useElkLayout } from './layout/useElkLayout';
+import { LayoutSettingsPanel } from './layout/LayoutSettingsPanel';
 import { useDebouncedLayoutRestart } from '@hooks/useDebouncedLayoutRestart';
 import { useDeveloperControls } from '@hooks/useDeveloperControls';
 import { useGraphUI } from '@components/shared/GraphUIContext';

@@ -1,20 +1,15 @@
 // src/components/ConfigGraph/util/buildConfigGraph.ts
-import { Node, Edge, MarkerType } from '@xyflow/react';
+import { Node, Edge } from '@xyflow/react';
 import { hashConfig } from '@mytypes/TMTypes';
 import type { Configuration, Transition } from '@mytypes/TMTypes';
 import type { ConfigGraph } from '@tmfunctions/ConfigGraph';
-import {
-  NodeType,
-  EdgeType,
-  CONFIG_NODE_DIAMETER,
-  CONFIG_CARD_WIDTH,
-  CARDS_LIMIT,
-} from './constants';
+import { CARDS_LIMIT } from './constants';
 import { ConfigNodeMode } from '@utils/constants';
 import {
-  GRAPH_EDGE_BASE_WIDTH,
-  GRAPH_EDGE_MARKER_SIZE,
-} from '@components/shared/edgeVisualConstants';
+  buildTopologyKey,
+  createConfigFlowNode,
+  createTransitionFlowEdge,
+} from '@components/shared/buildConfigGraphElements';
 
 /**
  * Builds a React Flow graph representing the Config Graph from the zustand store
@@ -39,25 +34,17 @@ export function buildConfigGraph(
   cfgGraph.Graph.forEach((val, hash) => {
     if (includedNodeIds.size >= maxNodes) return;
     const config = val.config;
-    const isCard = isCardMode;
     includedNodeIds.add(hash);
 
-    nodes.push({
+    nodes.push(createConfigFlowNode({
       id: hash,
-      type: isCard ? NodeType.CONFIG_CARD : NodeType.CONFIG,
-      data: {
-        label: config.state,
-        config,
-        isStart: hash === cfgGraph.startconfighash,
-        isCurrent: currentHash === hash,
-        isComputed: val.computed,
-      },
-      position: { x: 0, y: 0 }, // Positions are set by layout
-      origin: [0.5, 0.5],
-      // Provide dimensions so ELK can do a good first pass
-      width: isCard ? CONFIG_CARD_WIDTH : CONFIG_NODE_DIAMETER,
-      height: isCard ? undefined : CONFIG_NODE_DIAMETER,
-    });
+      config,
+      nodeMode: mode,
+      label: config.state,
+      isStart: hash === cfgGraph.startconfighash,
+      isCurrent: currentHash === hash,
+      isComputed: val.computed,
+    }));
   });
 
   // --- Edges ---
@@ -72,32 +59,24 @@ export function buildConfigGraph(
       const isLoop = fromHash === toHash;
       const edgeId = `${fromHash}→${toHash}#${tIdx}`;
 
-      edges.push({
+      edges.push(createTransitionFlowEdge({
         id: edgeId,
         source: fromHash,
         target: toHash,
-        type: isLoop ? EdgeType.LOOP : EdgeType.FLOATING,
+        isLoop,
         label: transition ? `${fromCfg.state} #${tIdx + 1}` : '',
-        data: { transition },
-        markerEnd: {
-          type: MarkerType.ArrowClosed,
-          width: GRAPH_EDGE_MARKER_SIZE,
-          height: GRAPH_EDGE_MARKER_SIZE,
-        },
-        style: { strokeWidth: GRAPH_EDGE_BASE_WIDTH },
-      });
+        transition,
+      }));
     }
   });
 
   const nodeIds = nodes.map((n) => n.id).sort();
-  const edgePairs = Array.from(
+  const edgeKeys = Array.from(
     new Set(
       edges.filter((e) => e.source !== e.target).map((e) => `${e.source}→${e.target}`)
     )
-  )
-    .sort()
-    .join('|');
-  const topoKey = `${nodeIds.join('|')}__${edgePairs}`;
+  ).sort();
+  const topoKey = buildTopologyKey(nodeIds, edgeKeys);
 
   return { nodes, edges, topoKey };
 }

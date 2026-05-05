@@ -100,6 +100,7 @@ import {
   GRAPH_EDGE_COMPRESSED_WIDTH,
   GRAPH_EDGE_HOVER_WIDTH,
 } from '@components/shared/edgeVisualConstants';
+import { normalizeColor, resolveStateColor } from '@components/shared/stateColors';
 
 type Anchor = { top: number; left: number };
 
@@ -154,38 +155,6 @@ function makeVirtualAnchor(anchor: Anchor | null): VirtualElement {
       }) as DOMRect,
   };
 }
-
-const acceptingStates = ['accept', 'accepted', 'done'];
-const rejectingStates = ['reject', 'rejected', 'error'];
-
-const normalizeColor = (color?: string) => {
-  if (!color) return undefined;
-  // Convert 8-digit hex (#RRGGBBAA) to rgba() because Cytoscape can be picky.
-  const m = /^#([0-9a-fA-F]{8})$/.exec(color);
-  if (m) {
-    const hex = m[1];
-    const r = parseInt(hex.slice(0, 2), 16);
-    const g = parseInt(hex.slice(2, 4), 16);
-    const b = parseInt(hex.slice(4, 6), 16);
-    const a = parseInt(hex.slice(6, 8), 16) / 255;
-    return `rgba(${r}, ${g}, ${b}, ${a})`;
-  }
-  return color;
-};
-
-const resolveStateColor = (
-  stateName: string | undefined,
-  mapping: Map<string, string>
-) => {
-  const key = (stateName ?? '').trim();
-  if (!key) return undefined;
-  const direct = mapping.get(key) ?? mapping.get(String(key));
-  if (direct) return normalizeColor(direct);
-  const lower = key.toLowerCase();
-  if (acceptingStates.includes(lower)) return 'accept'; // sentinel
-  if (rejectingStates.includes(lower)) return 'reject'; // sentinel
-  return undefined;
-};
 
 const getCyStyles = (theme: any): any[] => [
     {

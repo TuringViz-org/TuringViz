@@ -1,13 +1,5 @@
 // src/components/ComputationTree/util/buildComputationTree.ts
 import type { Edge as RFEdge, Node as RFNode } from '@xyflow/react';
-import { MarkerType } from '@xyflow/react';
-
-import {
-  EdgeType,
-  NodeType,
-  CONFIG_NODE_DIAMETER,
-  CONFIG_CARD_WIDTH,
-} from '../util/constants';
 import {
   ComputationTreeNode,
   ComputationTree,
@@ -16,10 +8,10 @@ import {
 import { ConfigNodeMode } from '@utils/constants';
 import { Transition } from '@mytypes/TMTypes';
 import {
-  GRAPH_EDGE_BASE_WIDTH,
-  GRAPH_EDGE_COMPRESSED_WIDTH,
-  GRAPH_EDGE_MARKER_SIZE,
-} from '@components/shared/edgeVisualConstants';
+  buildTopologyKey,
+  createConfigFlowNode,
+  createTransitionFlowEdge,
+} from '@components/shared/buildConfigGraphElements';
 
 export type BuildResult = {
   nodes: RFNode[];
@@ -44,8 +36,6 @@ export function buildComputationTreeGraph(
 ): BuildResult {
   const t0 = performance.now();
 
-  const useCards = nodeMode === ConfigNodeMode.CARDS;
-
   // Index
   const byId = new Map<number, ComputationTreeNode>();
   for (const n of model.nodes) byId.set(n.id, n);
@@ -66,26 +56,17 @@ export function buildComputationTreeGraph(
     const isCompressed = e.compressed === true;
     const compLen = Math.max(1, e.compressedLength ?? (isCompressed ? 2 : 1));
 
-    return {
+    return createTransitionFlowEdge({
       id: `${e.from}→${e.to}#${e.transitionIndex ?? ''}`,
       source: String(e.from),
       target: String(e.to),
-      type: EdgeType.FLOATING,
+      transition: t,
+      compressed: isCompressed,
+      compressedLength: compLen,
       data: {
         highlighted: false,
-        transition: t,
-        compressed: isCompressed,
-        compressedLength: compLen,
       },
-      markerEnd: {
-        type: MarkerType.ArrowClosed,
-        width: GRAPH_EDGE_MARKER_SIZE,
-        height: GRAPH_EDGE_MARKER_SIZE,
-      },
-      style: isCompressed
-        ? { strokeWidth: GRAPH_EDGE_COMPRESSED_WIDTH, strokeDasharray: '6 4' }
-        : { strokeWidth: GRAPH_EDGE_BASE_WIDTH },
-    };
+    });
   });
 
   // Nodes (ohne Position)
@@ -95,22 +76,15 @@ export function buildComputationTreeGraph(
     const isStart = n.id === model.root.id;
     const isComputed = n.end !== End.NotYetComputed;
 
-    return {
+    return createConfigFlowNode({
       id: String(n.id),
-      type: useCards ? NodeType.CONFIG_CARD : NodeType.CONFIG,
-      position: { x: 0, y: 0 }, // Position is set later by layout
-      width: useCards ? CONFIG_CARD_WIDTH : CONFIG_NODE_DIAMETER,
-      height: useCards ? undefined : CONFIG_NODE_DIAMETER,
-      origin: [0.5, 0.5],
-      data: {
-        label,
-        config: n.config,
-        isStart,
-        isCurrent: false,
-        isComputed,
-        pendingInteractive: false,
-      },
-    };
+      config: n.config,
+      nodeMode,
+      label,
+      isStart,
+      isComputed,
+      pendingInteractive: false,
+    });
   });
 
   // Topology-Key
@@ -124,7 +98,7 @@ export function buildComputationTreeGraph(
       return `${e.from}→${e.to}#${e.transitionIndex ?? ''}@${compressedFlag}:${compressedLen}`;
     })
     .sort();
-  const topoKey = `${nodeIds.join('|')}__${edgeKeys.join('|')}`;
+  const topoKey = buildTopologyKey(nodeIds, edgeKeys);
 
   const t1 = performance.now();
   const perf = {
