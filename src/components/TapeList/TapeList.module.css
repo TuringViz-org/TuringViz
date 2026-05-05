@@ -24,22 +24,19 @@
   stroke: gold;
 }
 
-.scrollableTapeContainer {
-  display: flex;
-  flex-direction: column;
-}
-
-.scrollableTapeFrame {
-  position: relative;
-}
-
 .scrollableTapeViewport {
   overflow-x: auto;
   overflow-y: hidden;
   overscroll-behavior-x: none;
+  width: 100%;
   border: 1px solid #d1d5db;
   border-radius: 8px;
   background-color: #ffffff;
+  padding: 10px 0;
+}
+
+.scrollableTapeStack {
+  width: max-content;
 }
 
 .scrollableTapeViewportNoScrollbar {
@@ -91,13 +88,10 @@
   align-items: center;
   color: #9ca3af;
   font-size: 24px;
-  font-family: 'Source Code Pro', 'Consolas', 'Menlo', 'DejaVu Sans Mono', 'Courier', monospace;
+  font-family:
+    'Source Code Pro', 'Consolas', 'Menlo', 'DejaVu Sans Mono', 'Courier', monospace;
   letter-spacing: 2px;
   user-select: none;
-}
-
-.hiddenScrollbar::-webkit-scrollbar {
-  display: none;
 }
 
 .scrollableTapeHeadOverlayNative {

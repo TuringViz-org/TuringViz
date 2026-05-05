@@ -23,7 +23,7 @@ import {
   isTapeWriteRealFieldbyField,
 } from '@mytypes/TMTypes';
 import { useGlobalZustand } from '@zustands/GlobalZustand';
-import { Tape } from '@components/TapeList/Tape';
+import { TapeViewport } from '@components/TapeList/TapeViewport';
 
 function symbol(value: string, blank: string): string {
   if (value === blank && blank === ' ') return '□';
@@ -108,15 +108,10 @@ export function RunChoiceDialog() {
                   />
                 </Stack>
 
-                <Stack spacing={0.25}>
-                  {pendingRunChoice.fromConfig.tapes.map((_, tapeIdx) => (
-                    <Tape
-                      key={`current-${tapeIdx}`}
-                      index={tapeIdx}
-                      configuration={pendingRunChoice.fromConfig}
-                    />
-                  ))}
-                </Stack>
+                <TapeViewport
+                  configuration={pendingRunChoice.fromConfig}
+                  resetKey={activeGroup.nextState}
+                />
               </Paper>
             </Box>
 
@@ -258,15 +253,10 @@ export function RunChoiceDialog() {
                         />
                       </Stack>
 
-                      <Stack spacing={0.25}>
-                        {option.config.tapes.map((_, tapeIdx) => (
-                          <Tape
-                            key={`preview-${idx}-${tapeIdx}`}
-                            index={tapeIdx}
-                            configuration={option.config}
-                          />
-                        ))}
-                      </Stack>
+                      <TapeViewport
+                        configuration={option.config}
+                        resetKey={`${activeGroup.nextState}-${idx}`}
+                      />
                     </Stack>
                   </Paper>
                 );
