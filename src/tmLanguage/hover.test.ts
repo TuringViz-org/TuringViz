@@ -29,10 +29,8 @@ describe('getSemanticHover', () => {
     );
   });
 
-  it('describes missing goto targets', () => {
-    expect(getSemanticHover(hoverProgram, 8, 27)).toBe(
-      'Goto target `missing` is not declared.',
-    );
+  it('does not add semantic hover text for missing goto targets', () => {
+    expect(getSemanticHover(hoverProgram, 8, 27)).toBeUndefined();
   });
 
   it('describes tape symbols from the alphabet', () => {
