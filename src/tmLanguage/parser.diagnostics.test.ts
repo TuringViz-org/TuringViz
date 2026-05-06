@@ -219,6 +219,24 @@ state q0:
 `, ['VALIDATION_INPUT_SYMBOL']);
   });
 
+  it('reports repeated invalid input symbols once per input segment', () => {
+    const diagnostics = expectDiagnosticCodes(`tapes: 1
+blank: _
+alphabet: {_}
+input: "00"
+start: q0
+
+state q0:
+  on _ -> move S;
+`, ['VALIDATION_INPUT_SYMBOL']);
+
+    expect(
+      diagnostics.filter(
+        (diagnostic) => diagnostic.code === 'VALIDATION_INPUT_SYMBOL',
+      ),
+    ).toHaveLength(1);
+  });
+
   it('reports unknown start states', () => {
     expectDiagnosticCodes(`tapes: 1
 blank: _
@@ -486,6 +504,24 @@ start: q0
 state q0:
   on _ -> erase _; move S;
 `, ['PARSE_EXPECTED_ACTION']);
+  });
+
+  it('reports a mistyped action keyword once', () => {
+    const diagnostics = expectDiagnosticCodes(`tapes: 1
+blank: _
+alphabet: {_, 0}
+input: ""
+start: q0
+
+state q0:
+  on _ -> writ 0; move S;
+`, ['PARSE_EXPECTED_ACTION']);
+
+    expect(
+      diagnostics.filter(
+        (diagnostic) => diagnostic.code === 'PARSE_EXPECTED_ACTION',
+      ),
+    ).toHaveLength(1);
   });
 
   it('reports duplicate write actions', () => {
@@ -786,6 +822,25 @@ start: q0
 state q0:
   on 1 -> write 1; move S;
 `, ['VALIDATION_SYMBOL_NOT_IN_ALPHABET']);
+  });
+
+  it('reports repeated invalid set symbols once per matcher', () => {
+    const diagnostics = expectDiagnosticCodes(`tapes: 1
+blank: _
+alphabet: {_}
+input: ""
+start: q0
+
+state q0:
+  on {0, 0} -> move S;
+`, ['VALIDATION_SYMBOL_NOT_IN_ALPHABET']);
+
+    expect(
+      diagnostics.filter(
+        (diagnostic) =>
+          diagnostic.code === 'VALIDATION_SYMBOL_NOT_IN_ALPHABET',
+      ),
+    ).toHaveLength(1);
   });
 
   it('reports multi-character transition symbols', () => {

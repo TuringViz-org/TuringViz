@@ -107,7 +107,7 @@ export function validateAndNormalize(ast: ProgramAst): {
     for (const segment of input) {
       // Input strings are treated as sequences of single-character tape symbols;
       // multi-character symbols are intentionally not part of this DSL.
-      for (const symbol of segment.value) {
+      for (const symbol of new Set(segment.value)) {
         if (!alphabetSet.has(symbol)) {
           diagnostics.push(
             diagnostic(
@@ -415,7 +415,7 @@ function validateMatcher(
 
   const symbols =
     matcher.kind === 'in' || matcher.kind === 'notIn'
-      ? matcher.symbols
+      ? Array.from(new Set(matcher.symbols))
       : [matcher.symbol];
 
   for (const symbol of symbols) {

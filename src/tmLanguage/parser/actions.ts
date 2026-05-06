@@ -112,6 +112,7 @@ function parseActionLine(state: ParserState): TransitionActions | undefined {
     range: start.range,
   };
   let sawAction = false;
+  let reportedExpectedAction = false;
   let endRange = start.range;
 
   // Action order is flexible. Duplicates are reported, but the parser still
@@ -199,12 +200,13 @@ function parseActionLine(state: ParserState): TransitionActions | undefined {
         tokenRange(peek(state))
       )
     );
+    reportedExpectedAction = true;
     skipLine(state);
     break;
   }
 
   actions.range = mergeRanges(start.range, endRange);
-  if (!sawAction) {
+  if (!sawAction && !reportedExpectedAction) {
     state.diagnostics.push(
       diagnostic(
         'PARSE_EXPECTED_ACTION',
