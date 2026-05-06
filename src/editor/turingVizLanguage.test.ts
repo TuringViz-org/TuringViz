@@ -107,6 +107,39 @@ describe('TuringViz Monaco adapter', () => {
     expect(hoverProviders).toHaveLength(1);
   });
 
+  it('colors unquoted one-character tape symbols like numbers', async () => {
+    const adapter = await loadAdapter();
+    const { raw } = createMonacoFake();
+    const monaco = raw as unknown as Parameters<
+      typeof adapter.registerTuringVizLanguage
+    >[0];
+
+    adapter.registerTuringVizLanguage(monaco);
+
+    expect(raw.languages.setMonarchTokensProvider).toHaveBeenCalledWith(
+      adapter.LANGUAGE_ID,
+      expect.objectContaining({
+        tokenizer: expect.objectContaining({
+          root: expect.arrayContaining([
+            [/[A-Za-z_](?![A-Za-z0-9_])/, 'symbol.identifier'],
+            [/#/, 'constant'],
+            [/[0-9]+/, 'number'],
+          ]),
+        }),
+      }),
+    );
+    expect(raw.editor.defineTheme).toHaveBeenCalledWith(
+      'turingviz-light',
+      expect.objectContaining({
+        rules: expect.arrayContaining([
+          { token: 'symbol.identifier', foreground: '00875A' },
+          { token: 'number', foreground: '00875A' },
+          { token: 'constant', foreground: '00875A' },
+        ]),
+      }),
+    );
+  });
+
   it('uses the registered hover provider to return semantic hover text', async () => {
     const adapter = await loadAdapter();
     const { raw, hoverProviders } = createMonacoFake();

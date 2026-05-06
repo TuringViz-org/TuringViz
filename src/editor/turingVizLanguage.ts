@@ -96,6 +96,7 @@ export function registerTuringVizLanguage(monaco: MonacoApi) {
         [/\*/, 'wildcard'],
         [/#/, 'constant'],
         [/[0-9]+/, 'number'],
+        [/[A-Za-z_](?![A-Za-z0-9_])/, 'symbol.identifier'],
         [/[A-Za-z_][A-Za-z0-9_]*/, 'identifier'],
       ],
       comment: [
@@ -122,6 +123,7 @@ export function registerTuringVizLanguage(monaco: MonacoApi) {
       { token: 'type.identifier', foreground: '008080', fontStyle: 'bold' },
       { token: 'state.identifier', foreground: '111111', fontStyle: 'bold' },
       { token: 'identifier', foreground: '111111' },
+      { token: 'symbol.identifier', foreground: '00875A' },
       { token: 'number', foreground: '00875A' },
       { token: 'string', foreground: 'A31515' },
       { token: 'string.escape', foreground: 'A31515' },
