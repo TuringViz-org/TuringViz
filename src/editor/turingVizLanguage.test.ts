@@ -100,8 +100,8 @@ describe('TuringViz Monaco adapter', () => {
     );
     expect(raw.languages.setMonarchTokensProvider).toHaveBeenCalledTimes(1);
     expect(raw.editor.defineTheme).toHaveBeenCalledWith(
-      'turingviz-dark',
-      expect.objectContaining({ base: 'vs-dark' }),
+      'turingviz-light',
+      expect.objectContaining({ base: 'vs' }),
     );
     expect(raw.languages.registerHoverProvider).toHaveBeenCalledTimes(1);
     expect(hoverProviders).toHaveLength(1);

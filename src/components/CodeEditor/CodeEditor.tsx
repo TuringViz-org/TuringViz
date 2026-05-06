@@ -248,11 +248,18 @@ const CodeEditor: React.FC = () => {
       >
         <Editor
           defaultLanguage={LANGUAGE_ID}
+          theme="turingviz-light"
           path={MODEL_URI}
           defaultValue={code}
           beforeMount={beforeMount}
           onMount={onMount}
-          options={{ fontSize: 14, minimap: { enabled: false }, wordWrap: 'on' }}
+          options={{
+            bracketPairColorization: { enabled: false },
+            fontSize: 14,
+            guides: { bracketPairs: false, bracketPairsHorizontal: false },
+            minimap: { enabled: false },
+            wordWrap: 'on',
+          }}
           height="100%"
         />
       </div>
