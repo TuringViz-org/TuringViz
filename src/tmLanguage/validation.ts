@@ -19,6 +19,12 @@ export function validateAndNormalize(ast: ProgramAst): {
   machine?: MachineProgram;
 } {
   const diagnostics: Diagnostic[] = [];
+  // Condition alternatives and choose branches expand into transitions that can
+  // share parsed fragments; each source fragment should report diagnostics once.
+  const validationContext: TransitionValidationContext = {
+    validatedActions: new WeakSet(),
+    validatedConditions: new WeakSet(),
+  };
   const tapes = ast.header.tapes?.value;
   const blank = ast.header.blank?.value;
   const alphabet = ast.header.alphabet?.value;
@@ -156,6 +162,7 @@ export function validateAndNormalize(ast: ProgramAst): {
         alphabetSet,
         alphabet,
         tapes,
+        validationContext,
       );
 
       if (
@@ -192,6 +199,11 @@ export function validateAndNormalize(ast: ProgramAst): {
       transitions,
     },
   };
+}
+
+interface TransitionValidationContext {
+  validatedActions: WeakSet<Transition['actions']>;
+  validatedConditions: WeakSet<Transition['condition']>;
 }
 
 function normalizeInput(input: string[], tapes: number, blank: string): string[] {
@@ -234,74 +246,64 @@ function validateTransition(
   alphabetSet: Set<string>,
   alphabet: string[] | undefined,
   tapes: number | undefined,
+  context: TransitionValidationContext,
+) {
+  if (!context.validatedConditions.has(transition.condition)) {
+    context.validatedConditions.add(transition.condition);
+    validateTransitionCondition(
+      transition.condition,
+      diagnostics,
+      alphabetSet,
+      alphabet,
+      tapes,
+    );
+  }
+
+  if (!context.validatedActions.has(transition.actions)) {
+    context.validatedActions.add(transition.actions);
+    validateTransitionActions(
+      transition.actions,
+      diagnostics,
+      stateNames,
+      alphabetSet,
+      alphabet,
+      tapes,
+    );
+  }
+}
+
+function validateTransitionCondition(
+  condition: Transition['condition'],
+  diagnostics: Diagnostic[],
+  alphabetSet: Set<string>,
+  alphabet: string[] | undefined,
+  tapes: number | undefined,
 ) {
   // `if` rules mention only constrained tapes. Convert them to the same matcher
   // shape as compact `on` rules before applying common validation.
   const readMatchers =
-    transition.condition.kind === 'on'
-      ? transition.condition.read
+    condition.kind === 'on'
+      ? condition.read
       : matchersFromConditionAtoms(
-          transition.condition.atoms,
+          condition.atoms,
           tapes,
-          transition.condition.range,
+          condition.range,
         );
 
   if (tapes !== undefined) {
-    if (transition.condition.kind === 'on' && readMatchers.length !== tapes) {
+    if (condition.kind === 'on' && readMatchers.length !== tapes) {
       diagnostics.push(
         diagnostic(
           'VALIDATION_READ_PATTERN_ARITY',
           `Read pattern has ${readMatchers.length} item(s), but \`tapes\` is ${tapes}.`,
-          transition.condition.range,
-        ),
-      );
-    }
-
-    if (transition.actions.write && transition.actions.write.length !== tapes) {
-      diagnostics.push(
-        diagnostic(
-          'VALIDATION_WRITE_PATTERN_ARITY',
-          `Write pattern has ${transition.actions.write.length} item(s), but \`tapes\` is ${tapes}.`,
-          transition.actions.range,
-        ),
-      );
-    }
-
-    if (transition.actions.move && transition.actions.move.length !== tapes) {
-      diagnostics.push(
-        diagnostic(
-          'VALIDATION_MOVE_PATTERN_ARITY',
-          `Move pattern has ${transition.actions.move.length} item(s), but \`tapes\` is ${tapes}.`,
-          transition.actions.moveRange ?? transition.actions.range,
+          condition.range,
         ),
       );
     }
   }
 
-  if (!transition.actions.move) {
-    // Writes and gotos have defaults, but moves do not: every transition must
-    // describe how each head advances or stays.
-    diagnostics.push(
-      diagnostic(
-        'VALIDATION_MISSING_MOVE',
-        'Every transition must contain a move action.',
-        transition.actions.range,
-      ),
-    );
-  }
-
-  if (transition.actions.goto && !stateNames.has(transition.actions.goto)) {
-    diagnostics.push(
-      diagnostic(
-        'VALIDATION_UNKNOWN_GOTO',
-        `Target state \`${transition.actions.goto}\` is not declared.`,
-        transition.actions.gotoRange ?? transition.actions.range,
-      ),
-    );
-  }
-
-  if (transition.condition.kind === 'if') {
-    for (const atom of transition.condition.atoms) {
+  if (condition.kind === 'if') {
+    for (const atom of condition.atoms) {
       validateTapeReference(atom, diagnostics, tapes);
     }
   }
@@ -309,8 +311,61 @@ function validateTransition(
   for (const matcher of readMatchers) {
     validateMatcher(matcher, diagnostics, alphabetSet, alphabet);
   }
+}
 
-  for (const value of transition.actions.write ?? []) {
+function validateTransitionActions(
+  actions: Transition['actions'],
+  diagnostics: Diagnostic[],
+  stateNames: Set<string>,
+  alphabetSet: Set<string>,
+  alphabet: string[] | undefined,
+  tapes: number | undefined,
+) {
+  if (tapes !== undefined) {
+    if (actions.write && actions.write.length !== tapes) {
+      diagnostics.push(
+        diagnostic(
+          'VALIDATION_WRITE_PATTERN_ARITY',
+          `Write pattern has ${actions.write.length} item(s), but \`tapes\` is ${tapes}.`,
+          actions.range,
+        ),
+      );
+    }
+
+    if (actions.move && actions.move.length !== tapes) {
+      diagnostics.push(
+        diagnostic(
+          'VALIDATION_MOVE_PATTERN_ARITY',
+          `Move pattern has ${actions.move.length} item(s), but \`tapes\` is ${tapes}.`,
+          actions.moveRange ?? actions.range,
+        ),
+      );
+    }
+  }
+
+  if (!actions.move) {
+    // Writes and gotos have defaults, but moves do not: every transition must
+    // describe how each head advances or stays.
+    diagnostics.push(
+      diagnostic(
+        'VALIDATION_MISSING_MOVE',
+        'Every transition must contain a move action.',
+        actions.range,
+      ),
+    );
+  }
+
+  if (actions.goto && !stateNames.has(actions.goto)) {
+    diagnostics.push(
+      diagnostic(
+        'VALIDATION_UNKNOWN_GOTO',
+        `Target state \`${actions.goto}\` is not declared.`,
+        actions.gotoRange ?? actions.range,
+      ),
+    );
+  }
+
+  for (const value of actions.write ?? []) {
     if (value.kind === 'symbol') {
       validateSymbol(value.symbol, value.range, diagnostics, alphabetSet, alphabet);
     }

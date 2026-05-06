@@ -656,6 +656,45 @@ state q0:
 `, ['VALIDATION_MOVE_PATTERN_ARITY']);
   });
 
+  it('reports a shared action diagnostic once for condition alternatives', () => {
+    const diagnostics = expectDiagnosticCodes(`tapes: 2
+blank: _
+alphabet: {_, 0}
+input: ""
+start: q0
+
+state q0:
+  on [_/_, 0/_] -> move S;
+`, ['VALIDATION_MOVE_PATTERN_ARITY']);
+
+    expect(
+      diagnostics.filter(
+        (diagnostic) => diagnostic.code === 'VALIDATION_MOVE_PATTERN_ARITY',
+      ),
+    ).toHaveLength(1);
+  });
+
+  it('reports a shared condition diagnostic once for choose branches', () => {
+    const diagnostics = expectDiagnosticCodes(`tapes: 2
+blank: _
+alphabet: {_, 0}
+input: ""
+start: q0
+
+state q0:
+  on _ -> choose {
+    move S/S;
+    write 0/_; move S/S;
+  }
+`, ['VALIDATION_READ_PATTERN_ARITY']);
+
+    expect(
+      diagnostics.filter(
+        (diagnostic) => diagnostic.code === 'VALIDATION_READ_PATTERN_ARITY',
+      ),
+    ).toHaveLength(1);
+  });
+
   it('reports missing move actions', () => {
     expectDiagnosticCodes(`tapes: 1
 blank: _
