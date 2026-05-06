@@ -58,9 +58,7 @@ export function getSemanticHover(
 
   if (previousToken?.value === 'goto') {
     const exists = parsed.ast.states.some((state) => state.name === token.value);
-    return exists
-      ? `Goto target state \`${token.value}\`.`
-      : `Goto target \`${token.value}\` is not declared.`;
+    return exists ? `Goto target state \`${token.value}\`.` : undefined;
   }
 
   if (/^t[1-9][0-9]*$/.test(token.value)) {
