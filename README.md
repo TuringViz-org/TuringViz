@@ -117,3 +117,7 @@ The following examples are currently available in the "Load Examples" menu:
 - `DAG`: Example whose configuration graph is acyclic (a directed acyclic graph).
 - `Circle`: Produces a cyclic configuration graph (a simple loop/circle structure).
 - `NonDetSAT`: Nondeterministic SAT solver for CNF formulas (accepts iff satisfiable).
+
+## Acknowledgements
+
+The TuringViz input format is based on the YAML-based Turing machine description format used by [turingmachine.io](https://turingmachine.io/) ([aepsilon/turing-machine-viz](https://github.com/aepsilon/turing-machine-viz)), which is licensed under the BSD 3-Clause License. TuringViz does not include source code from turingmachine.io.
