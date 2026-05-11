@@ -42,9 +42,10 @@ export function getColorMatching(
   oldMatching: Map<string, string>
 ): Map<string, string> {
   const newMatching = new Map<string, string>();
+  const sortedStates = Array.from(newstates).sort();
 
   // First carry over old matchings
-  for (const state of newstates) {
+  for (const state of sortedStates) {
     if (oldMatching.has(state)) {
       newMatching.set(state, oldMatching.get(state)!);
     } else if (acceptingStates.includes(state.toLowerCase())) {
@@ -73,7 +74,7 @@ export function getColorMatching(
   // Assign still available colors to states that still need a color
   const availableColorsArray = Array.from(availableColors);
   let colorIndex = 0;
-  for (const state of statesStillToSet) {
+  for (const state of Array.from(statesStillToSet).sort()) {
     if (colorIndex < availableColorsArray.length) {
       newMatching.set(state, availableColorsArray[colorIndex]);
       colorIndex++;
