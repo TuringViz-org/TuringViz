@@ -57,13 +57,20 @@ const ConfigCardNodeComponent = ({ data }: NodeProps<ConfigCardNode>) => {
         display: 'inline-block',
         width: 'max-content',
         maxWidth: 'none',
-        border: isCurrent || isSelectable ? '10px solid' : 'none',
+        border: '10px solid',
         borderColor,
         borderRadius: 5,
-        transition: 'border-color 120ms ease',
+        transition: 'border-color 120ms ease, box-shadow 120ms ease',
         position: 'relative',
-        boxShadow:
-          overlay !== 'transparent' ? `inset 0 0 0 9999px ${overlay}` : undefined,
+        boxShadow: isCurrent
+          ? [
+              `0 0 0 4px ${alpha(theme.palette.node.currentConfig, 0.34)}`,
+              `0 0 22px ${alpha(theme.palette.node.currentConfig, 0.5)}`,
+              `inset 0 0 0 9999px ${overlay}`,
+            ].join(', ')
+          : overlay !== 'transparent'
+            ? `inset 0 0 0 9999px ${overlay}`
+            : undefined,
         '&:hover': {
           borderColor:
             isCurrent || isSelectable

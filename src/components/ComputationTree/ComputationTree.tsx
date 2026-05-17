@@ -206,6 +206,16 @@ const getCyStyles = (theme: any): any[] => [
       style: { 'border-color': 'data(borderColor)' },
     },
     {
+      selector: 'node.pending',
+      style: {
+        'border-color':
+          normalizeColor(theme.palette.accent?.dark) ??
+          normalizeColor(theme.palette.secondary.dark),
+        'border-width': 8,
+        'border-style': 'dashed',
+      },
+    },
+    {
       selector: 'node.card',
       style: {
         shape: 'round-rectangle',
@@ -216,6 +226,23 @@ const getCyStyles = (theme: any): any[] => [
       style: {
         'border-color': normalizeColor(theme.palette.primary.main),
         'border-width': 8,
+      },
+    },
+    {
+      selector: 'node.current',
+      style: {
+        'border-color':
+          normalizeColor(theme.palette.node?.currentConfig) ??
+          normalizeColor(theme.palette.primary.dark),
+        'border-width': 12,
+        'shadow-blur': 18,
+        'shadow-color':
+          normalizeColor(theme.palette.node?.currentConfig) ??
+          normalizeColor(theme.palette.primary.dark),
+        'shadow-opacity': 0.65,
+        'shadow-offset-x': 0,
+        'shadow-offset-y': 0,
+        'z-index': 20,
       },
     },
     {
@@ -341,7 +368,7 @@ function NodeDetailPopper({
             config={data.config}
             cardWidth={CONFIG_CARD_WIDTH}
             computed={data.isComputed}
-            showSelect={false}
+            showSelect
             onSelect={() => setConfiguration(data.config)}
             pendingInteractive={false}
           />
@@ -364,8 +391,11 @@ function useComputationTreeData(
   const transitions = useGlobalZustand((s) => s.transitions);
   const blank = useGlobalZustand((s) => s.blank);
   const startState = useGlobalZustand((s) => s.startState);
+  const currentState = useGlobalZustand((s) => s.currentState);
   const numberOfTapes = useGlobalZustand((s) => s.numberOfTapes);
   const input = useGlobalZustand((s) => s.input);
+  const tapes = useGlobalZustand((s) => s.tapes);
+  const heads = useGlobalZustand((s) => s.heads);
 
   const [model, setModel] = useState<ComputationTreeModel | null>(null);
   const [isComputing, setIsComputing] = useState(false);
@@ -378,6 +408,10 @@ function useComputationTreeData(
   const computeHideTimerRef = useRef<number | null>(null);
   const computeStartedAtRef = useRef(0);
   const pendingModelFromComputeRef = useRef(false);
+  const currentConfig = useMemo(
+    () => ({ state: currentState, tapes, heads }),
+    [currentState, tapes, heads]
+  );
 
   useLayoutEffect(() => {
     if (computeHideTimerRef.current != null) {
@@ -458,7 +492,7 @@ function useComputationTreeData(
 
   useEffect(() => {
     if (!model) return;
-    setBase(buildComputationTreeGraph(model, transitions, nodeMode));
+    setBase(buildComputationTreeGraph(model, transitions, nodeMode, currentConfig));
     if (!pendingModelFromComputeRef.current) return;
     pendingModelFromComputeRef.current = false;
     const elapsed = performance.now() - computeStartedAtRef.current;
@@ -475,7 +509,7 @@ function useComputationTreeData(
       computeHideTimerRef.current = null;
       setIsComputing(false);
     }, remaining);
-  }, [model, transitions, nodeMode]);
+  }, [model, transitions, nodeMode, currentConfig]);
 
   return { model, base, isComputing };
 }
@@ -1269,6 +1303,8 @@ function ComputationTreeCircles({ targetNodes, compressing = false, paused = fal
           computationTreeNodeMode === ConfigNodeMode.CARDS ? 'card' : 'circle',
         ];
         if (data.isStart) classes.push('start');
+        if (data.isCurrent) classes.push('current');
+        if (data.isComputed === false) classes.push('pending');
         if (displayLabel === '') classes.push('hidden-label');
         const position = n.position ?? { x: 0, y: 0 };
         const ele = cy.getElementById(n.id);
@@ -1279,9 +1315,12 @@ function ComputationTreeCircles({ targetNodes, compressing = false, paused = fal
           bgColor,
           borderColor: data.isStart
             ? normalizeColor(theme.palette.primary.main)
+            : data.isCurrent
+              ? normalizeColor(theme.palette.node?.currentConfig) ??
+                normalizeColor(theme.palette.primary.dark)
             : normalizeColor(theme.palette.border?.main) ??
               normalizeColor(theme.palette.divider),
-          borderWidth: data.isStart ? 8 : 0,
+          borderWidth: data.isCurrent ? 12 : data.isStart ? 8 : 0,
           textOutline: normalizeColor(theme.palette.background.paper),
           width: n.width ?? CONFIG_NODE_DIAMETER,
           height: n.height ?? CONFIG_NODE_DIAMETER,

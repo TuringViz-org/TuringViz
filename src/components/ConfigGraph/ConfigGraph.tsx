@@ -100,6 +100,9 @@ function ConfigGraphCards() {
   const configGraphVersion = useGlobalZustand((s) => s.configGraphVersion);
   const machineLoadVersion = useGlobalZustand((s) => s.machineLoadVersion);
   const configGraphComputing = useGlobalZustand((s) => s.configGraphComputing);
+  const currentState = useGlobalZustand((s) => s.currentState);
+  const tapes = useGlobalZustand((s) => s.tapes);
+  const heads = useGlobalZustand((s) => s.heads);
 
   // Graph Zustand state and setters
   const configGraphNodeMode = useConfigGraphNodeMode();
@@ -119,13 +122,23 @@ function ConfigGraphCards() {
   );
 
   const rf = useReactFlow();
+  const currentConfig = useMemo(
+    () => ({ state: currentState, tapes, heads }),
+    [currentState, tapes, heads]
+  );
 
   // Base graph structure (nodes/edges) extraction
   // ELK will overwrite positions
   const base = useMemo(() => {
     if (!configGraph) return { nodes: [], edges: [], topoKey: '' };
-    return buildConfigGraph(configGraph, transitions, undefined, configGraphNodeMode);
-  }, [configGraph, transitions, configGraphNodeMode, configGraphVersion]);
+    return buildConfigGraph(configGraph, transitions, currentConfig, configGraphNodeMode);
+  }, [
+    configGraph,
+    transitions,
+    currentConfig,
+    configGraphNodeMode,
+    configGraphVersion,
+  ]);
 
   const [nodes, setNodes, onNodesChangeRF] = useNodesState(base.nodes);
   const [edges, setEdges, onEdgesChangeRF] = useEdgesState(base.edges);

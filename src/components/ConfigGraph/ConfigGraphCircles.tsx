@@ -163,6 +163,16 @@ const getCyStyles = (theme: any): any[] => [
     style: { 'border-color': 'data(borderColor)' },
   },
   {
+    selector: 'node.pending',
+    style: {
+      'border-color':
+        normalizeColor(theme.palette.accent?.dark) ??
+        normalizeColor(theme.palette.secondary.dark),
+      'border-width': 8,
+      'border-style': 'dashed',
+    },
+  },
+  {
     selector: 'node.start',
     style: {
       'border-color': normalizeColor(theme.palette.primary.main),
@@ -173,11 +183,19 @@ const getCyStyles = (theme: any): any[] => [
     selector: 'node.current',
     style: {
       'border-color':
-        normalizeColor(theme.palette.error?.main) ??
+        normalizeColor(theme.palette.node?.currentConfig) ??
         normalizeColor(theme.palette.primary.dark) ??
         normalizeColor(theme.palette.accent?.main) ??
-        '#d32f2f',
-      'border-width': 10,
+        '#fcc600',
+      'border-width': 12,
+      'shadow-blur': 18,
+      'shadow-color':
+        normalizeColor(theme.palette.node?.currentConfig) ??
+        normalizeColor(theme.palette.primary.dark),
+      'shadow-opacity': 0.65,
+      'shadow-offset-x': 0,
+      'shadow-offset-y': 0,
+      'z-index': 20,
     },
   },
   {
@@ -334,6 +352,9 @@ export function ConfigGraphCircles() {
   const stateColorMatching = useGlobalZustand((s) => s.stateColorMatching);
   const machineLoadVersion = useGlobalZustand((s) => s.machineLoadVersion);
   const configGraphComputing = useGlobalZustand((s) => s.configGraphComputing);
+  const currentState = useGlobalZustand((s) => s.currentState);
+  const tapes = useGlobalZustand((s) => s.tapes);
+  const heads = useGlobalZustand((s) => s.heads);
 
   // Graph Zustand state and setters
   const configGraphNodeMode = useConfigGraphNodeMode();
@@ -445,15 +466,19 @@ export function ConfigGraphCircles() {
 
   // Base graph structure
   const model = configGraph as ConfigGraphModel | null;
+  const currentConfig = useMemo(
+    () => ({ state: currentState, tapes, heads }),
+    [currentState, tapes, heads]
+  );
   const base = useMemo(() => {
     if (!configGraph) return { nodes: [], edges: [], topoKey: '' };
     return buildConfigGraph(
       configGraph,
       transitions,
-      undefined,
+      currentConfig,
       ConfigNodeMode.NODES
     );
-  }, [configGraph, transitions]);
+  }, [configGraph, transitions, currentConfig]);
   const currentTopologyKeyRef = useRef(base.topoKey);
 
   useEffect(() => {
@@ -1073,6 +1098,7 @@ export function ConfigGraphCircles() {
         if (data.isStart) classes.push('start');
         if (data.isCurrent) classes.push('current');
         if (data.isSelectable) classes.push('selectable');
+        if (data.isComputed === false) classes.push('pending');
         if (displayLabel === '') classes.push('hidden-label');
         const position = n.position ?? { x: 0, y: 0 };
         const ele = cy.getElementById(n.id);
