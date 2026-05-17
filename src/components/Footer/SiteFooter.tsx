@@ -82,7 +82,8 @@ on " "/0 -> write 1/same; move S/R; goto carry;
         <Divider sx={{ my: 2 }} />
         <Typography variant="body2" sx={{ mb: 1 }}>
           Use <code>choose</code> to create nondeterministic action alternatives for
-          the same read condition.
+          the same read condition. It is just shorthand for writing the same
+          transition condition multiple times with different actions.
         </Typography>
         <CodeBlock
           language="tvm"
@@ -95,6 +96,18 @@ if t1 = _ then choose {
   write 0; move S; goto accept;
   write 1; move S; goto accept;
 }
+`}
+        />
+        <Typography variant="body2" sx={{ my: 1 }}>
+          Equivalent without <code>choose</code>:
+        </Typography>
+        <CodeBlock
+          language="tvm"
+          code={`on 0 -> write 0; move R; goto next;
+on 0 -> write 1; move R; goto next;
+
+if t1 = _ then write 0; move S; goto accept;
+if t1 = _ then write 1; move S; goto accept;
 `}
         />
       </>
