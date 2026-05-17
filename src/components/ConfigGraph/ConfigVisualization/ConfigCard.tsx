@@ -18,6 +18,7 @@ import {
 } from '@mui/material';
 import { HourglassEmpty, AltRoute } from '@mui/icons-material';
 import { alpha } from '@mui/material/styles';
+import { toast } from 'sonner';
 
 import { Configuration } from '@mytypes/TMTypes';
 import { CELL_WIDTH } from './constants';
@@ -96,6 +97,10 @@ export default function ConfigCard(data: Props) {
     computeDeeperGraphFromState(config, amount);
     setPendingOpen(false);
   }, [config, pendingAmount]);
+  const handleSelect = useCallback(() => {
+    onSelect?.();
+    toast.success('Configuration loaded into the Run tab. Switch to Run to view it.');
+  }, [onSelect]);
 
   const tapeContainerRef = useRef<HTMLDivElement | null>(null);
 
@@ -273,7 +278,7 @@ export default function ConfigCard(data: Props) {
                   <Button
                     size="small"
                     variant="contained"
-                    onClick={onSelect}
+                    onClick={handleSelect}
                     startIcon={<AltRoute />}
                     sx={{
                       bgcolor: alpha(headerTextColor, 0.16),
