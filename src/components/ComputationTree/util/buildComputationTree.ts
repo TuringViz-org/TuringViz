@@ -6,7 +6,7 @@ import {
   End,
 } from '@tmfunctions/ComputationTree';
 import { ConfigNodeMode } from '@utils/constants';
-import { Transition } from '@mytypes/TMTypes';
+import { hashConfig, type Configuration, type Transition } from '@mytypes/TMTypes';
 import {
   buildTopologyKey,
   createConfigFlowNode,
@@ -32,9 +32,11 @@ export type BuildResult = {
 export function buildComputationTreeGraph(
   model: ComputationTree,
   transitionsByState: Map<string, Transition[]>,
-  nodeMode: ConfigNodeMode
+  nodeMode: ConfigNodeMode,
+  currentConfig?: Configuration | null
 ): BuildResult {
   const t0 = performance.now();
+  const currentHash = currentConfig ? hashConfig(currentConfig) : null;
 
   // Index
   const byId = new Map<number, ComputationTreeNode>();
@@ -74,6 +76,7 @@ export function buildComputationTreeGraph(
     const label =
       n.config?.state && n.config.state.trim().length ? n.config.state : `q${n.id}`;
     const isStart = n.id === model.root.id;
+    const isCurrent = currentHash === hashConfig(n.config);
     const isComputed = n.end !== End.NotYetComputed;
 
     return createConfigFlowNode({
@@ -82,6 +85,7 @@ export function buildComputationTreeGraph(
       nodeMode,
       label,
       isStart,
+      isCurrent,
       isComputed,
       pendingInteractive: false,
     });

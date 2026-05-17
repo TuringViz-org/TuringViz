@@ -120,9 +120,15 @@ const ConfigNodeComponent = ({ id, data }: NodeProps<ConfigNode>) => {
       : 'transparent';
 
   const boxShadow =
-    highlightColor !== 'transparent'
-      ? `inset 0 0 0 9999px ${highlightColor}`
-      : undefined;
+    isCurrent
+      ? [
+          `0 0 0 4px ${alpha(theme.palette.node.currentConfig, 0.34)}`,
+          `0 0 18px ${alpha(theme.palette.node.currentConfig, 0.55)}`,
+          `inset 0 0 0 9999px ${highlightColor}`,
+        ].join(', ')
+      : highlightColor !== 'transparent'
+        ? `inset 0 0 0 9999px ${highlightColor}`
+        : undefined;
 
   return (
     <>
@@ -149,7 +155,11 @@ const ConfigNodeComponent = ({ id, data }: NodeProps<ConfigNode>) => {
             alignItems: 'center',
             justifyContent: 'center',
             boxSizing: 'border-box',
-            transition: 'transform 120ms ease',
+            outline: isCurrent
+              ? `2px solid ${alpha(theme.palette.node.currentConfig, 0.65)}`
+              : 'none',
+            outlineOffset: 3,
+            transition: 'transform 120ms ease, box-shadow 120ms ease',
             '&:hover': { borderColor: theme.palette.border.dark },
             zIndex: 900,
           }}
