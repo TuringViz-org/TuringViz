@@ -163,6 +163,16 @@ const getCyStyles = (theme: any): any[] => [
     style: { 'border-color': 'data(borderColor)' },
   },
   {
+    selector: 'node.pending',
+    style: {
+      'border-color':
+        normalizeColor(theme.palette.accent?.dark) ??
+        normalizeColor(theme.palette.secondary.dark),
+      'border-width': 8,
+      'border-style': 'dashed',
+    },
+  },
+  {
     selector: 'node.start',
     style: {
       'border-color': normalizeColor(theme.palette.primary.main),
@@ -1088,6 +1098,7 @@ export function ConfigGraphCircles() {
         if (data.isStart) classes.push('start');
         if (data.isCurrent) classes.push('current');
         if (data.isSelectable) classes.push('selectable');
+        if (data.isComputed === false) classes.push('pending');
         if (displayLabel === '') classes.push('hidden-label');
         const position = n.position ?? { x: 0, y: 0 };
         const ele = cy.getElementById(n.id);

@@ -206,6 +206,16 @@ const getCyStyles = (theme: any): any[] => [
       style: { 'border-color': 'data(borderColor)' },
     },
     {
+      selector: 'node.pending',
+      style: {
+        'border-color':
+          normalizeColor(theme.palette.accent?.dark) ??
+          normalizeColor(theme.palette.secondary.dark),
+        'border-width': 8,
+        'border-style': 'dashed',
+      },
+    },
+    {
       selector: 'node.card',
       style: {
         shape: 'round-rectangle',
@@ -1294,6 +1304,7 @@ function ComputationTreeCircles({ targetNodes, compressing = false, paused = fal
         ];
         if (data.isStart) classes.push('start');
         if (data.isCurrent) classes.push('current');
+        if (data.isComputed === false) classes.push('pending');
         if (displayLabel === '') classes.push('hidden-label');
         const position = n.position ?? { x: 0, y: 0 };
         const ele = cy.getElementById(n.id);
