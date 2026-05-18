@@ -7,6 +7,7 @@ import {
 } from '@tmfunctions/ComputationTree';
 import { ConfigNodeMode } from '@utils/constants';
 import { hashConfig, type Configuration, type Transition } from '@mytypes/TMTypes';
+import { CARDS_LIMIT } from './constants';
 import {
   buildTopologyKey,
   createConfigFlowNode,
@@ -37,42 +38,58 @@ export function buildComputationTreeGraph(
 ): BuildResult {
   const t0 = performance.now();
   const currentHash = currentConfig ? hashConfig(currentConfig) : null;
+  const isCardMode = nodeMode === ConfigNodeMode.CARDS;
+  const maxNodes = isCardMode ? CARDS_LIMIT : Number.POSITIVE_INFINITY;
 
-  // Index
-  const byId = new Map<number, ComputationTreeNode>();
-  for (const n of model.nodes) byId.set(n.id, n);
-  byId.set(model.root.id, model.root);
+  // Index all model nodes for transition lookup, then choose the rendered subset.
+  const allById = new Map<number, ComputationTreeNode>();
+  for (const n of model.nodes) allById.set(n.id, n);
+  allById.set(model.root.id, model.root);
+
+  const renderedNodes: ComputationTreeNode[] = [];
+  const includedNodeIds = new Set<number>();
+  for (const n of model.nodes) {
+    if (includedNodeIds.size >= maxNodes) break;
+    renderedNodes.push(n);
+    includedNodeIds.add(n.id);
+  }
+  if (!includedNodeIds.has(model.root.id) && renderedNodes.length < maxNodes) {
+    renderedNodes.unshift(model.root);
+    includedNodeIds.add(model.root.id);
+  }
 
   // Edges
-  const rfEdges: RFEdge[] = model.edges.map((e) => {
-    const fromNode = byId.get(e.from);
-    const sourceState = fromNode?.config?.state ?? null;
-    const tList = sourceState ? (transitionsByState.get(sourceState) ?? []) : [];
-    const t =
-      e.transitionIndex != null &&
-      e.transitionIndex >= 0 &&
-      e.transitionIndex < tList.length
-        ? tList[e.transitionIndex]
-        : undefined;
+  const rfEdges: RFEdge[] = model.edges
+    .filter((e) => includedNodeIds.has(e.from) && includedNodeIds.has(e.to))
+    .map((e) => {
+      const fromNode = allById.get(e.from);
+      const sourceState = fromNode?.config?.state ?? null;
+      const tList = sourceState ? (transitionsByState.get(sourceState) ?? []) : [];
+      const t =
+        e.transitionIndex != null &&
+        e.transitionIndex >= 0 &&
+        e.transitionIndex < tList.length
+          ? tList[e.transitionIndex]
+          : undefined;
 
-    const isCompressed = e.compressed === true;
-    const compLen = Math.max(1, e.compressedLength ?? (isCompressed ? 2 : 1));
+      const isCompressed = e.compressed === true;
+      const compLen = Math.max(1, e.compressedLength ?? (isCompressed ? 2 : 1));
 
-    return createTransitionFlowEdge({
-      id: `${e.from}→${e.to}#${e.transitionIndex ?? ''}`,
-      source: String(e.from),
-      target: String(e.to),
-      transition: t,
-      compressed: isCompressed,
-      compressedLength: compLen,
-      data: {
-        highlighted: false,
-      },
+      return createTransitionFlowEdge({
+        id: `${e.from}→${e.to}#${e.transitionIndex ?? ''}`,
+        source: String(e.from),
+        target: String(e.to),
+        transition: t,
+        compressed: isCompressed,
+        compressedLength: compLen,
+        data: {
+          highlighted: false,
+        },
+      });
     });
-  });
 
   // Nodes (ohne Position)
-  const rfNodes: RFNode[] = [...byId.values()].map((n) => {
+  const rfNodes: RFNode[] = renderedNodes.map((n) => {
     const label =
       n.config?.state && n.config.state.trim().length ? n.config.state : `q${n.id}`;
     const isStart = n.id === model.root.id;
@@ -92,8 +109,9 @@ export function buildComputationTreeGraph(
   });
 
   // Topology-Key
-  const nodeIds = [...byId.keys()].sort((a, b) => a - b).map(String);
+  const nodeIds = renderedNodes.map((n) => n.id).sort((a, b) => a - b).map(String);
   const edgeKeys = model.edges
+    .filter((e) => includedNodeIds.has(e.from) && includedNodeIds.has(e.to))
     .map((e) => {
       // Include compression metadata so toggling compressed mode always
       // invalidates layout cache in cards mode.
