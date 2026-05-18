@@ -49,7 +49,6 @@ import {
   CONFIG_CARD_WIDTH,
   CONFIG_NODE_DIAMETER,
   CONTROL_HEIGHT,
-  CARDS_LIMIT,
   NodeType,
   EdgeType,
 } from './util/constants';
@@ -429,10 +428,7 @@ function useComputationTreeData(
     setIsComputing(true);
     computeStartedAtRef.current = performance.now();
     pendingModelFromComputeRef.current = false;
-    const requestedTargetNodes =
-      nodeMode === ConfigNodeMode.CARDS
-        ? Math.min(targetNodes, CARDS_LIMIT)
-        : targetNodes;
+    const requestedTargetNodes = targetNodes;
     const effectiveDepth = compressing
       ? MAX_COMPUTATION_TREE_TARGET_NODES
       : requestedTargetNodes;
@@ -486,7 +482,6 @@ function useComputationTreeData(
     numberOfTapes,
     startState,
     input,
-    nodeMode,
     paused,
   ]);
 
@@ -515,8 +510,13 @@ function useComputationTreeData(
 }
 
 type Props = { targetNodes: number; compressing?: boolean; paused?: boolean };
+type ComputationTreeData = ReturnType<typeof useComputationTreeData>;
+type ViewProps = Props & { treeData: ComputationTreeData };
 
-function ComputationTreeCircles({ targetNodes, compressing = false, paused = false }: Props) {
+function ComputationTreeCircles({
+  treeData,
+  paused = false,
+}: ViewProps) {
   const theme = useTheme();
   const cyRef = useRef<CyCore | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -540,12 +540,7 @@ function ComputationTreeCircles({ targetNodes, compressing = false, paused = fal
   const { selected, setSelected, hoveredState, setHoveredState } = useGraphUI();
 
   // Base graph structure (nodes/edges) extraction
-  const { model, base, isComputing } = useComputationTreeData(
-    targetNodes,
-    !!compressing,
-    computationTreeNodeMode,
-    paused
-  );
+  const { model, base, isComputing } = treeData;
 
   const [nodes, setNodes] = useState<RFNode[]>(base.nodes);
   const [edges, setEdges] = useState<RFEdge[]>(base.edges);
@@ -1757,7 +1752,10 @@ function ComputationTreeCircles({ targetNodes, compressing = false, paused = fal
   );
 }
 
-function ComputationTreeCards({ targetNodes, compressing = false, paused = false }: Props) {
+function ComputationTreeCards({
+  treeData,
+  paused = false,
+}: ViewProps) {
   const theme = useTheme();
   // Global Zustand state
   const transitions = useGlobalZustand((s) => s.transitions);
@@ -1786,12 +1784,7 @@ function ComputationTreeCards({ targetNodes, compressing = false, paused = false
   const { selected, setSelected, hoveredState } = useGraphUI();
 
   // Base graph structure
-  const { model, base, isComputing } = useComputationTreeData(
-    targetNodes,
-    !!compressing,
-    computationTreeNodeMode,
-    paused
-  );
+  const { model, base, isComputing } = treeData;
 
   const [nodes, setNodes, onNodesChange] = useNodesState<RFNode>(base.nodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState<RFEdge>(base.edges);
@@ -2482,10 +2475,17 @@ function ComputationTreeCards({ targetNodes, compressing = false, paused = false
 
 export function ComputationTree(props: Props) {
   const computationTreeNodeMode = useComputationTreeNodeMode();
+  const treeData = useComputationTreeData(
+    props.targetNodes,
+    !!props.compressing,
+    computationTreeNodeMode,
+    !!props.paused
+  );
+
   if (computationTreeNodeMode === ConfigNodeMode.CARDS) {
-    return <ComputationTreeCards {...props} />;
+    return <ComputationTreeCards {...props} treeData={treeData} />;
   }
-  return <ComputationTreeCircles {...props} />;
+  return <ComputationTreeCircles {...props} treeData={treeData} />;
 }
 
 export function ComputationTreeWrapper({
