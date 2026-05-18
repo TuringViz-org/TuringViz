@@ -270,17 +270,11 @@ state copydown:
 
 state gotoendfirst:
   on " "/* -> move L/S;
-  on [1/*, 0/*] -> move S/S; goto gotobegin;
-
-state gotobegin:
-  on [1/1, 0/0, 1/0, 0/1] -> move L/L;
-  on [1/" ", 0/" "] -> move L/S;
-  on [" "/1, " "/0] -> move S/L;
-  on " "/" " -> move R/R; goto compare;
+  on [1/*, 0/*] -> move S/S; goto compare;
 
 -- Compare if the split creates two strings that are the same
 state compare:
-  on [1/1, 0/0] -> move R/R;
+  on [1/1, 0/0] -> move L/L;
   on " "/" " -> move S/S; goto accept;
   on [1/0, 0/1, " "/1, " "/0, 1/" ", 0/" "] -> move S/S; goto reject;
 
