@@ -1,8 +1,10 @@
 // src/tmfunctions/Running.ts
+import { createElement } from 'react';
 import { toast } from 'sonner';
 
 import {
   getCurrentConfiguration,
+  nextConfigurations,
   nextConfigurationsFromState,
 } from '@tmfunctions/Configurations';
 import {
@@ -11,6 +13,15 @@ import {
   type RunChoiceOption,
 } from '@zustands/GlobalZustand';
 import { Configuration, Move, type Transition, hashConfig } from '@mytypes/TMTypes';
+
+type RandomRunChoiceMode = 'all' | 'accepting' | 'rejecting';
+
+const ACCEPTING_STATES = new Set(['accept', 'accepted', 'done']);
+const REJECTING_STATES = new Set(['reject', 'rejected', 'error']);
+const RANDOM_OUTCOME_SEARCH_LIMIT = 10000;
+
+let randomRunChoiceMode: RandomRunChoiceMode | null = null;
+let resumeLiveAfterRandomChoice = false;
 
 function buildFallbackTransition(
   fromState: string,
@@ -38,6 +49,137 @@ function getNextChoices(currentConfig: Configuration): RunChoiceOption[] {
       perStateTransitions[transitionIndex] ??
       buildFallbackTransition(currentConfig.state, config.state, store.numberOfTapes),
   }));
+}
+
+function matchesRandomMode(state: string, mode: RandomRunChoiceMode) {
+  const lower = state.toLowerCase();
+  if (mode === 'accepting') return ACCEPTING_STATES.has(lower);
+  if (mode === 'rejecting') return REJECTING_STATES.has(lower);
+  return true;
+}
+
+function reachesRandomMode(config: Configuration, mode: RandomRunChoiceMode) {
+  if (mode === 'all') return true;
+
+  const store = useGlobalZustand.getState();
+  const seen = new Set<string>();
+  const queue = [config];
+  let head = 0;
+
+  while (head < queue.length && seen.size < RANDOM_OUTCOME_SEARCH_LIMIT) {
+    const current = queue[head++];
+    if (matchesRandomMode(current.state, mode)) return true;
+
+    const hash = hashConfig(current);
+    if (seen.has(hash)) continue;
+    seen.add(hash);
+
+    const transitions = store.transitions.get(current.state);
+    if (!transitions) continue;
+
+    const nexts = nextConfigurations(
+      current,
+      transitions,
+      store.numberOfTapes,
+      store.blank
+    );
+    for (const [nextConfig] of nexts) queue.push(nextConfig);
+  }
+
+  return false;
+}
+
+function pickRandomChoice(
+  choices: RunChoiceOption[],
+  mode: RandomRunChoiceMode
+): RunChoiceOption | null {
+  const eligible = choices.filter((choice) => reachesRandomMode(choice.config, mode));
+  if (eligible.length === 0) return null;
+  return eligible[Math.floor(Math.random() * eligible.length)];
+}
+
+function resumeLiveRun() {
+  const store = useGlobalZustand.getState();
+  store.incrementRunningLiveID();
+  const runningID = useGlobalZustand.getState().runningLiveID;
+  store.setRunningLive(true);
+
+  setTimeout(() => {
+    const latest = useGlobalZustand.getState();
+    if (!latest.runningLive || latest.runningLiveID !== runningID) return;
+    startRunningLive(runningID);
+  }, store.runSpeedMs);
+}
+
+function chooseRandomlyFromNowOn(mode: RandomRunChoiceMode) {
+  randomRunChoiceMode = mode;
+
+  const store = useGlobalZustand.getState();
+  const pending = store.pendingRunChoice;
+  const shouldResumeLive = resumeLiveAfterRandomChoice;
+  resumeLiveAfterRandomChoice = false;
+
+  if (!pending) return;
+
+  const choices = pending.byState.flatMap((entry) => entry.options);
+  const choice = pickRandomChoice(choices, mode);
+  if (!choice) {
+    toast.warning(`No ${mode} computation is available from this choice.`);
+    return;
+  }
+
+  applyStepTransition(pending.fromConfig, choice.config, choice.transitionIndex);
+  toast.success(`Future nondeterministic choices will be ${mode} random.`);
+
+  if (shouldResumeLive) resumeLiveRun();
+}
+
+function randomModeButton(label: string, mode: RandomRunChoiceMode, toastId: string) {
+  return createElement(
+    'button',
+    {
+      type: 'button',
+      onClick: () => {
+        toast.dismiss(toastId);
+        chooseRandomlyFromNowOn(mode);
+      },
+      style: {
+        border: '1px solid currentColor',
+        borderRadius: 4,
+        background: 'transparent',
+        color: 'inherit',
+        cursor: 'pointer',
+        font: 'inherit',
+        padding: '2px 6px',
+      },
+    },
+    label
+  );
+}
+
+function showRunChoiceToast(message: string) {
+  const toastId = `run-choice-${Date.now()}`;
+
+  toast.info(message, {
+    id: toastId,
+    duration: 12000,
+    description: createElement(
+      'div',
+      { style: { display: 'grid', gap: 6 } },
+      createElement(
+        'span',
+        null,
+        'Alternatively, let all transitions be chosen randomly or towards a random accepting or rejecting computation: '
+      ),
+      createElement(
+        'div',
+        { style: { display: 'flex', flexWrap: 'wrap', gap: 6 } },
+        randomModeButton('Fully random', 'all', toastId),
+        randomModeButton('Accepting', 'accepting', toastId),
+        randomModeButton('Rejecting', 'rejecting', toastId)
+      )
+    ),
+  });
 }
 
 function applyStepTransition(
@@ -107,16 +249,26 @@ export function makeStep(): boolean {
     return true;
   }
 
+  if (randomRunChoiceMode) {
+    const choice = pickRandomChoice(choices, randomRunChoiceMode);
+    if (choice) {
+      applyStepTransition(currentConfig, choice.config, choice.transitionIndex);
+      return true;
+    }
+    toast.warning(`No ${randomRunChoiceMode} computation is available from this choice.`);
+  }
+
   const pending = groupPendingChoices(currentConfig, choices);
+  resumeLiveAfterRandomChoice = store.runningLive;
   store.setRunning(false);
   store.setRunningLive(false);
   store.setPendingRunChoice(pending);
   store.setRunChoiceHighlightedTMEdges(pending.byState.map((entry) => entry.edgeId));
 
   if (pending.byState.length === 1) {
-    toast.info('Multiple next configurations found. Choose one in the dialog.');
+    showRunChoiceToast('Multiple next configurations found. Choose one in the dialog.');
   } else {
-    toast.info(
+    showRunChoiceToast(
       'Multiple next states found. Click a highlighted TM transition to choose the next configuration.'
     );
   }
