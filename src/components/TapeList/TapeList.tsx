@@ -20,13 +20,24 @@ import {
 } from '@tmfunctions/Running';
 import { TapeViewport } from './TapeViewport';
 
+const RUN_SPEED_MIN_MS = 10;
+const RUN_SPEED_MAX_MS = 2000;
+
+function invertRunSpeedValue(value: number) {
+  return RUN_SPEED_MIN_MS + RUN_SPEED_MAX_MS - value;
+}
+
+function formatStepsPerSecond(runSpeedMs: number) {
+  return `${(1000 / runSpeedMs).toFixed(2)} steps/s`;
+}
+
 function TapeList() {
   const theme = useTheme();
   const isRunningLive = useGlobalZustand((state) => state.runningLive);
   const runSpeedMs = useGlobalZustand((state) => state.runSpeedMs);
   const setRunSpeedMs = useGlobalZustand((state) => state.setRunSpeedMs);
   const stackControls = useMediaQuery(theme.breakpoints.down('lg'));
-  const stepsPerSecond = (1000 / runSpeedMs).toFixed(2);
+  const stepsPerSecond = formatStepsPerSecond(runSpeedMs);
 
   const makeControlButtonSx = (bg: string, hover: string) => ({
     alignItems: 'center',
@@ -78,7 +89,7 @@ function TapeList() {
               fontWeight: 500,
             }}
           >
-            Run speed: {runSpeedMs} ms/step ({stepsPerSecond} steps/s)
+            Run speed: {stepsPerSecond}
           </Typography>
         </Box>
 
@@ -92,15 +103,19 @@ function TapeList() {
         >
           <Slider
             size="medium"
-            min={10}
-            max={2000}
+            min={RUN_SPEED_MIN_MS}
+            max={RUN_SPEED_MAX_MS}
             step={10}
-            value={runSpeedMs}
+            value={invertRunSpeedValue(runSpeedMs)}
             onChange={(_, value) =>
-              setRunSpeedMs(Array.isArray(value) ? value[0] : value)
+              setRunSpeedMs(
+                invertRunSpeedValue(Array.isArray(value) ? value[0] : value)
+              )
             }
             valueLabelDisplay="auto"
-            valueLabelFormat={(value) => `${value} ms`}
+            valueLabelFormat={(value) =>
+              formatStepsPerSecond(invertRunSpeedValue(value))
+            }
             sx={{
               '& .MuiSlider-rail, & .MuiSlider-track': { height: 8 },
               '& .MuiSlider-thumb': { width: 20, height: 20 },
