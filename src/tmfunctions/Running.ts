@@ -24,7 +24,7 @@ type AutoRunMode = Exclude<RunMode, 'manual'>;
 // Outcome of searching whether a targeted (accepting/rejecting) state is reachable.
 type ReachResult = 'reachable' | 'unreachable' | 'limit-reached';
 
-const RANDOM_OUTCOME_SEARCH_LIMIT = 10000;
+const RANDOM_OUTCOME_SEARCH_LIMIT = 50000;
 
 function buildFallbackTransition(
   fromState: string,
@@ -119,13 +119,14 @@ function pickRandomChoice(choices: RunChoiceOption[], mode: AutoRunMode): PickRe
 }
 
 function warnNoComputationAvailable(mode: AutoRunMode, limitReached: boolean) {
+  // No stable id: every Step/Start attempt should surface the message anew.
   if (limitReached) {
     toast.warning(
-      `Reached the search limit of ${RANDOM_OUTCOME_SEARCH_LIMIT} configurations without confirming a ${mode} computation from here. Choose the next transition manually.`
+      `Reached the search limit of ${RANDOM_OUTCOME_SEARCH_LIMIT} configurations without confirming a ${mode} computation. Switch the run mode to continue.`
     );
   } else {
     toast.warning(
-      `No ${mode} computation is reachable from here. Choose the next transition manually.`
+      `No ${mode} computation is reachable from here. Switch the run mode to continue.`
     );
   }
 }
@@ -214,18 +215,22 @@ export function makeStep(): boolean {
     return true;
   }
 
-  // Nondeterministic choice: resolve automatically unless we're in manual mode.
-  if (store.runMode !== 'manual') {
-    const { choice, limitReached } = pickRandomChoice(choices, store.runMode);
-    if (choice) {
-      applyStepTransition(currentConfig, choice.config, choice.transitionIndex);
-      return true;
-    }
-    warnNoComputationAvailable(store.runMode, limitReached);
-    // Fall through to a manual choice so the user is never stuck.
+  // Manual mode: pause and let the user pick (highlight edges + dialog).
+  if (store.runMode === 'manual') {
+    pauseForManualChoice(currentConfig, choices);
+    return false;
   }
 
-  pauseForManualChoice(currentConfig, choices);
+  // Automatic mode: resolve the choice ourselves.
+  const { choice, limitReached } = pickRandomChoice(choices, store.runMode);
+  if (choice) {
+    applyStepTransition(currentConfig, choice.config, choice.transitionIndex);
+    return true;
+  }
+
+  // No reachable target in this mode: do NOT fall back to a manual choice.
+  // Show a single toast; the run stays put until the user switches the mode.
+  warnNoComputationAvailable(store.runMode, limitReached);
   return false;
 }
 
@@ -244,6 +249,9 @@ export function changeRunMode(mode: RunMode) {
   const choices = pending.byState.flatMap((entry) => entry.options);
   const { choice, limitReached } = pickRandomChoice(choices, mode);
   if (!choice) {
+    // Nothing reachable in this mode: drop the manual choice/highlights so the
+    // run is blocked with a single toast until the user switches the mode again.
+    store.clearRunChoice();
     warnNoComputationAvailable(mode, limitReached);
     return;
   }
