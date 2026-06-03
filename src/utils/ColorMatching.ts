@@ -1,5 +1,7 @@
 // src/utils/ColorMatching.ts
 //For the coloring of the nodes in the configgraph and tree.
+import { isAcceptingStateName, isRejectingStateName } from '@utils/constants';
+
 const distinctColors: string[] = [
   '#772b9d',
   '#632819',
@@ -31,9 +33,6 @@ const distinctColors: string[] = [
   '#f47a22',
 ];
 
-const acceptingStates = ['accept', 'accepted', 'done'];
-const rejectingStates = ['reject', 'rejected', 'error'];
-
 const acceptingColor = '#00ff00ff'; // Matches theme.palette.success.light
 const rejectingColor = '#ff0000ff'; // Matches theme.palette.error.light
 
@@ -48,9 +47,9 @@ export function getColorMatching(
   for (const state of sortedStates) {
     if (oldMatching.has(state)) {
       newMatching.set(state, oldMatching.get(state)!);
-    } else if (acceptingStates.includes(state.toLowerCase())) {
+    } else if (isAcceptingStateName(state)) {
       newMatching.set(state, acceptingColor);
-    } else if (rejectingStates.includes(state.toLowerCase())) {
+    } else if (isRejectingStateName(state)) {
       newMatching.set(state, rejectingColor);
     }
   }

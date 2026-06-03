@@ -5,6 +5,26 @@ export enum ConfigNodeMode {
   NODES = 'nodes',
   CARDS = 'cards',
 }
+
+// State names that are treated as accepting/rejecting throughout the app.
+// Single source of truth: used for state coloring and run-mode targeting.
+export const ACCEPTING_STATE_NAMES = ['accept', 'accepted', 'done'] as const;
+export const REJECTING_STATE_NAMES = ['reject', 'rejected', 'error'] as const;
+
+export function isAcceptingStateName(state: string): boolean {
+  return (ACCEPTING_STATE_NAMES as readonly string[]).includes(state.toLowerCase());
+}
+
+export function isRejectingStateName(state: string): boolean {
+  return (REJECTING_STATE_NAMES as readonly string[]).includes(state.toLowerCase());
+}
+
+// Modes for resolving nondeterministic choices while running.
+// - manual: pause and let the user pick (default; pre-existing behavior).
+// - random: pick a uniformly random next configuration on every nondeterminism.
+// - accepting/rejecting: pick randomly among choices from which an
+//   accepting/rejecting state is reachable.
+export type RunMode = 'manual' | 'random' | 'accepting' | 'rejecting';
 const isLandscape = typeof window !== 'undefined' && window.innerWidth > window.innerHeight;
 
 // Default settings for computation tree layout
