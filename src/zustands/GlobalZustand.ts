@@ -19,14 +19,12 @@ export type RunChoiceOption = {
 
 export type RunChoiceStateGroup = {
   nextState: string;
-  edgeId: string;
   options: RunChoiceOption[];
 };
 
 export type PendingRunChoice = {
   fromConfig: Configuration;
   byState: RunChoiceStateGroup[];
-  selectedState: string | null;
 };
 
 interface GlobalZustand {
@@ -128,9 +126,6 @@ interface GlobalZustand {
 
   pendingRunChoice: PendingRunChoice | null;
   setPendingRunChoice: (pendingRunChoice: PendingRunChoice | null) => void;
-  setPendingRunChoiceState: (state: string | null) => void;
-  runChoiceHighlightedTMEdges: string[];
-  setRunChoiceHighlightedTMEdges: (edgeIds: string[]) => void;
   clearRunChoice: () => void;
 
   reset: () => void;
@@ -166,7 +161,6 @@ export const useGlobalZustand = create<GlobalZustand>((set) => ({
       stateColorMatching: getColorMatching(states, prev.stateColorMatching),
       lastConfig: null,
       pendingRunChoice: null,
-      runChoiceHighlightedTMEdges: [],
       runMode: 'manual',
       machineLoadVersion: prev.machineLoadVersion + 1,
     }));
@@ -254,18 +248,7 @@ export const useGlobalZustand = create<GlobalZustand>((set) => ({
 
   pendingRunChoice: null,
   setPendingRunChoice: (pendingRunChoice) => set({ pendingRunChoice }),
-  setPendingRunChoiceState: (state) =>
-    set((s) => {
-      if (!s.pendingRunChoice) return {};
-      return { pendingRunChoice: { ...s.pendingRunChoice, selectedState: state } };
-    }),
-  runChoiceHighlightedTMEdges: [],
-  setRunChoiceHighlightedTMEdges: (edgeIds) => set({ runChoiceHighlightedTMEdges: edgeIds }),
-  clearRunChoice: () =>
-    set({
-      pendingRunChoice: null,
-      runChoiceHighlightedTMEdges: [],
-    }),
+  clearRunChoice: () => set({ pendingRunChoice: null }),
 
   reset: () =>
     set({
@@ -288,7 +271,6 @@ export const useGlobalZustand = create<GlobalZustand>((set) => ({
       stateColorMatching: new Map<string, string>(),
       lastConfig: null,
       pendingRunChoice: null,
-      runChoiceHighlightedTMEdges: [],
       machineLoadVersion: 0,
       runSpeedMs: 700,
       runMode: 'manual',

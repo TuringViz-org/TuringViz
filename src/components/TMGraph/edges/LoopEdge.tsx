@@ -17,7 +17,6 @@ import { EdgeTooltip } from './EdgeTooltip';
 import type { Transition } from '@mytypes/TMTypes';
 import { useGraphUI } from '@components/shared/GraphUIContext';
 import { useGlobalZustand } from '@zustands/GlobalZustand';
-import { handleTMGraphRunChoiceEdgeClick } from '@tmfunctions/Running';
 
 export interface LoopEdgeData extends Record<string, unknown> {
   transitions?: Transition[];
@@ -36,9 +35,6 @@ const LoopEdgeComponent = ({
 }: EdgeProps<LoopEdge>) => {
   const theme = useTheme();
   const { highlightedEdgeId, selected, setSelected } = useGraphUI();
-  const runChoiceHighlightedTMEdges = useGlobalZustand(
-    (s) => s.runChoiceHighlightedTMEdges
-  );
   const runSpeedMs = useGlobalZustand((s) => s.runSpeedMs);
 
   const node = useInternalNode(source);
@@ -52,8 +48,7 @@ const LoopEdgeComponent = ({
   const path = `M ${sx} ${sy} C ${sx} ${sy - 50}, ${ex} ${ey - 50}, ${ex} ${ey}`;
 
   const isSelected = selected.type === 'edge' && selected.id === id;
-  const isHighlighted =
-    highlightedEdgeId === id || runChoiceHighlightedTMEdges.includes(id);
+  const isHighlighted = highlightedEdgeId === id;
   const baseStroke = (style as any)?.stroke ?? '#999';
   const baseWidth = Number((style as any)?.strokeWidth ?? 1.5);
   const hlColor = theme.palette.primary.dark;
@@ -128,10 +123,6 @@ const LoopEdgeComponent = ({
         onMouseLeave={onMouseLeave}
         onClick={(evt) => {
           evt.stopPropagation();
-          if (handleTMGraphRunChoiceEdgeClick(source, source)) {
-            setSelected({ type: null, id: null });
-            return;
-          }
           setSelected({
             type: 'edge',
             id,

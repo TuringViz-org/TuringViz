@@ -44,8 +44,6 @@ import {
   GRAPH_EDGE_BASE_WIDTH,
   GRAPH_EDGE_HOVER_WIDTH,
 } from '@components/shared/edgeVisualConstants';
-import { handleTMGraphRunChoiceEdgeClick } from '@tmfunctions/Running';
-
 type BuildTMGraphArgs = Parameters<typeof buildTMGraph>;
 type TransitionMap = Map<string, Transition[]>;
 type TMGraphBuildResult = ReturnType<typeof buildTMGraph>;
@@ -401,9 +399,6 @@ function TMGraph() {
   const lastTransition = useGlobalZustand((s) => s.lastTransition);
   const lastTransitionTrigger = useGlobalZustand((s) => s.lastTransitionTrigger);
   const runSpeedMs = useGlobalZustand((s) => s.runSpeedMs);
-  const runChoiceHighlightedTMEdges = useGlobalZustand(
-    (s) => s.runChoiceHighlightedTMEdges
-  );
 
   const tmGraphELKSettings = useTMGraphELKSettings();
   const setTMGraphELKSettings = useGraphZustand((s) => s.setTMGraphELKSettings);
@@ -684,14 +679,6 @@ function TMGraph() {
       clearHoverTimer();
 
       const id = evt.target.id();
-      const source = String(evt.target.data('source') ?? '');
-      const target = String(evt.target.data('target') ?? '');
-
-      if (handleTMGraphRunChoiceEdgeClick(source, target)) {
-        setSelected({ type: null, id: null });
-        setEdgeTooltipState({ id: null, anchor: null, reason: null });
-        return;
-      }
 
       const anchor = getAnchorFromEvent(evt);
       setSelected({ type: 'edge', id, anchor });
@@ -965,7 +952,7 @@ function TMGraph() {
     const cy = cyRef.current;
     if (!cy) return;
 
-    const nextSet = new Set<string>(runChoiceHighlightedTMEdges);
+    const nextSet = new Set<string>();
     if (highlightedEdgeId) nextSet.add(highlightedEdgeId);
 
     const prevSet = lastHighlightedSetRef.current;
@@ -981,7 +968,7 @@ function TMGraph() {
     });
 
     lastHighlightedSetRef.current = nextSet;
-  }, [highlightedEdgeId, runChoiceHighlightedTMEdges]);
+  }, [highlightedEdgeId]);
 
   const lastLaidOutTopoKeyRef = useRef<string | null>(null);
   const fitAfterLayoutRef = useRef(false);
