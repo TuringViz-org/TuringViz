@@ -181,7 +181,7 @@ function TapeList() {
             }
             sx={makeControlButtonSx(
               theme.palette.primary.dark,
-              theme.palette.primary.main
+              theme.palette.primary.dark
             )}
           >
             Step

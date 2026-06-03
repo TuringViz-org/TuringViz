@@ -1,5 +1,4 @@
 // src/tmfunctions/Running.ts
-import { createElement } from 'react';
 import { toast } from 'sonner';
 
 import {
@@ -13,15 +12,19 @@ import {
   type RunChoiceOption,
 } from '@zustands/GlobalZustand';
 import { Configuration, Move, type Transition, hashConfig } from '@mytypes/TMTypes';
+import {
+  isAcceptingStateName,
+  isRejectingStateName,
+  type RunMode,
+} from '@utils/constants';
 
-type RandomRunChoiceMode = 'all' | 'accepting' | 'rejecting';
+// Run modes that resolve nondeterministic choices automatically.
+type AutoRunMode = Exclude<RunMode, 'manual'>;
 
-const ACCEPTING_STATES = new Set(['accept', 'accepted', 'done']);
-const REJECTING_STATES = new Set(['reject', 'rejected', 'error']);
+// Outcome of searching whether a targeted (accepting/rejecting) state is reachable.
+type ReachResult = 'reachable' | 'unreachable' | 'limit-reached';
+
 const RANDOM_OUTCOME_SEARCH_LIMIT = 10000;
-
-let randomRunChoiceMode: RandomRunChoiceMode | null = null;
-let resumeLiveAfterRandomChoice = false;
 
 function buildFallbackTransition(
   fromState: string,
@@ -51,24 +54,28 @@ function getNextChoices(currentConfig: Configuration): RunChoiceOption[] {
   }));
 }
 
-function matchesRandomMode(state: string, mode: RandomRunChoiceMode) {
-  const lower = state.toLowerCase();
-  if (mode === 'accepting') return ACCEPTING_STATES.has(lower);
-  if (mode === 'rejecting') return REJECTING_STATES.has(lower);
-  return true;
+function matchesTargetMode(state: string, mode: 'accepting' | 'rejecting') {
+  return mode === 'accepting' ? isAcceptingStateName(state) : isRejectingStateName(state);
 }
 
-function reachesRandomMode(config: Configuration, mode: RandomRunChoiceMode) {
-  if (mode === 'all') return true;
-
+// BFS over reachable configurations to check whether an accepting/rejecting state
+// can be reached. Bounded by RANDOM_OUTCOME_SEARCH_LIMIT distinct configurations;
+// if the bound is hit before the search space is exhausted, the answer is unknown
+// ('limit-reached') rather than a definitive 'unreachable'.
+function reachesTargetMode(
+  config: Configuration,
+  mode: 'accepting' | 'rejecting'
+): ReachResult {
   const store = useGlobalZustand.getState();
   const seen = new Set<string>();
   const queue = [config];
   let head = 0;
 
-  while (head < queue.length && seen.size < RANDOM_OUTCOME_SEARCH_LIMIT) {
+  while (head < queue.length) {
+    if (seen.size >= RANDOM_OUTCOME_SEARCH_LIMIT) return 'limit-reached';
+
     const current = queue[head++];
-    if (matchesRandomMode(current.state, mode)) return true;
+    if (matchesTargetMode(current.state, mode)) return 'reachable';
 
     const hash = hashConfig(current);
     if (seen.has(hash)) continue;
@@ -86,100 +93,58 @@ function reachesRandomMode(config: Configuration, mode: RandomRunChoiceMode) {
     for (const [nextConfig] of nexts) queue.push(nextConfig);
   }
 
-  return false;
+  return 'unreachable';
 }
 
-function pickRandomChoice(
-  choices: RunChoiceOption[],
-  mode: RandomRunChoiceMode
-): RunChoiceOption | null {
-  const eligible = choices.filter((choice) => reachesRandomMode(choice.config, mode));
-  if (eligible.length === 0) return null;
-  return eligible[Math.floor(Math.random() * eligible.length)];
-}
+type PickResult = { choice: RunChoiceOption | null; limitReached: boolean };
 
-function resumeLiveRun() {
-  const store = useGlobalZustand.getState();
-  store.incrementRunningLiveID();
-  const runningID = useGlobalZustand.getState().runningLiveID;
-  store.setRunningLive(true);
-
-  setTimeout(() => {
-    const latest = useGlobalZustand.getState();
-    if (!latest.runningLive || latest.runningLiveID !== runningID) return;
-    startRunningLive(runningID);
-  }, store.runSpeedMs);
-}
-
-function chooseRandomlyFromNowOn(mode: RandomRunChoiceMode) {
-  randomRunChoiceMode = mode;
-
-  const store = useGlobalZustand.getState();
-  const pending = store.pendingRunChoice;
-  const shouldResumeLive = resumeLiveAfterRandomChoice;
-  resumeLiveAfterRandomChoice = false;
-
-  if (!pending) return;
-
-  const choices = pending.byState.flatMap((entry) => entry.options);
-  const choice = pickRandomChoice(choices, mode);
-  if (!choice) {
-    toast.warning(`No ${mode} computation is available from this choice.`);
-    return;
+function pickRandomChoice(choices: RunChoiceOption[], mode: AutoRunMode): PickResult {
+  // 'random' is truly random: pick uniformly among all next configurations.
+  if (mode === 'random') {
+    if (choices.length === 0) return { choice: null, limitReached: false };
+    return { choice: choices[Math.floor(Math.random() * choices.length)], limitReached: false };
   }
 
-  applyStepTransition(pending.fromConfig, choice.config, choice.transitionIndex);
-  toast.success(`Future nondeterministic choices will be ${mode} random.`);
+  // 'accepting'/'rejecting': keep only choices from which the target is reachable.
+  const eligible: RunChoiceOption[] = [];
+  let limitReached = false;
+  for (const choice of choices) {
+    const result = reachesTargetMode(choice.config, mode);
+    if (result === 'reachable') eligible.push(choice);
+    else if (result === 'limit-reached') limitReached = true;
+  }
 
-  if (shouldResumeLive) resumeLiveRun();
+  if (eligible.length === 0) return { choice: null, limitReached };
+  return { choice: eligible[Math.floor(Math.random() * eligible.length)], limitReached };
 }
 
-function randomModeButton(label: string, mode: RandomRunChoiceMode, toastId: string) {
-  return createElement(
-    'button',
-    {
-      type: 'button',
-      onClick: () => {
-        toast.dismiss(toastId);
-        chooseRandomlyFromNowOn(mode);
-      },
-      style: {
-        border: '1px solid currentColor',
-        borderRadius: 4,
-        background: 'transparent',
-        color: 'inherit',
-        cursor: 'pointer',
-        font: 'inherit',
-        padding: '2px 6px',
-      },
-    },
-    label
-  );
+function warnNoComputationAvailable(mode: AutoRunMode, limitReached: boolean) {
+  if (limitReached) {
+    toast.warning(
+      `Reached the search limit of ${RANDOM_OUTCOME_SEARCH_LIMIT} configurations without confirming a ${mode} computation from here. Choose the next transition manually.`
+    );
+  } else {
+    toast.warning(
+      `No ${mode} computation is reachable from here. Choose the next transition manually.`
+    );
+  }
 }
 
-function showRunChoiceToast(message: string) {
-  const toastId = `run-choice-${Date.now()}`;
+function pauseForManualChoice(currentConfig: Configuration, choices: RunChoiceOption[]) {
+  const store = useGlobalZustand.getState();
+  const pending = groupPendingChoices(currentConfig, choices);
+  store.setRunning(false);
+  store.setRunningLive(false);
+  store.setPendingRunChoice(pending);
+  store.setRunChoiceHighlightedTMEdges(pending.byState.map((entry) => entry.edgeId));
 
-  toast.info(message, {
-    id: toastId,
-    duration: 12000,
-    description: createElement(
-      'div',
-      { style: { display: 'grid', gap: 6 } },
-      createElement(
-        'span',
-        null,
-        'Alternatively, let all transitions be chosen randomly or towards a random accepting or rejecting computation: '
-      ),
-      createElement(
-        'div',
-        { style: { display: 'flex', flexWrap: 'wrap', gap: 6 } },
-        randomModeButton('Fully random', 'all', toastId),
-        randomModeButton('Accepting', 'accepting', toastId),
-        randomModeButton('Rejecting', 'rejecting', toastId)
-      )
-    ),
-  });
+  if (pending.byState.length === 1) {
+    toast.info('Multiple next configurations found. Choose one in the dialog.');
+  } else {
+    toast.info(
+      'Multiple next states found. Click a highlighted TM transition to choose the next configuration.'
+    );
+  }
 }
 
 function applyStepTransition(
@@ -249,31 +214,41 @@ export function makeStep(): boolean {
     return true;
   }
 
-  if (randomRunChoiceMode) {
-    const choice = pickRandomChoice(choices, randomRunChoiceMode);
+  // Nondeterministic choice: resolve automatically unless we're in manual mode.
+  if (store.runMode !== 'manual') {
+    const { choice, limitReached } = pickRandomChoice(choices, store.runMode);
     if (choice) {
       applyStepTransition(currentConfig, choice.config, choice.transitionIndex);
       return true;
     }
-    toast.warning(`No ${randomRunChoiceMode} computation is available from this choice.`);
+    warnNoComputationAvailable(store.runMode, limitReached);
+    // Fall through to a manual choice so the user is never stuck.
   }
 
-  const pending = groupPendingChoices(currentConfig, choices);
-  resumeLiveAfterRandomChoice = store.runningLive;
-  store.setRunning(false);
-  store.setRunningLive(false);
-  store.setPendingRunChoice(pending);
-  store.setRunChoiceHighlightedTMEdges(pending.byState.map((entry) => entry.edgeId));
-
-  if (pending.byState.length === 1) {
-    showRunChoiceToast('Multiple next configurations found. Choose one in the dialog.');
-  } else {
-    showRunChoiceToast(
-      'Multiple next states found. Click a highlighted TM transition to choose the next configuration.'
-    );
-  }
-
+  pauseForManualChoice(currentConfig, choices);
   return false;
+}
+
+// Switches the run mode and, if we're paused on a nondeterministic choice and the
+// new mode is automatic, resolves that pending choice immediately so running can
+// continue from the current configuration.
+export function changeRunMode(mode: RunMode) {
+  const store = useGlobalZustand.getState();
+  store.setRunMode(mode);
+
+  if (mode === 'manual') return;
+
+  const pending = store.pendingRunChoice;
+  if (!pending) return;
+
+  const choices = pending.byState.flatMap((entry) => entry.options);
+  const { choice, limitReached } = pickRandomChoice(choices, mode);
+  if (!choice) {
+    warnNoComputationAvailable(mode, limitReached);
+    return;
+  }
+
+  applyStepTransition(pending.fromConfig, choice.config, choice.transitionIndex);
 }
 
 export function selectPendingRunChoice(nextState: string, optionIndex: number): boolean {
