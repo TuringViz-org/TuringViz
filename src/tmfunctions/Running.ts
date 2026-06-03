@@ -137,15 +137,7 @@ function pauseForManualChoice(currentConfig: Configuration, choices: RunChoiceOp
   store.setRunning(false);
   store.setRunningLive(false);
   store.setPendingRunChoice(pending);
-  store.setRunChoiceHighlightedTMEdges(pending.byState.map((entry) => entry.edgeId));
-
-  if (pending.byState.length === 1) {
-    toast.info('Multiple next configurations found. Choose one in the dialog.');
-  } else {
-    toast.info(
-      'Multiple next states found. Click a highlighted TM transition to choose the next configuration.'
-    );
-  }
+  toast.info('Multiple next configurations found. Choose one in the dialog.');
 }
 
 function applyStepTransition(
@@ -181,7 +173,6 @@ function groupPendingChoices(
   const byState = Array.from(grouped.entries())
     .map(([nextState, options]) => ({
       nextState,
-      edgeId: `${currentConfig.state}→${nextState}`,
       options,
     }))
     .sort((a, b) => a.nextState.localeCompare(b.nextState));
@@ -189,7 +180,6 @@ function groupPendingChoices(
   return {
     fromConfig: currentConfig,
     byState,
-    selectedState: byState.length === 1 ? byState[0].nextState : null,
   };
 }
 
@@ -284,24 +274,11 @@ export function selectPendingRunChoice(nextState: string, optionIndex: number): 
 export function closePendingRunChoiceDialog() {
   const store = useGlobalZustand.getState();
   if (!store.pendingRunChoice) return;
-  store.setPendingRunChoiceState(null);
+  store.clearRunChoice();
 }
 
 export function clearPendingRunChoice() {
   useGlobalZustand.getState().clearRunChoice();
-}
-
-export function handleTMGraphRunChoiceEdgeClick(from: string, to: string): boolean {
-  const store = useGlobalZustand.getState();
-  const pending = store.pendingRunChoice;
-  if (!pending) return false;
-  if (pending.fromConfig.state !== from) return false;
-
-  const group = pending.byState.find((entry) => entry.nextState === to);
-  if (!group) return false;
-
-  store.setPendingRunChoiceState(to);
-  return true;
 }
 
 export function startRunningLive(runningID: number = -1) {
