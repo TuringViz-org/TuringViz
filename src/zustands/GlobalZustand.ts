@@ -9,6 +9,7 @@ import {
 } from '@mytypes/TMTypes';
 import { ConfigGraph } from '@tmfunctions/ConfigGraph';
 import { getColorMatching} from '@utils/ColorMatching';
+import type { RunMode } from '@utils/constants';
 
 export type RunChoiceOption = {
   config: Configuration;
@@ -93,6 +94,10 @@ interface GlobalZustand {
   runSpeedMs: number;
   setRunSpeedMs: (runSpeedMs: number) => void;
 
+  // How nondeterministic choices are resolved while running.
+  runMode: RunMode;
+  setRunMode: (runMode: RunMode) => void;
+
   //Input
   input: TapeContent; //The input to the TM
   setInput: (input: TapeContent) => void;
@@ -162,6 +167,7 @@ export const useGlobalZustand = create<GlobalZustand>((set) => ({
       lastConfig: null,
       pendingRunChoice: null,
       runChoiceHighlightedTMEdges: [],
+      runMode: 'manual',
       machineLoadVersion: prev.machineLoadVersion + 1,
     }));
   },
@@ -220,6 +226,9 @@ export const useGlobalZustand = create<GlobalZustand>((set) => ({
 
   runSpeedMs: 700,
   setRunSpeedMs: (runSpeedMs) => set({ runSpeedMs }),
+
+  runMode: 'manual',
+  setRunMode: (runMode) => set({ runMode }),
 
   input: [[[], []]],
   setInput: (input) => set({ input }),
@@ -282,6 +291,7 @@ export const useGlobalZustand = create<GlobalZustand>((set) => ({
       runChoiceHighlightedTMEdges: [],
       machineLoadVersion: 0,
       runSpeedMs: 700,
+      runMode: 'manual',
     }),
 
   lastConfig: null,

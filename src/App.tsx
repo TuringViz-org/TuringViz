@@ -10,7 +10,6 @@ import {
 import { theme } from '@theme';
 import { MainHeader } from '@components/MainPage/MainHeader';
 import { DashboardLayout } from '@components/MainPage/DashboardLayout';
-import { RunControls } from '@components/MainPage/RunControls';
 import {
   FullscreenPortals,
   type FullscreenPortalConfig,
@@ -149,7 +148,6 @@ export default function App() {
         setRender: tmFullscreen.setRender,
         fallbackRef: tmPanelRef,
         fullscreenRef: tmFullscreenRef,
-        actions: <RunControls />,
         enabled: true,
         content: (
           <Suspense fallback={graphLoader}>

@@ -19,6 +19,7 @@ import OpenInFullIcon from '@mui/icons-material/OpenInFull';
 import type { Theme } from '@mui/material/styles';
 
 import { PanelCard } from '@components/MainPage/PanelCard';
+import { RunModeSelector } from '@components/MainPage/RunModeSelector';
 import styles from '../../App.module.css';
 import type { AppTab } from './appTabs';
 
@@ -208,6 +209,7 @@ export function DashboardLayout({
             display: tapesVisible ? 'flex' : 'none',
             flexDirection: 'column',
             justifyContent: { md: 'center' },
+            gap: 2,
             '& > *': { minWidth: 0 },
           }}
         >
@@ -215,6 +217,10 @@ export function DashboardLayout({
             <Suspense fallback={<PanelLoadingFallback label="Loading tapes..." />}>
               {tapesMounted ? <LazyTapeList /> : null}
             </Suspense>
+          </PanelCard>
+
+          <PanelCard title="Nondeterminism" denseBodyPadding fillHeight={false}>
+            <RunModeSelector />
           </PanelCard>
         </Box>
 

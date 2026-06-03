@@ -1,5 +1,4 @@
-const acceptingStates = ['accept', 'accepted', 'done'];
-const rejectingStates = ['reject', 'rejected', 'error'];
+import { isAcceptingStateName, isRejectingStateName } from '@utils/constants';
 
 export function normalizeColor(color?: string): string | undefined {
   if (!color) return undefined;
@@ -24,8 +23,7 @@ export function resolveStateColor(
   if (!key) return undefined;
   const direct = mapping.get(key) ?? mapping.get(String(key));
   if (direct) return normalizeColor(direct);
-  const lower = key.toLowerCase();
-  if (acceptingStates.includes(lower)) return 'accept';
-  if (rejectingStates.includes(lower)) return 'reject';
+  if (isAcceptingStateName(key)) return 'accept';
+  if (isRejectingStateName(key)) return 'reject';
   return undefined;
 }
