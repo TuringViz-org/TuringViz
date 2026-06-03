@@ -17,7 +17,6 @@ import { HOVER_POPPER_DELAY_MS } from '@utils/constants';
 import { EdgeTooltip } from './EdgeTooltip';
 import { useGraphUI } from '@components/shared/GraphUIContext';
 import { useGlobalZustand } from '@zustands/GlobalZustand';
-import { handleTMGraphRunChoiceEdgeClick } from '@tmfunctions/Running';
 
 export interface FloatingEdgeData extends Record<string, unknown> {
   bended?: boolean;
@@ -39,9 +38,6 @@ const FloatingEdgeComponent = ({
 }: EdgeProps<FloatingEdge>) => {
   const theme = useTheme();
   const { highlightedEdgeId, selected, setSelected } = useGraphUI();
-  const runChoiceHighlightedTMEdges = useGlobalZustand(
-    (s) => s.runChoiceHighlightedTMEdges
-  );
   const runSpeedMs = useGlobalZustand((s) => s.runSpeedMs);
 
   const sourceNode = useInternalNode(source);
@@ -96,8 +92,7 @@ const FloatingEdgeComponent = ({
   if (angle < -90) angle += 180;
 
   const isSelected = selected.type === 'edge' && selected.id === id;
-  const isHighlighted =
-    highlightedEdgeId === id || runChoiceHighlightedTMEdges.includes(id);
+  const isHighlighted = highlightedEdgeId === id;
   const baseStroke = (style as any)?.stroke ?? '#999';
   const baseWidth = Number((style as any)?.strokeWidth ?? 1.5);
   const hlColor = theme.palette.primary.dark;
@@ -172,10 +167,6 @@ const FloatingEdgeComponent = ({
         onMouseLeave={onMouseLeave}
         onClick={(evt) => {
           evt.stopPropagation();
-          if (handleTMGraphRunChoiceEdgeClick(source, target)) {
-            setSelected({ type: null, id: null });
-            return;
-          }
           setSelected({
             type: 'edge',
             id,
