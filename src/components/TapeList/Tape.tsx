@@ -162,37 +162,57 @@ function ScrollableTapeView({
 
   return (
     <div className={styles.scrollableTapeRow} style={{ width: `${(sharedMaxR - sharedMinR + 2) * CELL_SIZE}px` }}>
-      <div 
-        className={styles.tapeTrackWrapper} 
-        style={{ 
-          transform: `translateX(${(headX - head * CELL_SIZE)}px)`,
-          transition: running ? 'transform 0.2s ease-in-out' : 'none',
-        }}
+      {/*
+        Two nested layers split a single transform (translateX(headX - head*CELL_SIZE))
+        into its two independent causes:
+
+        - Outer layer: the bound-driven layout offset `headX`. `headX` shifts whenever
+          the shared bounds change (e.g. once the head moves far enough out that it
+          starts driving sharedMinR). The viewport compensates these shifts via
+          scrollLeft, so this layer must snap instantly — no transition.
+
+        - Inner layer: the head movement `-head*CELL_SIZE`. This always changes by
+          exactly one cell per step, so the CSS transition reliably produces the slide.
+
+        Keeping them in one transform let a same-step change in `headX` cancel the head
+        movement, freezing the animation for whichever tape was driving the bounds.
+      */}
+      <div
+        className={styles.tapeTrackWrapper}
+        style={{ transform: `translateX(${headX}px)` }}
       >
-        {cells.map((cell) => (
+        <div
+          className={styles.tapeTrackWrapper}
+          style={{
+            transform: `translateX(${-head * CELL_SIZE}px)`,
+            transition: running ? 'transform 0.2s ease-in-out' : 'none',
+          }}
+        >
+          {cells.map((cell) => (
+            <div
+              key={cell.pos}
+              className={styles.scrollableTapeCell}
+              style={{ left: `${cell.pos * CELL_SIZE}px` }}
+            >
+              {cell.value}
+            </div>
+          ))}
+
+          {/* Left infinite dots */}
           <div
-            key={cell.pos}
-            className={styles.scrollableTapeCell}
-            style={{ left: `${cell.pos * CELL_SIZE}px` }}
+            className={styles.scrollableTapeDots}
+            style={{ left: `${(sharedMinR + head - 1) * CELL_SIZE}px`, justifyContent: 'center' }}
           >
-            {cell.value}
+            ...
           </div>
-        ))}
 
-        {/* Left infinite dots */}
-        <div
-          className={styles.scrollableTapeDots}
-          style={{ left: `${(sharedMinR + head - 1) * CELL_SIZE}px`, justifyContent: 'center' }}
-        >
-          ...
-        </div>
-
-        {/* Right infinite dots */}
-        <div
-          className={styles.scrollableTapeDots}
-          style={{ left: `${(sharedMaxR + head + 1) * CELL_SIZE}px`, justifyContent: 'center' }}
-        >
-          ...
+          {/* Right infinite dots */}
+          <div
+            className={styles.scrollableTapeDots}
+            style={{ left: `${(sharedMaxR + head + 1) * CELL_SIZE}px`, justifyContent: 'center' }}
+          >
+            ...
+          </div>
         </div>
       </div>
       {/* Tape Head Overlay */}
