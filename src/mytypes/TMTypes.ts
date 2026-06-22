@@ -4,7 +4,6 @@
 //TapePattern --> The stuff that the tape is matched against
 //TapeContent --> The content of the tape
 
-import { sha256 } from 'js-sha256';
 
 export enum Move {
   L = 'L',
@@ -141,7 +140,19 @@ export type Configuration = {
   heads: number[]; //The list of heads. Each head is the index of the symbol in the tape. Negative values are to the left and positive values are to the right. 0 is the first symbol on the right tape --> On the left tape the index is -i + 1
 };
 
+// Fast, collision-free identity key for a configuration. Used only for in-memory
+// equality checks and Set/Map dedup (never persisted), so a plain delimited string
+// is enough — and far cheaper than hashing the whole tape with sha256, which was a
+// hot-path bottleneck during running and tree rendering.
+// Control characters are used as delimiters so they can never collide with tape
+// symbols or state names.
 export function hashConfig(cfg: Configuration): string {
-  const str = JSON.stringify(cfg);
-  return sha256(str);
+  let key = cfg.state + '' + cfg.heads.join(',') + '';
+  for (const [left, right] of cfg.tapes) {
+    for (const field of left) key += field.value + '';
+    key += '';
+    for (const field of right) key += field.value + '';
+    key += '';
+  }
+  return key;
 }
