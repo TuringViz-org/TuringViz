@@ -22,6 +22,7 @@ import {
   useGraphZustand,
 } from '@zustands/GraphZustand';
 import { useEditorZustand } from '@zustands/EditorZustand';
+import { useGlobalZustand } from '@zustands/GlobalZustand';
 import {
   DEFAULT_TREE_DEPTH,
 } from '@utils/constants';
@@ -46,31 +47,13 @@ const graphLoader = (
   </Stack>
 );
 
-function useDeferredPanelMount(activeTab: AppTab) {
-  const [hasMountedConfigGraph, setHasMountedConfigGraph] = useState(false);
-  const [hasMountedTree, setHasMountedTree] = useState(false);
-
-  const configTabActive = activeTab === 'configurationGraph';
-  const treeTabActive = activeTab === 'configurationTree';
-
+function useRetainedGraphPanel(visible: boolean, machineVersion: number) {
+  const [mountedVersion, setMountedVersion] = useState<number | null>(null);
   useEffect(() => {
-    if (configTabActive) {
-      setHasMountedConfigGraph(true);
-    }
-  }, [configTabActive]);
-
-  useEffect(() => {
-    if (treeTabActive) {
-      setHasMountedTree(true);
-    }
-  }, [treeTabActive]);
-
-  return {
-    hasMountedConfigGraph,
-    hasMountedTree,
-    configTabActive,
-    treeTabActive,
-  };
+    if (visible) setMountedVersion(machineVersion);
+  }, [visible, machineVersion]);
+  // Keep the view for this machine; discard it when another machine is loaded.
+  return visible || mountedVersion === machineVersion;
 }
 
 export default function App() {
@@ -97,9 +80,6 @@ export default function App() {
   const configFullscreenRef = useRef<HTMLDivElement | null>(null);
   const treePanelRef = useRef<HTMLDivElement | null>(null);
   const treeFullscreenRef = useRef<HTMLDivElement | null>(null);
-
-  const { hasMountedConfigGraph, hasMountedTree, configTabActive, treeTabActive } =
-    useDeferredPanelMount(activeTab);
 
   const applyTreeSettings = useCallback(
     (nextTargetNodes: number, nextCompressed: boolean) => {
@@ -128,14 +108,18 @@ export default function App() {
     </Button>
   );
 
-  const configGraphEnabled =
-    configTabActive ||
-    hasMountedConfigGraph ||
+  const machineVersion = useGlobalZustand((s) => s.machineLoadVersion);
+  const configGraphActive =
+    activeTab === 'configurationGraph' ||
     configFullscreen.open ||
     configFullscreen.render;
-
-  const treeEnabled =
-    treeTabActive || hasMountedTree || treeFullscreen.open || treeFullscreen.render;
+  const treeActive =
+    activeTab === 'configurationTree' || treeFullscreen.open || treeFullscreen.render;
+  const configGraphEnabled = useRetainedGraphPanel(
+    configGraphActive,
+    machineVersion
+  );
+  const treeEnabled = useRetainedGraphPanel(treeActive, machineVersion);
 
   const fullscreenConfigs: FullscreenPortalConfig[] = useMemo(
     () => [
@@ -168,7 +152,7 @@ export default function App() {
         enabled: configGraphEnabled,
         content: configGraphEnabled ? (
           <Suspense fallback={graphLoader}>
-            <LazyConfigGraphWrapper />
+            <LazyConfigGraphWrapper active={configGraphActive} />
           </Suspense>
         ) : null,
       },
@@ -188,6 +172,7 @@ export default function App() {
             <LazyComputationTreeWrapper
               targetNodes={computationTreeTargetNodes}
               compressing={compressed}
+              active={treeActive}
             />
           </Suspense>
         ) : null,
@@ -203,11 +188,13 @@ export default function App() {
       configFullscreen.render,
       configFullscreen.setRender,
       configGraphEnabled,
+      configGraphActive,
       treeFullscreen.open,
       treeFullscreen.closeFullscreen,
       treeFullscreen.render,
       treeFullscreen.setRender,
       treeEnabled,
+      treeActive,
       computationTreeTargetNodes,
       compressed,
       configComputeActions,

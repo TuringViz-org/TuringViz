@@ -50,6 +50,8 @@ import { useDebouncedLayoutRestart } from '@hooks/useDebouncedLayoutRestart';
 import { useDeveloperControls } from '@hooks/useDeveloperControls';
 import { useGraphUI } from '@components/shared/GraphUIContext';
 import { useGlobalZustand } from '@zustands/GlobalZustand';
+import { useGraphCurrentConfiguration } from '@hooks/useGraphCurrentConfiguration';
+import { useCurrentConfigHighlight } from '@hooks/useCurrentConfigHighlight';
 import {
   useConfigGraphNodeMode,
   useConfigGraphELKSettings,
@@ -340,7 +342,7 @@ function NodeDetailPopper({
   );
 }
 
-export function ConfigGraphCircles() {
+export function ConfigGraphCircles({ active = true }: { active?: boolean }) {
   const theme = useTheme();
   const cyRef = useRef<CyCore | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -348,13 +350,12 @@ export function ConfigGraphCircles() {
 
   // Global Zustand states
   const configGraph = useGlobalZustand((s) => s.configGraph);
+  const configGraphVersion = useGlobalZustand((s) => s.configGraphVersion);
   const transitions = useGlobalZustand((s) => s.transitions);
   const stateColorMatching = useGlobalZustand((s) => s.stateColorMatching);
   const machineLoadVersion = useGlobalZustand((s) => s.machineLoadVersion);
   const configGraphComputing = useGlobalZustand((s) => s.configGraphComputing);
-  const currentState = useGlobalZustand((s) => s.currentState);
-  const tapes = useGlobalZustand((s) => s.tapes);
-  const heads = useGlobalZustand((s) => s.heads);
+  const currentConfig = useGraphCurrentConfiguration(active);
 
   // Graph Zustand state and setters
   const configGraphNodeMode = useConfigGraphNodeMode();
@@ -466,19 +467,16 @@ export function ConfigGraphCircles() {
 
   // Base graph structure
   const model = configGraph as ConfigGraphModel | null;
-  const currentConfig = useMemo(
-    () => ({ state: currentState, tapes, heads }),
-    [currentState, tapes, heads]
-  );
-  const base = useMemo(() => {
+  const structure = useMemo(() => {
     if (!configGraph) return { nodes: [], edges: [], topoKey: '' };
     return buildConfigGraph(
       configGraph,
       transitions,
-      currentConfig,
+      null,
       ConfigNodeMode.NODES
     );
-  }, [configGraph, transitions, currentConfig]);
+  }, [configGraph, configGraphVersion, transitions]);
+  const base = useCurrentConfigHighlight(structure, currentConfig);
   const currentTopologyKeyRef = useRef(base.topoKey);
 
   useEffect(() => {
@@ -522,7 +520,7 @@ export function ConfigGraphCircles() {
     containerRef,
     topoKeyOverride: structureKey,
     autoRun: false,
-    autoResizeLayoutEnabled,
+    autoResizeLayoutEnabled: active && autoResizeLayoutEnabled,
     onAutoResizeLayout: handleAutoResizeLayout,
     onLayout: (positions) => {
       setNodes((prev) =>

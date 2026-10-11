@@ -240,18 +240,15 @@ export function useGraphElkLayout({
   const retryWhenVisibleRef = useRef(false);
   const isMountedRef = useRef(true);
 
-  // Create ELK instance once (kept across renders)
-  if (!elkRef.current) elkRef.current = createElkWithWorker(workerName);
-
-  useEffect(
-    () => () => {
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
       isMountedRef.current = false;
       elkRef.current?.terminateWorker();
       elkRef.current = null;
       workerGraphKeyRef.current = '';
-    },
-    []
-  );
+    };
+  }, []);
 
   useEffect(() => {
     nodesRef.current = nodes;
@@ -322,6 +319,7 @@ export function useGraphElkLayout({
   );
 
   const runLayout = useCallback(async () => {
+    if (!isMountedRef.current) return;
     latestRequestIdRef.current += 1;
     if (isRunningRef.current) {
       rerunRequestedRef.current = true;
@@ -331,7 +329,7 @@ export function useGraphElkLayout({
     isRunningRef.current = true;
     if (isMountedRef.current) setRunning(true);
     try {
-      while (true) {
+      while (isMountedRef.current) {
         rerunRequestedRef.current = false;
 
         const rfNodes = nodesRef.current;
@@ -480,9 +478,8 @@ export function useGraphElkLayout({
               setCompletedLayouts((count) => count + 1);
             }
           } catch {
-            resetElkWorker();
-
             if (!isMountedRef.current) break;
+            resetElkWorker();
 
             if (isDocumentHidden()) {
               retryWhenVisibleRef.current = true;

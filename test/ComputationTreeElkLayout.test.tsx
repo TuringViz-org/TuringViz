@@ -19,9 +19,9 @@ vi.mock('sonner', () => ({
 }));
 
 vi.mock('@components/shared/layout/elkUtils', async () => {
-  const actual = await vi.importActual<typeof import('@components/shared/layout/elkUtils')>(
-    '@components/shared/layout/elkUtils'
-  );
+  const actual = await vi.importActual<
+    typeof import('@components/shared/layout/elkUtils')
+  >('@components/shared/layout/elkUtils');
 
   return {
     ...actual,
@@ -32,6 +32,7 @@ vi.mock('@components/shared/layout/elkUtils', async () => {
 
 type HarnessProps = {
   restartVersion: number;
+  active?: boolean;
   onLayout: (positions: Map<string, { x: number; y: number }>) => void;
   onCompletedLayoutsChange?: (completedLayouts: number) => void;
 };
@@ -46,7 +47,12 @@ function deferredPromise<T>() {
   return { promise, resolve, reject };
 }
 
-function Harness({ restartVersion, onLayout, onCompletedLayoutsChange }: HarnessProps) {
+function Harness({
+  restartVersion,
+  active,
+  onLayout,
+  onCompletedLayoutsChange,
+}: HarnessProps) {
   const lastRestartVersionRef = useRef(0);
   const { restart, completedLayouts } = useElkLayout({
     nodes: [
@@ -59,7 +65,10 @@ function Harness({ restartVersion, onLayout, onCompletedLayoutsChange }: Harness
       { id: 'ac', source: 'a', target: 'c' },
     ] as any,
     autoRun: false,
-    autoDirection: false,
+    autoDirection: active !== undefined,
+    autoResizeLayoutEnabled: active,
+    viewportWidth: 800,
+    viewportHeight: 600,
     onLayout,
   });
 
@@ -144,6 +153,51 @@ describe('Computation tree ELK layout', () => {
     );
 
     await waitFor(() => expect(onLayout).toHaveBeenCalledTimes(1));
-    await waitFor(() => expect(onCompletedLayoutsChange).toHaveBeenLastCalledWith(1));
+    await waitFor(() =>
+      expect(onCompletedLayoutsChange).toHaveBeenLastCalledWith(1)
+    );
+  });
+
+  it('does not recreate a worker after an abandoned layout fails', async () => {
+    const pending = deferredPromise<any>();
+    const onLayout = vi.fn();
+    runElkLayoutWithTimeoutMock.mockImplementationOnce(() => pending.promise);
+
+    const view = render(<Harness restartVersion={1} onLayout={onLayout} />);
+    const workersCreated = createElkWithWorkerMock.mock.calls.length;
+    const worker = createElkWithWorkerMock.mock.results[workersCreated - 1]!.value;
+    view.unmount();
+    expect(worker.terminateWorker).toHaveBeenCalledOnce();
+
+    await act(async () => {
+      pending.reject(new Error('terminated'));
+      await Promise.resolve();
+    });
+
+    expect(createElkWithWorkerMock).toHaveBeenCalledTimes(workersCreated);
+    expect(onLayout).not.toHaveBeenCalled();
+    expect(toastWarningMock).not.toHaveBeenCalled();
+  });
+
+  it('retains the completed layout when a panel is hidden and shown again', async () => {
+    runElkLayoutWithTimeoutMock.mockResolvedValueOnce({
+      children: [
+        { id: 'a', x: 10, y: 20 },
+        { id: 'b', x: 30, y: 40 },
+        { id: 'c', x: 50, y: 60 },
+      ],
+    });
+    const onLayout = vi.fn();
+    const view = render(<Harness restartVersion={1} active onLayout={onLayout} />);
+    await waitFor(() => expect(onLayout).toHaveBeenCalledOnce());
+    for (let i = 0; i < 5; i++) {
+      view.rerender(
+        <Harness restartVersion={1} active={false} onLayout={onLayout} />
+      );
+      view.rerender(<Harness restartVersion={1} active onLayout={onLayout} />);
+    }
+    expect(runElkLayoutWithTimeoutMock).toHaveBeenCalledOnce();
+    expect(createElkWithWorkerMock).toHaveBeenCalledOnce();
+    expect(onLayout).toHaveBeenCalledOnce();
   });
 });

@@ -93,7 +93,7 @@ export function buildComputationTreeGraph(
     const label =
       n.config?.state && n.config.state.trim().length ? n.config.state : `q${n.id}`;
     const isStart = n.id === model.root.id;
-    const isCurrent = currentHash === hashConfig(n.config);
+    const isCurrent = currentHash !== null && currentHash === hashConfig(n.config);
     const isComputed = n.end !== End.NotYetComputed;
 
     return createConfigFlowNode({
