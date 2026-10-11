@@ -73,6 +73,8 @@ import {
 import { ConfigGraphCircles } from './ConfigGraphCircles';
 import { LoadingOverlay } from '@components/shared/LoadingOverlay';
 import { normalizeColor, resolveStateColor } from '@components/shared/stateColors';
+import { useGraphCurrentConfiguration } from '@hooks/useGraphCurrentConfiguration';
+import { useCurrentConfigHighlight } from '@hooks/useCurrentConfigHighlight';
 
 const nodeTypes = {
   [NodeType.CONFIG]: ConfigNode,
@@ -91,7 +93,7 @@ const defaultEdgeOptions = {
 };
 
 // --- Component (React Flow / cards) ---
-function ConfigGraphCards() {
+function ConfigGraphCards({ active }: { active: boolean }) {
   const theme = useTheme();
   // Global Zustand states
   const configGraph = useGlobalZustand((s) => s.configGraph);
@@ -100,9 +102,7 @@ function ConfigGraphCards() {
   const configGraphVersion = useGlobalZustand((s) => s.configGraphVersion);
   const machineLoadVersion = useGlobalZustand((s) => s.machineLoadVersion);
   const configGraphComputing = useGlobalZustand((s) => s.configGraphComputing);
-  const currentState = useGlobalZustand((s) => s.currentState);
-  const tapes = useGlobalZustand((s) => s.tapes);
-  const heads = useGlobalZustand((s) => s.heads);
+  const currentConfig = useGraphCurrentConfiguration(active);
 
   // Graph Zustand state and setters
   const configGraphNodeMode = useConfigGraphNodeMode();
@@ -122,23 +122,18 @@ function ConfigGraphCards() {
   );
 
   const rf = useReactFlow();
-  const currentConfig = useMemo(
-    () => ({ state: currentState, tapes, heads }),
-    [currentState, tapes, heads]
-  );
-
   // Base graph structure (nodes/edges) extraction
   // ELK will overwrite positions
-  const base = useMemo(() => {
+  const structure = useMemo(() => {
     if (!configGraph) return { nodes: [], edges: [], topoKey: '' };
-    return buildConfigGraph(configGraph, transitions, currentConfig, configGraphNodeMode);
+    return buildConfigGraph(configGraph, transitions, null, configGraphNodeMode);
   }, [
     configGraph,
     transitions,
-    currentConfig,
     configGraphNodeMode,
     configGraphVersion,
   ]);
+  const base = useCurrentConfigHighlight(structure, currentConfig);
 
   const [nodes, setNodes, onNodesChangeRF] = useNodesState(base.nodes);
   const [edges, setEdges, onEdgesChangeRF] = useEdgesState(base.edges);
@@ -193,7 +188,7 @@ function ConfigGraphCards() {
     viewportHeight,
     topoKeyOverride: structureKey,
     autoRun: false,
-    autoResizeLayoutEnabled,
+    autoResizeLayoutEnabled: active && autoResizeLayoutEnabled,
     onAutoResizeLayout: handleAutoResizeLayout,
     onLayout: (positions) => {
       setNodes((prev) =>
@@ -840,18 +835,18 @@ function ConfigGraphCards() {
   );
 }
 
-export function ConfigGraph() {
+export function ConfigGraph({ active = true }: { active?: boolean }) {
   const nodeMode = useConfigGraphNodeMode();
-  if (nodeMode === ConfigNodeMode.CARDS) return <ConfigGraphCards />;
-  return <ConfigGraphCircles />;
+  if (nodeMode === ConfigNodeMode.CARDS) return <ConfigGraphCards active={active} />;
+  return <ConfigGraphCircles active={active} />;
 }
 
-export function ConfigGraphWrapper() {
+export function ConfigGraphWrapper({ active = true }: { active?: boolean }) {
   const machineLoadVersion = useGlobalZustand((s) => s.machineLoadVersion);
   return (
     <ReactFlowProvider>
       <GraphUIProvider key={machineLoadVersion}>
-        <ConfigGraph />
+        <ConfigGraph active={active} />
       </GraphUIProvider>
     </ReactFlowProvider>
   );

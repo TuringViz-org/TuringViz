@@ -65,6 +65,10 @@ function terminateTreeWorker(rejectPending = true) {
   treePending.clear();
 }
 
+export function cancelComputationTreeCompute() {
+  terminateTreeWorker();
+}
+
 function terminateConfigWorker(rejectPending = true) {
   configWorker?.terminate();
   configWorker = null;

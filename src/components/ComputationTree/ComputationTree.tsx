@@ -58,6 +58,8 @@ import {
   type ComputationTree as ComputationTreeModel,
 } from '@tmfunctions/ComputationTree';
 import { useGlobalZustand } from '@zustands/GlobalZustand';
+import { useGraphCurrentConfiguration } from '@hooks/useGraphCurrentConfiguration';
+import { useCurrentConfigHighlight } from '@hooks/useCurrentConfigHighlight';
 import {
   useComputationTreeNodeMode,
   useComputationTreeELKSettings,
@@ -91,7 +93,10 @@ import {
   type PointerSnapshot,
 } from '@components/shared/pointerTracker';
 import { getStartConfiguration } from '@tmfunctions/Configurations';
-import { computeComputationTreeInWorker } from '@utils/graphWorkerClient';
+import {
+  cancelComputationTreeCompute,
+  computeComputationTreeInWorker,
+} from '@utils/graphWorkerClient';
 import {
   GRAPH_EDGE_ACTIVE_WIDTH,
   GRAPH_EDGE_ARROW_SCALE,
@@ -377,11 +382,12 @@ function NodeDetailPopper({
   );
 }
 
-function useComputationTreeData(
+export function useComputationTreeData(
   targetNodes: number,
   compressing: boolean,
   nodeMode: ConfigNodeMode,
-  paused: boolean
+  paused: boolean,
+  active = true
 ): {
   model: ComputationTreeModel | null;
   base: ReturnType<typeof buildComputationTreeGraph>;
@@ -390,27 +396,23 @@ function useComputationTreeData(
   const transitions = useGlobalZustand((s) => s.transitions);
   const blank = useGlobalZustand((s) => s.blank);
   const startState = useGlobalZustand((s) => s.startState);
-  const currentState = useGlobalZustand((s) => s.currentState);
   const numberOfTapes = useGlobalZustand((s) => s.numberOfTapes);
   const input = useGlobalZustand((s) => s.input);
-  const tapes = useGlobalZustand((s) => s.tapes);
-  const heads = useGlobalZustand((s) => s.heads);
+  const currentConfig = useGraphCurrentConfiguration(active && !paused);
 
   const [model, setModel] = useState<ComputationTreeModel | null>(null);
   const [isComputing, setIsComputing] = useState(false);
-  const [base, setBase] = useState<ReturnType<typeof buildComputationTreeGraph>>({
-    nodes: [],
-    edges: [],
-    topoKey: '',
-  });
   const requestRef = useRef(0);
   const computeHideTimerRef = useRef<number | null>(null);
   const computeStartedAtRef = useRef(0);
   const pendingModelFromComputeRef = useRef(false);
-  const currentConfig = useMemo(
-    () => ({ state: currentState, tapes, heads }),
-    [currentState, tapes, heads]
+  const structure = useMemo(
+    () => model
+      ? buildComputationTreeGraph(model, transitions, nodeMode)
+      : { nodes: [], edges: [], topoKey: '' },
+    [model, transitions, nodeMode]
   );
+  const base = useCurrentConfigHighlight(structure, currentConfig);
 
   useLayoutEffect(() => {
     if (computeHideTimerRef.current != null) {
@@ -469,6 +471,10 @@ function useComputationTreeData(
       });
 
     return () => {
+      // Invalidate before rejecting the worker job so cancellation cannot trigger
+      // an expensive synchronous fallback for a graph that is no longer mounted.
+      requestRef.current += 1;
+      cancelComputationTreeCompute();
       if (computeHideTimerRef.current != null) {
         window.clearTimeout(computeHideTimerRef.current);
         computeHideTimerRef.current = null;
@@ -487,7 +493,6 @@ function useComputationTreeData(
 
   useEffect(() => {
     if (!model) return;
-    setBase(buildComputationTreeGraph(model, transitions, nodeMode, currentConfig));
     if (!pendingModelFromComputeRef.current) return;
     pendingModelFromComputeRef.current = false;
     const elapsed = performance.now() - computeStartedAtRef.current;
@@ -504,18 +509,24 @@ function useComputationTreeData(
       computeHideTimerRef.current = null;
       setIsComputing(false);
     }, remaining);
-  }, [model, transitions, nodeMode, currentConfig]);
+  }, [model, structure]);
 
   return { model, base, isComputing };
 }
 
-type Props = { targetNodes: number; compressing?: boolean; paused?: boolean };
+type Props = {
+  targetNodes: number;
+  compressing?: boolean;
+  paused?: boolean;
+  active?: boolean;
+};
 type ComputationTreeData = ReturnType<typeof useComputationTreeData>;
 type ViewProps = Props & { treeData: ComputationTreeData };
 
 function ComputationTreeCircles({
   treeData,
   paused = false,
+  active = true,
 }: ViewProps) {
   const theme = useTheme();
   const cyRef = useRef<CyCore | null>(null);
@@ -594,7 +605,7 @@ function ComputationTreeCircles({
     containerRef,
     topoKeyOverride: structureKey,
     autoRun: false,
-    autoResizeLayoutEnabled: !paused && autoResizeLayoutEnabled,
+    autoResizeLayoutEnabled: active && !paused && autoResizeLayoutEnabled,
     onAutoResizeLayout: handleAutoResizeLayout,
     onLayout: (positions) => {
       if (fitAfterLayoutRef.current) {
@@ -1755,6 +1766,7 @@ function ComputationTreeCircles({
 function ComputationTreeCards({
   treeData,
   paused = false,
+  active = true,
 }: ViewProps) {
   const theme = useTheme();
   // Global Zustand state
@@ -1822,7 +1834,7 @@ function ComputationTreeCards({
     viewportHeight,
     topoKeyOverride: structureKey,
     autoRun: false,
-    autoResizeLayoutEnabled: !paused && autoResizeLayoutEnabled,
+    autoResizeLayoutEnabled: active && !paused && autoResizeLayoutEnabled,
     onAutoResizeLayout: handleAutoResizeLayout,
     onLayout: (positions) => {
       setNodes((prev) =>
@@ -2479,7 +2491,8 @@ export function ComputationTree(props: Props) {
     props.targetNodes,
     !!props.compressing,
     computationTreeNodeMode,
-    !!props.paused
+    !!props.paused,
+    props.active ?? true
   );
 
   if (computationTreeNodeMode === ConfigNodeMode.CARDS) {
@@ -2492,16 +2505,23 @@ export function ComputationTreeWrapper({
   targetNodes = DEFAULT_TREE_DEPTH,
   compressing = false,
   paused = false,
+  active = true,
 }: {
   targetNodes?: number;
   compressing?: boolean;
   paused?: boolean;
+  active?: boolean;
 }) {
   const machineLoadVersion = useGlobalZustand((s) => s.machineLoadVersion);
   return (
     <ReactFlowProvider>
       <GraphUIProvider key={machineLoadVersion}>
-        <ComputationTree targetNodes={targetNodes} compressing={compressing} paused={paused} />
+        <ComputationTree
+          targetNodes={targetNodes}
+          compressing={compressing}
+          paused={paused}
+          active={active}
+        />
       </GraphUIProvider>
     </ReactFlowProvider>
   );
