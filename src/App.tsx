@@ -1,4 +1,4 @@
-import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import {
   ThemeProvider,
   CssBaseline,
@@ -17,15 +17,10 @@ import {
 import { type AppTab } from '@components/MainPage/appTabs';
 import { AppToaster } from '@components/MainPage/AppToaster';
 import SiteFooter from '@components/Footer/SiteFooter';
-import {
-  useComputationTreeDepth,
-  useGraphZustand,
-} from '@zustands/GraphZustand';
+import { useComputationTreeDepth, useGraphZustand } from '@zustands/GraphZustand';
 import { useEditorZustand } from '@zustands/EditorZustand';
 import { useGlobalZustand } from '@zustands/GlobalZustand';
-import {
-  DEFAULT_TREE_DEPTH,
-} from '@utils/constants';
+import { DEFAULT_TREE_DEPTH } from '@utils/constants';
 import { useFullscreenState } from '@components/MainPage/hooks/useFullscreenState';
 import { useGistBootstrap } from '@components/MainPage/hooks/useGistBootstrap';
 import { useSharedMachineBootstrap } from '@components/MainPage/hooks/useSharedMachineBootstrap';
@@ -85,14 +80,8 @@ export default function App() {
     (nextTargetNodes: number, nextCompressed: boolean) => {
       setComputationTreeDepth(nextTargetNodes);
       setCompressed(nextCompressed);
-
-      // Re-render the tree in fullscreen after settings changes so sizing stays correct.
-      if (treeFullscreen.open) {
-        treeFullscreen.setRender(false);
-        requestAnimationFrame(() => treeFullscreen.setRender(true));
-      }
     },
-    [setComputationTreeDepth, treeFullscreen.open, treeFullscreen.setRender]
+    [setComputationTreeDepth]
   );
 
   const configComputeActions = null;
@@ -114,93 +103,71 @@ export default function App() {
     configFullscreen.open ||
     configFullscreen.render;
   const treeActive =
-    activeTab === 'configurationTree' || treeFullscreen.open || treeFullscreen.render;
+    activeTab === 'configurationTree' ||
+    treeFullscreen.open ||
+    treeFullscreen.render;
   const configGraphEnabled = useRetainedGraphPanel(
     configGraphActive,
     machineVersion
   );
   const treeEnabled = useRetainedGraphPanel(treeActive, machineVersion);
 
-  const fullscreenConfigs: FullscreenPortalConfig[] = useMemo(
-    () => [
-      {
-        id: 'tmGraph',
-        title: 'Turing Machine — Fullscreen',
-        open: tmFullscreen.open,
-        onClose: tmFullscreen.closeFullscreen,
-        render: tmFullscreen.render,
-        setRender: tmFullscreen.setRender,
-        fallbackRef: tmPanelRef,
-        fullscreenRef: tmFullscreenRef,
-        enabled: true,
-        content: (
-          <Suspense fallback={graphLoader}>
-            <LazyTMGraphWrapper />
-          </Suspense>
-        ),
-      },
-      {
-        id: 'configGraph',
-        title: 'Configuration Graph — Fullscreen',
-        open: configFullscreen.open,
-        onClose: configFullscreen.closeFullscreen,
-        render: configFullscreen.render,
-        setRender: configFullscreen.setRender,
-        fallbackRef: configPanelRef,
-        fullscreenRef: configFullscreenRef,
-        actions: configComputeActions,
-        enabled: configGraphEnabled,
-        content: configGraphEnabled ? (
-          <Suspense fallback={graphLoader}>
-            <LazyConfigGraphWrapper active={configGraphActive} />
-          </Suspense>
-        ) : null,
-      },
-      {
-        id: 'computationTree',
-        title: 'Computation Tree — Fullscreen',
-        open: treeFullscreen.open,
-        onClose: treeFullscreen.closeFullscreen,
-        render: treeFullscreen.render,
-        setRender: treeFullscreen.setRender,
-        fallbackRef: treePanelRef,
-        fullscreenRef: treeFullscreenRef,
-        actions: treeComputeActions,
-        enabled: treeEnabled,
-        content: treeEnabled ? (
-          <Suspense fallback={graphLoader}>
-            <LazyComputationTreeWrapper
-              targetNodes={computationTreeTargetNodes}
-              compressing={compressed}
-              active={treeActive}
-            />
-          </Suspense>
-        ) : null,
-      },
-    ],
-    [
-      tmFullscreen.open,
-      tmFullscreen.closeFullscreen,
-      tmFullscreen.render,
-      tmFullscreen.setRender,
-      configFullscreen.open,
-      configFullscreen.closeFullscreen,
-      configFullscreen.render,
-      configFullscreen.setRender,
-      configGraphEnabled,
-      configGraphActive,
-      treeFullscreen.open,
-      treeFullscreen.closeFullscreen,
-      treeFullscreen.render,
-      treeFullscreen.setRender,
-      treeEnabled,
-      treeActive,
-      computationTreeTargetNodes,
-      compressed,
-      configComputeActions,
-      treeComputeActions,
-    ]
-  );
+  const fullscreenConfigs: FullscreenPortalConfig[] = [
+    {
+      id: 'tmGraph',
+      title: 'Turing Machine — Fullscreen',
+      open: tmFullscreen.open,
+      onClose: tmFullscreen.closeFullscreen,
+      render: tmFullscreen.render,
+      setRender: tmFullscreen.setRender,
+      fallbackRef: tmPanelRef,
+      fullscreenRef: tmFullscreenRef,
+      enabled: true,
+      content: (
+        <Suspense fallback={graphLoader}>
+          <LazyTMGraphWrapper />
+        </Suspense>
+      ),
+    },
+    {
+      id: 'configGraph',
+      title: 'Configuration Graph — Fullscreen',
+      open: configFullscreen.open,
+      onClose: configFullscreen.closeFullscreen,
+      render: configFullscreen.render,
+      setRender: configFullscreen.setRender,
+      fallbackRef: configPanelRef,
+      fullscreenRef: configFullscreenRef,
+      actions: configComputeActions,
+      enabled: configGraphEnabled,
+      content: configGraphEnabled ? (
+        <Suspense fallback={graphLoader}>
+          <LazyConfigGraphWrapper active={configGraphActive} />
+        </Suspense>
+      ) : null,
+    },
+    {
+      id: 'computationTree',
+      title: 'Computation Tree — Fullscreen',
+      open: treeFullscreen.open,
+      onClose: treeFullscreen.closeFullscreen,
+      render: treeFullscreen.render,
+      setRender: treeFullscreen.setRender,
+      fallbackRef: treePanelRef,
+      fullscreenRef: treeFullscreenRef,
+      actions: treeComputeActions,
+      enabled: treeEnabled,
+      content: treeEnabled ? (
+        <Suspense fallback={graphLoader}>
+          <LazyComputationTreeWrapper
+            targetNodes={computationTreeTargetNodes}
+            compressing={compressed}
+            active={treeActive}
+          />
+        </Suspense>
+      ) : null,
+    },
+  ];
 
   return (
     <ThemeProvider theme={theme}>

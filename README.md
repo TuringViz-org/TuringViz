@@ -38,11 +38,13 @@ TuringViz lets you define and run k-tape Turing machines in the TuringViz DSL an
 
 ## Project background
 
-This project was started in the **Softwarepraktikum** course at the **University of Regensburg** and developed by **Christoph Greger** and **Gregor Porsch**.
+This project was started in the **Software Engineering Lab** course at the **University of Regensburg** and developed by **Christoph Greger** and **Gregor Porsch**.
 
 Beyond the core functionality and the first prototypes, a significant part of the development process also used **LLM agents**.
 
 ## Local development
+
+Write documentation, code comments, and user-facing text in English.
 
 ### Prerequisites
 
@@ -79,6 +81,13 @@ npm run preview
 npm test
 npm run test:coverage
 ```
+
+## Architecture
+
+The graph computation, layout, loading and fullscreen lifecycles are documented in
+[docs/architecture.md](docs/architecture.md).
+
+Run `npm run typecheck` to check the application and test types.
 
 ## Tech stack
 

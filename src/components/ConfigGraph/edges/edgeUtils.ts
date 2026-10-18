@@ -1,22 +1,15 @@
-// src/components/TMGraph/edges/edgeUtils.ts
-import { Position, InternalNode } from '@xyflow/react';
+import type { InternalNode } from '@xyflow/react';
 import { NodeType } from '../util/constants';
 
-// Decide if node is (almost) a circle
+// Node type determines loop geometry; floating edges use measured aspect ratio.
 function isCircleNode(node: InternalNode) {
   return node.type === NodeType.CONFIG;
 }
 
 // Get the width and height of a node (circular or rectangular)
 function getNodeSize(node: InternalNode) {
-  const w =
-    (node.measured?.width as number | undefined) ??
-    (node.width as number | undefined) ??
-    0;
-  const h =
-    (node.measured?.height as number | undefined) ??
-    (node.height as number | undefined) ??
-    0;
+  const w = node.measured?.width ?? node.width ?? 0;
+  const h = node.measured?.height ?? node.height ?? 0;
 
   return { w, h };
 }
@@ -30,31 +23,15 @@ function getNodeRadius(node: InternalNode) {
 // Get the center coordinates of a circular node
 export function getNodeCenter(node: InternalNode) {
   const { w, h } = getNodeSize(node);
-  const pos = node.internals.positionAbsolute; // top-left der Node
+  const pos = node.internals.positionAbsolute; // Top-left corner of the node
   return { cx: pos.x + w / 2, cy: pos.y + h / 2 };
-}
-
-/**
- * Returns the intersection point on the circumference of a circular node (source)
- * along the line to the center of another node (target).
- */
-export function getCircleIntersection(source: InternalNode, target: InternalNode) {
-  const r = getNodeRadius(source);
-  const { cx, cy } = getNodeCenter(source);
-  const { cx: tx, cy: ty } = getNodeCenter(target);
-
-  const dx = tx - cx;
-  const dy = ty - cy;
-  const len = Math.hypot(dx, dy) || 1;
-
-  return { x: cx + (dx / len) * r, y: cy + (dy / len) * r };
 }
 
 /**
  * Intersection on the TARGET node along the line connecting the centers.
  * (Arrow tip: lies on the target node's boundary along the source→target line.)
  */
-export function getTargetIntersectionAlongCenters(
+function getTargetIntersectionAlongCenters(
   source: InternalNode,
   target: InternalNode
 ) {
@@ -67,43 +44,6 @@ export function getTargetIntersectionAlongCenters(
   const len = Math.hypot(dx, dy) || 1;
 
   return { x: tx - (dx / len) * rt, y: ty - (dy / len) * rt };
-}
-
-// Intersection offset by a small angle around the circle.
-export function getOffsetIntersection(
-  node: InternalNode,
-  other: InternalNode,
-  deltaAngle: number
-) {
-  const r = getNodeRadius(node);
-  const { cx, cy } = getNodeCenter(node);
-  const { cx: tx, cy: ty } = getNodeCenter(other);
-
-  const base = Math.atan2(ty - cy, tx - cx);
-  const angle = base + deltaAngle;
-  return { x: cx + Math.cos(angle) * r, y: cy + Math.sin(angle) * r };
-}
-
-/**
- * Computes the loop anchor point above the node.
- * - Nodes: on top of the circle + offset
- * - Rectangles (Cards): above the top center + offset
- */
-export function getLoopPoint(node: InternalNode, offset = 10) {
-  const { w, h } = getNodeSize(node);
-  const { cx, cy } = getNodeCenter(node);
-
-  if (isCircleNode(node)) {
-    const r = Math.max(0, Math.min(w, h) / 2);
-    const angle = -Math.PI / 2;
-    const sx = cx + Math.cos(angle) * (r + offset);
-    const sy = cy + Math.sin(angle) * (r + offset);
-    return { x: sx, y: sy, position: Position.Top };
-  }
-
-  // Rectangle case: top center with offset
-  const yTop = cy - h / 2;
-  return { x: cx, y: yTop - offset, position: Position.Top };
 }
 
 /**
@@ -129,17 +69,17 @@ export function getLoopEdgeParams(node: InternalNode, offsetAngle = Math.PI / 6)
     return { sx, sy, ex, ey };
   }
 
-  // Rechteck (ConfigCardNode)
+  // Rectangle (ConfigCardNode)
   const halfW = w / 2;
   const halfH = h / 2;
   const yTop = cy - halfH;
 
-  // Horizontaler Abstand links/rechts vom Mittelpunkt für die Loop-Anker
-  // (begrenzt, damit wir nicht bis in die Ecken gehen)
+  // Horizontal distance from the center to each loop anchor,
+  // limited to keep the anchors away from the corners.
   const spread = Math.max(8, Math.min(28, halfW - 12));
 
   const sx = cx - spread;
-  const sy = yTop; // exakt auf der oberen Kante
+  const sy = yTop; // Exactly on the top edge
   const ex = cx + spread;
   const ey = yTop;
 
@@ -151,12 +91,12 @@ function getRectIntersectionAlongCenters(
   source: InternalNode,
   target: InternalNode
 ) {
-  // Centers (target -> source Vektor)
+  // Centers (target -> source vector)
   const { cx: sx, cy: sy } = getNodeCenter(source);
   const { cx: tx, cy: ty } = getNodeCenter(target);
 
-  let dx = sx - tx;
-  let dy = sy - ty;
+  const dx = sx - tx;
+  const dy = sy - ty;
 
   // If source and target centers coincide, return top center of target
   if (dx === 0 && dy === 0) {
@@ -198,12 +138,7 @@ function getTargetIntersectionGeneric(source: InternalNode, target: InternalNode
 
 // Calculates edge params for edges between two circular nodes
 // or two rectangular nodes
-export function getFloatingEdgeParams(
-  source: InternalNode,
-  target: InternalNode,
-  _isReverse = false,
-  _sign = 1
-) {
+export function getFloatingEdgeParams(source: InternalNode, target: InternalNode) {
   const { cx: sx, cy: sy } = getNodeCenter(source);
   const t = getTargetIntersectionGeneric(source, target);
   return { sx, sy, tx: t.x, ty: t.y };

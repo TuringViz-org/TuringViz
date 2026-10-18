@@ -3,8 +3,8 @@ import {
   DEFAULT_CONFIG_GRAPH_TARGET_NODES,
   MIN_CONFIG_GRAPH_TARGET_NODES,
 } from '@utils/constants';
-import { computeConfigGraph } from '@tmfunctions/ConfigGraph';
-import { computeConfigGraphInWorker } from '@utils/graphWorkerClient';
+import { computeConfigGraph } from '@tmfunctions/configGraphModel';
+import { recomputeConfigGraphWithTargetNodes } from '@services/configGraphComputation';
 import { useGraphZustand } from '@zustands/GraphZustand';
 import {
   Move,
@@ -17,7 +17,6 @@ import {
 import { parseTuringMachine } from './index';
 import type { Diagnostic, MachineProgram, NormalizedTransition } from './types';
 
-let latestConfigGraphJobId = 0;
 const INITIAL_CONFIG_GRAPH_NODES = 500;
 const FULL_CONFIG_GRAPH_NODES = DEFAULT_CONFIG_GRAPH_TARGET_NODES;
 
@@ -48,7 +47,10 @@ function loadMachineProgram(machine: MachineProgram) {
     MIN_CONFIG_GRAPH_TARGET_NODES,
     useGraphZustand.getState().configGraphTargetNodes ?? FULL_CONFIG_GRAPH_NODES
   );
-  const initialTargetNodes = Math.min(INITIAL_CONFIG_GRAPH_NODES, configuredTargetNodes);
+  const initialTargetNodes = Math.min(
+    INITIAL_CONFIG_GRAPH_NODES,
+    configuredTargetNodes
+  );
 
   const initialConfigGraph = computeConfigGraph(
     startConfig,
@@ -74,26 +76,7 @@ function loadMachineProgram(machine: MachineProgram) {
     return;
   }
 
-  const jobId = ++latestConfigGraphJobId;
-  useGlobalZustand.getState().beginConfigGraphCompute();
-  computeConfigGraphInWorker({
-    startConfig,
-    transitions,
-    numberOfTapes: machine.tapes,
-    blank: machine.blank,
-    targetNodes: configuredTargetNodes,
-  })
-    .then((graph) => {
-      if (jobId !== latestConfigGraphJobId) return;
-      const global = useGlobalZustand.getState();
-      if (global.startState !== machine.start) return;
-      global.setConfigGraph(graph);
-      global.incrementConfigGraphVersion();
-    })
-    .catch((err) => console.error('Config graph worker failed', err))
-    .finally(() => {
-      useGlobalZustand.getState().endConfigGraphCompute();
-    });
+  void recomputeConfigGraphWithTargetNodes(configuredTargetNodes);
 }
 
 function createInput(input: string[], blank: string): TapeContent {

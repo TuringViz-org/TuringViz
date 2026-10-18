@@ -1,46 +1,47 @@
-// src/hooks/useDebouncedLayoutRestart.ts
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef } from 'react';
 
-type LayoutApi = {
-  restart: () => void;
-};
+type LayoutApi = { restart: () => void };
 
-// Debounce layout restarts so ELK only runs once per animation frame.
+/** Coalesce layout requests while retaining their intent across StrictMode replay. */
 export function useDebouncedLayoutRestart(layout: LayoutApi) {
+  const layoutRef = useRef(layout);
+  const pendingRef = useRef(false);
   const frameRef = useRef<number | null>(null);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const layoutRef = useRef(layout);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     layoutRef.current = layout;
   }, [layout]);
 
+  const enqueue = useCallback(() => {
+    if (frameRef.current !== null || timeoutRef.current !== null) return;
+    const run = () => {
+      frameRef.current = null;
+      timeoutRef.current = null;
+      pendingRef.current = false;
+      layoutRef.current.restart();
+    };
+    if (typeof requestAnimationFrame === 'function') {
+      frameRef.current = requestAnimationFrame(run);
+    } else {
+      timeoutRef.current = setTimeout(run, 0);
+    }
+  }, []);
+
   useEffect(() => {
+    // StrictMode tears effects down after layout effects have requested work.
+    // Requeue that work on setup, instead of silently losing the first layout.
+    if (pendingRef.current) enqueue();
     return () => {
-      if (frameRef.current !== null && typeof cancelAnimationFrame === 'function') {
-        cancelAnimationFrame(frameRef.current);
-      }
-      if (timeoutRef.current !== null) {
-        clearTimeout(timeoutRef.current);
-      }
+      if (frameRef.current !== null) cancelAnimationFrame(frameRef.current);
+      if (timeoutRef.current !== null) clearTimeout(timeoutRef.current);
       frameRef.current = null;
       timeoutRef.current = null;
     };
-  }, []);
+  }, [enqueue]);
 
   return useCallback(() => {
-    if (frameRef.current !== null || timeoutRef.current !== null) return;
-
-    if (typeof requestAnimationFrame === 'function') {
-      frameRef.current = requestAnimationFrame(() => {
-        frameRef.current = null;
-        layoutRef.current.restart();
-      });
-    } else {
-      timeoutRef.current = setTimeout(() => {
-        timeoutRef.current = null;
-        layoutRef.current.restart();
-      }, 0);
-    }
-  }, []);
+    pendingRef.current = true;
+    enqueue();
+  }, [enqueue]);
 }

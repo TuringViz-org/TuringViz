@@ -1,25 +1,14 @@
-// src/components/ConfigGraph/nodes/ConfigCardNode.tsx
 import { Node, NodeProps, Handle, Position } from '@xyflow/react';
 import { Box, useTheme } from '@mui/material';
 import { alpha, darken } from '@mui/material/styles';
 import { memo, useState, useCallback } from 'react';
 
 import ConfigCard from '../ConfigVisualization/ConfigCard';
-import type { Configuration } from '@mytypes/TMTypes';
+import type { ConfigNodeRenderData } from '../types';
 import { CONFIG_CARD_WIDTH } from '../util/constants';
 import { setConfiguration } from '@tmfunctions/Running';
 
-export interface ConfigCardNodeData extends Record<string, unknown> {
-  label: string;
-  config: Configuration;
-  isStart: boolean;
-  isCurrent: boolean;
-  isComputed?: boolean;
-  isSelectable?: boolean;
-  pendingInteractive?: boolean;
-}
-
-type ConfigCardNode = Node<ConfigCardNodeData>;
+type ConfigCardNode = Node<ConfigNodeRenderData>;
 
 const ConfigCardNodeComponent = ({ data }: NodeProps<ConfigCardNode>) => {
   const theme = useTheme();
@@ -73,9 +62,7 @@ const ConfigCardNodeComponent = ({ data }: NodeProps<ConfigCardNode>) => {
             : undefined,
         '&:hover': {
           borderColor:
-            isCurrent || isSelectable
-              ? darken(borderColor as string, 0.05)
-              : borderColor,
+            isCurrent || isSelectable ? darken(borderColor, 0.05) : borderColor,
         },
       }}
       onWheelCapture={(e) => {
@@ -89,7 +76,7 @@ const ConfigCardNodeComponent = ({ data }: NodeProps<ConfigCardNode>) => {
           e.stopPropagation();
         }
       }}
-      onDoubleClick={() => setConfiguration(config)} // Double-click to select
+      onDoubleClick={() => setConfiguration(config)}
     >
       <ConfigCard
         config={config}

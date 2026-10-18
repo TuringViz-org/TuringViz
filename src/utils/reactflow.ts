@@ -3,7 +3,7 @@
 import type { Node as RFNode, Edge as RFEdge } from '@xyflow/react';
 
 // Check if two objects are shallowly equal
-function shallowEqual(a: any, b: any) {
+function shallowEqual(a: Record<string, unknown>, b: Record<string, unknown>) {
   if (a === b) return true;
   if (!a || !b) return false;
 
@@ -17,11 +17,11 @@ function shallowEqual(a: any, b: any) {
 
 // Reconcile previous and base nodes/edges to minimize re-renders in React Flow
 // by reusing unchanged objects
-export function reconcileNodes(
-  prev: RFNode[], // previous nodes
-  base: RFNode[], // new nodes to reconcile with
-  makeData: (n: RFNode, old?: RFNode) => any // function add additional data to node
-): RFNode[] {
+export function reconcileNodes<N extends RFNode>(
+  prev: N[],
+  base: N[],
+  makeData: (node: N, previous?: N) => N['data']
+): N[] {
   const prevById = new Map(prev.map((n) => [n.id, n]));
   let changed = false;
 
@@ -48,7 +48,7 @@ export function reconcileNodes(
 }
 
 // Similar to reconcileNodes but for edges
-export function reconcileEdges(prev: RFEdge[], base: RFEdge[]): RFEdge[] {
+export function reconcileEdges<E extends RFEdge>(prev: E[], base: E[]): E[] {
   const prevById = new Map(prev.map((e) => [e.id, e]));
   let changed = false;
 

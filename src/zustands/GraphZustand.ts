@@ -1,6 +1,5 @@
 // src/zustands/GraphZustand.ts
 import { create } from 'zustand';
-import { devtools } from 'zustand/middleware';
 import { subscribeWithSelector } from 'zustand/middleware';
 
 import {
@@ -50,7 +49,7 @@ interface GraphZustandActions {
 
 export type GraphZustand = GraphZustandState & GraphZustandActions;
 
-const initialState: GraphZustandState = {
+const createInitialState = (): GraphZustandState => ({
   configGraphNodeMode: ConfigNodeMode.NODES,
   computationTreeNodeMode: ConfigNodeMode.NODES,
 
@@ -60,91 +59,50 @@ const initialState: GraphZustandState = {
 
   computationTreeDepth: DEFAULT_TREE_DEPTH,
   configGraphTargetNodes: DEFAULT_CONFIG_GRAPH_TARGET_NODES,
-};
+});
 
 /**
  * Zustand store for graph layout settings node modes and computation tree depth.
  */
+function resolve<T>(update: Updater<T>, previous: T): T {
+  return typeof update === 'function'
+    ? (update as (value: T) => T)(previous)
+    : update;
+}
+
 export const useGraphZustand = create<GraphZustand>()(
-  subscribeWithSelector((set, get) => ({
-    ...initialState,
+  subscribeWithSelector((set) => {
+    const update =
+      <Key extends keyof GraphZustandState>(key: Key) =>
+      (value: Updater<GraphZustandState[Key]>) =>
+        set((state) => ({ [key]: resolve(value, state[key]) }));
+    const patch =
+      (
+        key:
+          | 'tmGraphELKSettings'
+          | 'configGraphELKSettings'
+          | 'computationTreeELKSettings'
+      ) =>
+      (value: PartialUpdater<ElkOptions>) =>
+        set((state) => ({
+          [key]: {
+            ...state[key],
+            ...(typeof value === 'function' ? value(state[key]) : value),
+          },
+        }));
 
-    // Node display modes
-    setConfigGraphNodeMode: (mode) =>
-      set(
-        (s) => ({
-          configGraphNodeMode:
-            typeof mode === 'function'
-              ? (mode as (prev: ConfigNodeMode) => ConfigNodeMode)(
-                  s.configGraphNodeMode
-                )
-              : mode,
-        }),
-        false
-      ),
-
-    setComputationTreeNodeMode: (mode) =>
-      set(
-        (s) => ({
-          computationTreeNodeMode:
-            typeof mode === 'function'
-              ? (mode as (prev: ConfigNodeMode) => ConfigNodeMode)(
-                  s.computationTreeNodeMode
-                )
-              : mode,
-        }),
-        false
-      ),
-
-    // ELK settings (patch instead of set)
-    setTMGraphELKSettings: (patch) =>
-      set((s) => {
-        const p = typeof patch === 'function' ? patch(s.tmGraphELKSettings) : patch;
-        return { tmGraphELKSettings: { ...s.tmGraphELKSettings, ...p } };
-      }, false),
-
-    setConfigGraphELKSettings: (patch) =>
-      set((s) => {
-        const p =
-          typeof patch === 'function' ? patch(s.configGraphELKSettings) : patch;
-        return { configGraphELKSettings: { ...s.configGraphELKSettings, ...p } };
-      }, false),
-
-    setComputationTreeELKSettings: (patch) =>
-      set((s) => {
-        const p =
-          typeof patch === 'function' ? patch(s.computationTreeELKSettings) : patch;
-        return {
-          computationTreeELKSettings: { ...s.computationTreeELKSettings, ...p },
-        };
-      }, false),
-
-    // Other
-    setComputationTreeDepth: (depth) =>
-      set(
-        (s) => ({
-          computationTreeDepth:
-            typeof depth === 'function'
-              ? (depth as (prev: number) => number)(s.computationTreeDepth)
-              : depth,
-        }),
-        false
-      ),
-
-    setConfigGraphTargetNodes: (nodes) =>
-      set(
-        (s) => ({
-          configGraphTargetNodes:
-            typeof nodes === 'function'
-              ? (nodes as (prev: number) => number)(s.configGraphTargetNodes)
-              : nodes,
-        }),
-        false
-      ),
-
-    // Utilities
-    reset: () => set(() => ({ ...initialState }), false),
-  }))
+    return {
+      ...createInitialState(),
+      setConfigGraphNodeMode: update('configGraphNodeMode'),
+      setComputationTreeNodeMode: update('computationTreeNodeMode'),
+      setTMGraphELKSettings: patch('tmGraphELKSettings'),
+      setConfigGraphELKSettings: patch('configGraphELKSettings'),
+      setComputationTreeELKSettings: patch('computationTreeELKSettings'),
+      setComputationTreeDepth: update('computationTreeDepth'),
+      setConfigGraphTargetNodes: update('configGraphTargetNodes'),
+      reset: () => set(createInitialState()),
+    };
+  })
 );
 
 // Selectors for usage in components

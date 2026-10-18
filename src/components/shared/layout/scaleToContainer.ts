@@ -48,7 +48,11 @@ export function scaleToContainer({
     return positions;
   }
 
-  if (Number.isFinite(maxAxisScale) && maxAxisScale > 1) {
+  if (
+    typeof maxAxisScale === 'number' &&
+    Number.isFinite(maxAxisScale) &&
+    maxAxisScale > 1
+  ) {
     scaleX = Math.min(scaleX, maxAxisScale);
     scaleY = Math.min(scaleY, maxAxisScale);
   }

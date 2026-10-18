@@ -1,4 +1,4 @@
-import type * as Monaco from 'monaco-editor';
+import type * as Monaco from 'monaco-editor/esm/vs/editor/editor.api';
 import { LANGUAGE_ID } from '../tmLanguage/constants';
 import { getSemanticHover, parseTuringMachine } from '../tmLanguage';
 import type { Diagnostic } from '../tmLanguage';
@@ -90,7 +90,10 @@ export function registerTuringVizLanguage(monaco: MonacoApi) {
         [/\b(on|if|then|choose)\b/, 'keyword.control'],
         [/\b(write|move|goto)\b/, 'keyword.action'],
         [/\b(and|or|not|in|any|same)\b/, 'keyword'],
-        [/\b[LRS]\b/, { cases: { '@directions': 'type.identifier', '@default': '' } }],
+        [
+          /\b[LRS]\b/,
+          { cases: { '@directions': 'type.identifier', '@default': '' } },
+        ],
         [/->|!=|=|!/, 'operator'],
         [/[{}[\](),/:;|]/, 'delimiter'],
         [/\*/, 'wildcard'],
@@ -162,7 +165,7 @@ export function registerTuringVizLanguage(monaco: MonacoApi) {
       const message = getSemanticHover(
         model.getValue(),
         position.lineNumber,
-        position.column,
+        position.column
       );
 
       if (!message) {
@@ -180,7 +183,7 @@ export function registerTuringVizLanguage(monaco: MonacoApi) {
 
 export function updateTuringVizMarkers(
   monaco: MonacoApi,
-  model: Monaco.editor.ITextModel | null,
+  model: Monaco.editor.ITextModel | null
 ) {
   if (!model) {
     return;
@@ -192,13 +195,13 @@ export function updateTuringVizMarkers(
   monaco.editor.setModelMarkers(
     model,
     MARKER_OWNER,
-    parsed.diagnostics.map((item) => toMarker(monaco, item)),
+    parsed.diagnostics.map((item) => toMarker(monaco, item))
   );
 }
 
 function toMarker(
   monaco: MonacoApi,
-  diagnostic: Diagnostic,
+  diagnostic: Diagnostic
 ): Monaco.editor.IMarkerData {
   // Monaco requires a non-empty marker span; some recovery diagnostics are
   // naturally zero-width, so the end column is widened when necessary.
@@ -214,7 +217,7 @@ function toMarker(
     endLineNumber: diagnostic.range.end.line,
     endColumn: Math.max(
       diagnostic.range.end.column,
-      diagnostic.range.start.column + 1,
+      diagnostic.range.start.column + 1
     ),
   };
 }

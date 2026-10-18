@@ -6,9 +6,10 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "typecheck": "tsc --noEmit",
     "preview": "vite preview",
     "doit": "npm run build && npm run preview",
-    "format": "prettier --write \"src/**/*.{js,jsx,json,css,html,md}\"",
+    "format": "prettier --write \"src/**/*.{ts,tsx,js,jsx,json,css,html,md}\"",
     "test": "vitest",
     "test:coverage": "vitest run --coverage"
   },
@@ -24,15 +25,12 @@
     "@xyflow/react": "^12.8.3",
     "brotli-wasm": "^3.0.1",
     "cytoscape": "3.32.2",
-    "d3-force": "^3.0.0",
-    "d3-hierarchy": "^3.1.2",
     "denque": "^2.1.0",
     "elkjs": "^0.10.0",
     "js-sha256": "^0.11.1",
     "monaco-editor": "^0.55.1",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
-    "reactflow": "^11.11.4",
     "sonner": "^2.0.7",
     "zustand": "^5.0.4"
   },

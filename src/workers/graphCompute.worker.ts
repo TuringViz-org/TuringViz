@@ -1,72 +1,26 @@
-import type { Configuration, Transition } from '@mytypes/TMTypes';
-import type { ComputationTree } from '@tmfunctions/ComputationTree';
-import { getComputationTreeFromInputs } from '@tmfunctions/ComputationTree';
-import { computeConfigGraph, type ConfigGraph } from '@tmfunctions/ConfigGraph';
+import {
+  graphComputations,
+  type GraphComputeRequest,
+  type GraphComputeResponse,
+} from './graphComputeProtocol';
 
-type ComputeTreePayload = {
-  depth: number;
-  targetNodes?: number;
-  compressing?: boolean;
-  transitions: Map<string, Transition[]>;
-  numberOfTapes: number;
-  blank: string;
-  startConfig: Configuration;
-};
-
-type ComputeConfigGraphPayload = {
-  startConfig: Configuration;
-  transitions: Map<string, Transition[]>;
-  numberOfTapes: number;
-  blank: string;
-  targetNodes?: number;
-};
-
-type IncomingMessage =
-  | { id: number; type: 'computationTree'; payload: ComputeTreePayload }
-  | { id: number; type: 'configGraph'; payload: ComputeConfigGraphPayload };
-
-type OutgoingMessage =
-  | { id: number; type: 'computationTree'; tree: ComputationTree }
-  | { id: number; type: 'configGraph'; graph: ConfigGraph };
-
-self.onmessage = (event: MessageEvent<IncomingMessage>) => {
-  const { id, type, payload } = event.data;
-
-  if (type === 'computationTree') {
-    const {
-      startConfig,
-      transitions,
-      numberOfTapes,
-      blank,
-      depth,
-      targetNodes,
-      compressing,
-    } = payload;
-    const tree = getComputationTreeFromInputs(
-      startConfig,
-      transitions,
-      numberOfTapes,
-      blank,
-      depth,
-      !!compressing,
-      undefined,
-      targetNodes
-    );
-    postMessage({ id, type, tree } satisfies OutgoingMessage);
-    return;
-  }
-
-  if (type === 'configGraph') {
-    const { startConfig, transitions, numberOfTapes, blank, targetNodes } = payload;
-    const graph = computeConfigGraph(
-      startConfig,
-      targetNodes ?? 2000,
-      transitions,
-      numberOfTapes,
-      blank
-    );
-    postMessage({ id, type, graph } satisfies OutgoingMessage);
+self.onmessage = (event: MessageEvent<GraphComputeRequest>) => {
+  const request = event.data;
+  const { id, type } = request;
+  try {
+    const result =
+      request.type === 'computationTree'
+        ? graphComputations.computationTree(request.payload)
+        : graphComputations.configGraph(request.payload);
+    postMessage({ id, type, result } satisfies GraphComputeResponse);
+  } catch (error) {
+    postMessage({
+      id,
+      type,
+      error: {
+        name: error instanceof Error ? error.name : 'Error',
+        message: error instanceof Error ? error.message : String(error),
+      },
+    } satisfies GraphComputeResponse);
   }
 };
-
-export {};

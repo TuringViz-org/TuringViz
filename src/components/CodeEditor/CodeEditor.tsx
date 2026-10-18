@@ -127,9 +127,9 @@ const CodeEditor: React.FC = () => {
     const editor = editorRef.current;
     if (!model || !editor) return;
 
-    // Nur updaten, wenn der Text wirklich anders ist
+    // Only update when the text has actually changed.
     if (model.getValue() !== code || typeof nonce === 'number') {
-      // kompletter Inhalt aus dem Zustand setzen
+      // Replace the editor content with the value from the store.
       model.setValue(code);
 
       if (autoLoadVersion > lastHandledAutoLoadVersionRef.current) {

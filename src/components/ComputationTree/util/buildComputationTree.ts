@@ -1,5 +1,9 @@
 // src/components/ComputationTree/util/buildComputationTree.ts
 import type { Edge as RFEdge, Node as RFNode } from '@xyflow/react';
+import type {
+  ConfigNodeRenderData,
+  ConfigEdgeData,
+} from '@components/ConfigGraph/types';
 import {
   ComputationTreeNode,
   ComputationTree,
@@ -15,8 +19,8 @@ import {
 } from '@components/shared/buildConfigGraphElements';
 
 export type BuildResult = {
-  nodes: RFNode[];
-  edges: RFEdge[];
+  nodes: RFNode<ConfigNodeRenderData>[];
+  edges: RFEdge<ConfigEdgeData>[];
   topoKey: string;
   perf?: {
     buildMs: number;
@@ -59,7 +63,7 @@ export function buildComputationTreeGraph(
   }
 
   // Edges
-  const rfEdges: RFEdge[] = model.edges
+  const rfEdges: RFEdge<ConfigEdgeData>[] = model.edges
     .filter((e) => includedNodeIds.has(e.from) && includedNodeIds.has(e.to))
     .map((e) => {
       const fromNode = allById.get(e.from);
@@ -88,8 +92,8 @@ export function buildComputationTreeGraph(
       });
     });
 
-  // Nodes (ohne Position)
-  const rfNodes: RFNode[] = renderedNodes.map((n) => {
+  // Nodes without layout positions
+  const rfNodes: RFNode<ConfigNodeRenderData>[] = renderedNodes.map((n) => {
     const label =
       n.config?.state && n.config.state.trim().length ? n.config.state : `q${n.id}`;
     const isStart = n.id === model.root.id;
@@ -109,7 +113,10 @@ export function buildComputationTreeGraph(
   });
 
   // Topology-Key
-  const nodeIds = renderedNodes.map((n) => n.id).sort((a, b) => a - b).map(String);
+  const nodeIds = renderedNodes
+    .map((n) => n.id)
+    .sort((a, b) => a - b)
+    .map(String);
   const edgeKeys = model.edges
     .filter((e) => includedNodeIds.has(e.from) && includedNodeIds.has(e.to))
     .map((e) => {

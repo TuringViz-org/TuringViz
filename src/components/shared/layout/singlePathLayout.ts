@@ -109,14 +109,14 @@ export function buildSinglePathLayout(
         4
     );
   const horizontal = isHorizontal(direction);
-  const visualOrder = isReverseDirection(direction) ? [...pathOrder].reverse() : pathOrder;
-  const maxMinor = Math.max(
-    1,
-    ...visualOrder.map((id) => {
-      const node = nodeById.get(id)!;
-      return horizontal ? node.height : node.width;
-    })
-  );
+  const visualOrder = isReverseDirection(direction)
+    ? [...pathOrder].reverse()
+    : pathOrder;
+  let maxMinor = 1;
+  for (const id of visualOrder) {
+    const node = nodeById.get(id)!;
+    maxMinor = Math.max(maxMinor, horizontal ? node.height : node.width);
+  }
 
   const positions = new Map<string, { x: number; y: number }>();
   let cursor = padding;
@@ -125,7 +125,10 @@ export function buildSinglePathLayout(
     const major = horizontal ? node.width : node.height;
     const minor = horizontal ? node.height : node.width;
     const cross = padding + (maxMinor - minor) / 2;
-    positions.set(id, horizontal ? { x: cursor, y: cross } : { x: cross, y: cursor });
+    positions.set(
+      id,
+      horizontal ? { x: cursor, y: cross } : { x: cross, y: cursor }
+    );
     cursor += major + majorGap;
   }
 

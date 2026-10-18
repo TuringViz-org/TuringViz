@@ -127,5 +127,8 @@
 
 .portal_hidden {
   visibility: hidden;
+  /* React Flow nodes explicitly set visibility: visible. Opacity hides the
+     entire subtree while keeping its dimensions and pending work intact. */
+  opacity: 0;
   pointer-events: none;
 }

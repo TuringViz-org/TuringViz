@@ -1,243 +1,155 @@
-import type { Configuration, Transition } from '@mytypes/TMTypes';
-import type { ComputationTree } from '@tmfunctions/ComputationTree';
-import { getComputationTreeFromInputs } from '@tmfunctions/ComputationTree';
-import type { ConfigGraph } from '@tmfunctions/ConfigGraph';
-import { computeConfigGraph } from '@tmfunctions/ConfigGraph';
 import {
-  DEFAULT_CONFIG_GRAPH_TARGET_NODES,
-  MIN_CONFIG_GRAPH_TARGET_NODES,
-} from './constants';
+  graphComputations,
+  type GraphComputeKind,
+  type GraphComputePayloads,
+  type GraphComputeResponse,
+  type GraphComputeResults,
+} from '../workers/graphComputeProtocol';
 
-const TREE_WORKER_TIMEOUT_MS = 4500;
-const CONFIG_WORKER_TIMEOUT_MS = 4500;
+const WORKER_TIMEOUT_MS = 4500;
 
-type TreePayload = {
-  depth: number;
-  targetNodes?: number;
-  compressing?: boolean;
-  transitions: Map<string, Transition[]>;
-  numberOfTapes: number;
-  blank: string;
-  startConfig: Configuration;
-};
-
-type ConfigGraphPayload = {
-  startConfig: Configuration;
-  transitions: Map<string, Transition[]>;
-  numberOfTapes: number;
-  blank: string;
-  targetNodes?: number;
-};
-
-type WorkerMessage =
-  | { id: number; type: 'computationTree'; tree: ComputationTree }
-  | { id: number; type: 'configGraph'; graph: ConfigGraph };
-
-let treeWorker: Worker | null = null;
-let treeSeq = 0;
-const treePending = new Map<
-  number,
-  {
-    resolve: (v: ComputationTree) => void;
-    reject: (e: unknown) => void;
-    cancelTimeout?: () => void;
+export class GraphComputeCancelledError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'GraphComputeCancelledError';
   }
->();
-
-let configWorker: Worker | null = null;
-let configSeq = 0;
-const configPending = new Map<
-  number,
-  {
-    resolve: (v: ConfigGraph) => void;
-    reject: (e: unknown) => void;
-    cancelTimeout?: () => void;
-  }
->();
-
-function terminateTreeWorker(rejectPending = true) {
-  treeWorker?.terminate();
-  treeWorker = null;
-  for (const [, { reject, cancelTimeout }] of treePending) {
-    cancelTimeout?.();
-    if (rejectPending) reject(new Error('Tree worker reset'));
-  }
-  treePending.clear();
 }
 
-export function cancelComputationTreeCompute() {
-  terminateTreeWorker();
+export function isGraphComputeCancelled(error: unknown): boolean {
+  return error instanceof GraphComputeCancelledError;
 }
 
-function terminateConfigWorker(rejectPending = true) {
-  configWorker?.terminate();
-  configWorker = null;
-  for (const [, { reject, cancelTimeout }] of configPending) {
-    cancelTimeout?.();
-    if (rejectPending) reject(new Error('Config worker reset'));
+/**
+ * One independently cancellable channel per graph kind. A newer request replaces
+ * unfinished work; visibility and tab changes never participate in this lifecycle.
+ */
+function createComputeChannel<Kind extends GraphComputeKind>(
+  type: Kind,
+  name: string,
+  resetMessage: string,
+  compute: (payload: GraphComputePayloads[Kind]) => GraphComputeResults[Kind]
+) {
+  type Pending = {
+    id: number;
+    resolve: (value: GraphComputeResults[Kind]) => void;
+    reject: (error: unknown) => void;
+    timer?: ReturnType<typeof setTimeout>;
+  };
+  let worker: Worker | null = null;
+  let pending: Pending | null = null;
+  let sequence = 0;
+
+  function terminate() {
+    worker?.terminate();
+    worker = null;
   }
-  configPending.clear();
-}
 
-function ensureTreeWorker(): Worker {
-  if (!treeWorker) {
-    treeWorker = new Worker(new URL('../workers/graphCompute.worker.ts', import.meta.url), {
-      type: 'module',
-      name: 'graph-compute-tree',
-    });
-    treeWorker.addEventListener('message', (event: MessageEvent<WorkerMessage>) => {
-      const msg = event.data;
-      if (msg.type !== 'computationTree') return;
-      const pending = treePending.get(msg.id);
-      if (!pending) return;
-      treePending.delete(msg.id);
-      pending.cancelTimeout?.();
-      pending.resolve(msg.tree);
-    });
-    treeWorker.addEventListener('error', (err) => {
-      for (const [, { reject, cancelTimeout }] of treePending) {
-        cancelTimeout?.();
-        reject(err);
+  function take(job: Pending) {
+    if (pending !== job) return false;
+    clearTimeout(job.timer);
+    pending = null;
+    return true;
+  }
+
+  function cancel() {
+    const job = pending;
+    terminate();
+    if (job && take(job)) job.reject(new GraphComputeCancelledError(resetMessage));
+  }
+
+  function run(
+    payload: GraphComputePayloads[Kind]
+  ): Promise<GraphComputeResults[Kind]> {
+    if (pending) cancel();
+
+    return new Promise((resolve, reject) => {
+      const job: Pending = { id: ++sequence, resolve, reject };
+      pending = job;
+
+      const fallback = () => {
+        if (pending !== job) return;
+        terminate();
+        if (!take(job)) return;
+        try {
+          resolve(compute(payload));
+        } catch (error) {
+          reject(error);
+        }
+      };
+
+      if (typeof Worker === 'undefined') {
+        // Preserve the Promise contract for thrown computation errors, and allow
+        // a synchronous reset/new request to invalidate this fallback first.
+        queueMicrotask(fallback);
+        return;
       }
-      treePending.clear();
-    });
-  }
-  return treeWorker;
-}
 
-function ensureConfigWorker(): Worker {
-  if (!configWorker) {
-    configWorker = new Worker(new URL('../workers/graphCompute.worker.ts', import.meta.url), {
-      type: 'module',
-      name: 'graph-compute-config',
-    });
-    configWorker.addEventListener('message', (event: MessageEvent<WorkerMessage>) => {
-      const msg = event.data;
-      if (msg.type !== 'configGraph') return;
-      const pending = configPending.get(msg.id);
-      if (!pending) return;
-      configPending.delete(msg.id);
-      pending.cancelTimeout?.();
-      pending.resolve(msg.graph);
-    });
-    configWorker.addEventListener('error', (err) => {
-      for (const [, { reject, cancelTimeout }] of configPending) {
-        cancelTimeout?.();
-        reject(err);
+      try {
+        if (!worker) {
+          const created = new Worker(
+            new URL('../workers/graphCompute.worker.ts', import.meta.url),
+            { type: 'module', name }
+          );
+          worker = created;
+          created.addEventListener(
+            'message',
+            (event: MessageEvent<GraphComputeResponse<Kind>>) => {
+              const message = event.data;
+              const current = pending;
+              if (
+                worker !== created ||
+                !current ||
+                message.type !== type ||
+                message.id !== current.id
+              )
+                return;
+              if (!take(current)) return;
+              if ('error' in message) {
+                const error = new Error(message.error.message);
+                error.name = message.error.name;
+                current.reject(error);
+              } else {
+                current.resolve(message.result);
+              }
+            }
+          );
+        }
+
+        // These callbacks belong to this request, including when an idle worker
+        // is reused. A stale worker event can never settle a replacement job.
+        const currentWorker = worker;
+        const onFailure = () => {
+          if (worker !== currentWorker) return;
+          if (pending === job) fallback();
+          else if (!pending) terminate();
+        };
+        currentWorker.onerror = onFailure;
+        currentWorker.onmessageerror = onFailure;
+        job.timer = setTimeout(fallback, WORKER_TIMEOUT_MS);
+        currentWorker.postMessage({ id: job.id, type, payload });
+      } catch {
+        fallback();
       }
-      configPending.clear();
     });
   }
-  return configWorker;
+
+  return { run, cancel };
 }
 
-export function computeComputationTreeInWorker(
-  payload: TreePayload
-): Promise<ComputationTree> {
-  // Fallback to synchronous computation if workers are unavailable
-  if (typeof Worker === 'undefined') {
-    return Promise.resolve(
-      getComputationTreeFromInputs(
-        payload.startConfig,
-        payload.transitions,
-        payload.numberOfTapes,
-        payload.blank,
-        payload.depth,
-        !!payload.compressing,
-        undefined,
-        payload.targetNodes
-      )
-    );
-  }
+const treeChannel = createComputeChannel(
+  'computationTree',
+  'graph-compute-tree',
+  'Tree worker reset',
+  graphComputations.computationTree
+);
+const configChannel = createComputeChannel(
+  'configGraph',
+  'graph-compute-config',
+  'Config worker reset',
+  graphComputations.configGraph
+);
 
-  // Cancel any ongoing job (avoid stale work on example switch)
-  terminateTreeWorker();
-  const worker = ensureTreeWorker();
-  const id = ++treeSeq;
-
-  return new Promise<ComputationTree>((resolve, reject) => {
-    const timer = setTimeout(() => {
-      // Timed out: compute synchronously with the requested budget so visible node targets stay stable.
-      treePending.delete(id);
-      terminateTreeWorker(false);
-      const tree = getComputationTreeFromInputs(
-        payload.startConfig,
-        payload.transitions,
-        payload.numberOfTapes,
-        payload.blank,
-        payload.depth,
-        !!payload.compressing,
-        undefined,
-        payload.targetNodes
-      );
-      resolve(tree);
-    }, TREE_WORKER_TIMEOUT_MS);
-
-    treePending.set(id, {
-      resolve: (v) => {
-        clearTimeout(timer);
-        resolve(v);
-      },
-      reject: (e) => {
-        clearTimeout(timer);
-        reject(e);
-      },
-      cancelTimeout: () => clearTimeout(timer),
-    });
-    worker.postMessage({ id, type: 'computationTree', payload });
-  });
-}
-
-export function computeConfigGraphInWorker(
-  payload: ConfigGraphPayload
-): Promise<ConfigGraph> {
-  if (typeof Worker === 'undefined') {
-    return Promise.resolve(
-      computeConfigGraph(
-        payload.startConfig,
-        payload.targetNodes ?? DEFAULT_CONFIG_GRAPH_TARGET_NODES,
-        payload.transitions,
-        payload.numberOfTapes,
-        payload.blank
-      )
-    );
-  }
-
-  // Cancel any ongoing job (avoid stale work on example switch)
-  terminateConfigWorker();
-  const worker = ensureConfigWorker();
-  const id = ++configSeq;
-
-  return new Promise<ConfigGraph>((resolve, reject) => {
-    const timer = setTimeout(() => {
-      // Timed out: compute a smaller graph synchronously
-      configPending.delete(id);
-      terminateConfigWorker(false);
-      const reducedTarget = Math.max(
-        MIN_CONFIG_GRAPH_TARGET_NODES,
-        Math.floor((payload.targetNodes ?? DEFAULT_CONFIG_GRAPH_TARGET_NODES) / 2)
-      );
-      const graph = computeConfigGraph(
-        payload.startConfig,
-        reducedTarget,
-        payload.transitions,
-        payload.numberOfTapes,
-        payload.blank
-      );
-      resolve(graph);
-    }, CONFIG_WORKER_TIMEOUT_MS);
-
-    configPending.set(id, {
-      resolve: (v) => {
-        clearTimeout(timer);
-        resolve(v);
-      },
-      reject: (e) => {
-        clearTimeout(timer);
-        reject(e);
-      },
-      cancelTimeout: () => clearTimeout(timer),
-    });
-    worker.postMessage({ id, type: 'configGraph', payload });
-  });
-}
+export const computeComputationTreeInWorker = treeChannel.run;
+export const cancelComputationTreeCompute = treeChannel.cancel;
+export const computeConfigGraphInWorker = configChannel.run;
+export const cancelConfigGraphCompute = configChannel.cancel;

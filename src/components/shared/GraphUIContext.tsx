@@ -1,4 +1,3 @@
-// src/components/ConfigGraph/ui/GraphUIContext.tsx
 import {
   createContext,
   useContext,
@@ -7,7 +6,17 @@ import {
   PropsWithChildren,
 } from 'react';
 
+export type GraphAnchor = { top: number; left: number };
+
+export type GraphSelection = {
+  type: 'node' | 'edge' | null;
+  id: string | null;
+  anchor?: GraphAnchor;
+};
+
 type GraphUIContextValue = {
+  active: boolean;
+
   // Currently highlighted edge (on hover)
   highlightedEdgeId: string | null;
   setHighlightedEdgeId: (id: string | null) => void;
@@ -17,27 +26,23 @@ type GraphUIContextValue = {
   setHoveredState: (s: string | null) => void;
 
   // Currently selected element (node or edge)
-  selected: {
-    type: 'node' | 'edge' | null;
-    id: string | null;
-    anchor?: { top: number; left: number };
-  };
-  setSelected: (s: GraphUIContextValue['selected']) => void;
+  selected: GraphSelection;
+  setSelected: (selection: GraphSelection) => void;
 };
 
 const GraphUIContext = createContext<GraphUIContextValue | null>(null);
 
-export function GraphUIProvider({ children }: PropsWithChildren) {
+export function GraphUIProvider({
+  children,
+  active = true,
+}: PropsWithChildren<{ active?: boolean }>) {
   const [highlightedEdgeId, setHighlightedEdgeId] = useState<string | null>(null);
   const [hoveredState, setHoveredState] = useState<string | null>(null);
-  const [selected, setSelected] = useState<{
-    type: 'node' | 'edge' | null;
-    id: string | null;
-    anchor?: { top: number; left: number };
-  }>({ type: null, id: null });
+  const [selected, setSelected] = useState<GraphSelection>({ type: null, id: null });
 
   const value = useMemo(
     () => ({
+      active,
       highlightedEdgeId,
       setHighlightedEdgeId,
       hoveredState,
@@ -45,7 +50,7 @@ export function GraphUIProvider({ children }: PropsWithChildren) {
       selected,
       setSelected,
     }),
-    [highlightedEdgeId, hoveredState, selected]
+    [active, highlightedEdgeId, hoveredState, selected]
   );
 
   return <GraphUIContext.Provider value={value}>{children}</GraphUIContext.Provider>;

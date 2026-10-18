@@ -20,19 +20,12 @@ export default defineConfig({
             return 'monaco-react-vendor';
           }
 
-          if (
-            id.includes('@xyflow') ||
-            id.includes('reactflow')
-          ) {
+          if (id.includes('@xyflow')) {
             return 'reactflow-vendor';
           }
 
           if (id.includes('elkjs') || id.includes('cytoscape')) {
             return 'layout-vendor';
-          }
-
-          if (id.includes('d3-force') || id.includes('d3-hierarchy')) {
-            return 'd3-vendor';
           }
 
           if (
