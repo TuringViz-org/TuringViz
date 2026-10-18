@@ -1,132 +1,187 @@
 # TuringViz
 
-Interactive visualizer for deterministic and nondeterministic **k-tape Turing machines**.
+**Explore Turing machines, one configuration at a time.**
 
-## LIVE WEBSITE
+TuringViz is an interactive visualizer for deterministic and nondeterministic
+**k-tape Turing machines**. Write a machine, follow its execution across multiple
+tapes, and explore its state graph, configuration graph, and computation tree.
+Built for learning, teaching, and experimenting with models of computation.
 
-# **https://turingviz.org**
+**[Open TuringViz](https://turingviz.org)** ·
+[Language reference](src/tmLanguage/turingviz-machine-language.md) ·
+[Architecture](docs/architecture.md) ·
+[Report an issue](https://github.com/TuringViz-org/TuringViz/issues)
 
-The production website is hosted on **[turingviz.org](https://turingviz.org)**.
+![TuringViz running binary addition with the active state highlighted and three tapes visible](docs/screenshots/multi-tape-execution.jpg)
 
-## What TuringViz does
+_BinaryAdd in the Run view: follow the active state, tape contents, and head positions
+as the machine adds two binary numbers._
 
-TuringViz lets you define and run k-tape Turing machines in the TuringViz DSL and inspect them from multiple angles:
+## Features
 
-- **State Graph**: machine-level transition graph.
-- **Configuration Graph**: reachable configurations including tape contents and head positions.
-- **Computation Tree**: unfolded nondeterministic branching over time, with optional compression.
-- **Execution controls**: step-by-step execution, auto-run, and manual choice of nondeterministic branches.
-- **DSL editor**: Monaco-based editor with custom syntax highlighting, hovers, and diagnostics.
+- **Multiple perspectives:** inspect the machine's state graph, explore reachable
+  configurations, and unfold alternative runs in a computation tree.
+- **Interactive execution:** step through transitions or run automatically at an
+  adjustable speed, with support for machines using **1–6 tapes**.
+- **Nondeterministic branching:** choose transitions manually or use Random,
+  Accepting, and Rejecting run modes.
+- **A dedicated machine language:** write compact transition rules in a Monaco
+  editor with syntax highlighting, inline diagnostics, and hover documentation.
+- **Examples and sharing:** start from built-in machines, revisit recent machines,
+  share programs through a link, or import them from GitHub Gists.
 
-## Input format
+## Get started
 
-- Machine definitions are written in the TuringViz machine language.
-- Transition styles supported:
-  - compact read rules such as `on 1/0 -> move R/S;`
-  - optional `write` and `goto` actions, with `same` for unchanged tape symbols
-  - `choose { ... }` blocks for nondeterministic choices
-  - readable `if ... then ...` rules for tape-specific conditions
-- Language reference:
-  - `src/tmLanguage/turingviz-machine-language.md`
+1. Open **[turingviz.org](https://turingviz.org)** and select **Load Examples**.
+   Start with **CheckEven** for a small machine or **BinaryAdd** for multiple tapes.
+2. Open **Run**. Use **Step** to follow individual transitions or **Start** to run
+   the machine automatically. **Reset** returns to the initial configuration.
+3. Open **Configuration Graph** or **Computation Tree** to explore the machine's
+   behavior beyond a single run. For a branching example, try **AllStrings**.
 
-## Sharing and loading machines
+## Write your own machine
 
-- **Share links**: generated links encode the current machine in the URL hash (`#tm=...`).
-- **Gist import**: machine programs can be loaded from GitHub Gists via `?gist=...`.
-- **Examples menu**: built-in machine examples for quick exploration.
-- **Recent machines**: recently loaded machines are available in the UI.
+Define the tapes, blank symbol, input, and initial state, then add transition rules.
+This machine accepts binary strings containing an even number of `1` symbols:
 
-## Project background
+```text
+tapes: 1
+blank: _
+input: "1010"
+start: even
 
-This project was started in the **Software Engineering Lab** course at the **University of Regensburg** and developed by **Christoph Greger** and **Gregor Porsch**.
+state even:
+  on 0 -> move R;
+  on 1 -> move R; goto odd;
+  on _ -> move S; goto accept;
 
-Beyond the core functionality and the first prototypes, a significant part of the development process also used **LLM agents**.
+state odd:
+  on 0 -> move R;
+  on 1 -> move R; goto even;
+  on _ -> move S; goto reject;
+
+state accept:
+state reject:
+```
+
+Paste it into the **Input** editor, click **Load Machine**, and switch to **Run**.
+The language also supports multi-tape read patterns, optional `write` and `goto`
+actions, `same` to preserve a symbol, `choose { ... }` blocks for nondeterminism,
+and readable `if ... then ...` rules. See the
+[language reference](src/tmLanguage/turingviz-machine-language.md) for syntax and
+examples.
+
+![The built-in CheckEven program in the syntax-highlighted editor beside its state graph](docs/screenshots/editor-state-graph.jpg)
+
+_The Input view pairs the machine definition with its state graph. Shown here:
+the built-in CheckEven example._
+
+## Explore branching computations
+
+The **configuration graph** connects reachable configurations, including their
+tape contents and head positions. The **computation tree** unfolds possible runs:
+the same configuration can appear on different branches if reached by different
+paths.
+
+Both views offer compact nodes and detailed configuration cards. Tree compression
+merges linear paths into single edges. Larger explorations use a configurable
+target node count, so a displayed graph or tree may represent only part of the
+computation.
+
+![The AllStrings computation tree branching into eight paths, with purple generate nodes and green done nodes](docs/screenshots/computation-tree.jpg)
+
+_AllStrings with input `000`: nondeterministic choices generate every binary string
+of length three, producing eight completed runs._
+
+## Share and load machines
+
+- **Share links:** click **Share** in the editor to create a link containing the
+  current program in the URL hash (`#tm=...`).
+- **GitHub Gists:** open `https://turingviz.org/?gist=<gist-id>` to import a program.
+  Add `&file=machine.tvm` to select a specific file in a Gist.
+- **Recent machines:** use **Recent** to revisit previously loaded programs.
+
+## Built-in examples
+
+The **Load Examples** menu includes machines ranging from simple recognizers to
+nondeterministic search problems.
+
+<details>
+<summary>Browse all 11 examples</summary>
+
+| Example           | What it demonstrates                                                         |
+| ----------------- | ---------------------------------------------------------------------------- |
+| `BinaryAdd`       | Adds binary numbers from tapes 1 and 2, writing the result on tape 3.        |
+| `NonDetSubstring` | Guesses a start position and checks whether tape 2 is a substring of tape 1. |
+| `vvWord`          | Checks whether the input is the same substring repeated twice.               |
+| `NonDetSubSetSum` | Solves subset sum nondeterministically using binary-encoded numbers.         |
+| `CheckEven`       | Accepts binary inputs containing an even number of `1` symbols.              |
+| `GCD`             | Computes the greatest common divisor of two unary numbers.                   |
+| `AllStrings`      | Generates all binary strings of a fixed input length.                        |
+| `Fib`             | Has exactly `fib(n)` accepting paths on input `1^n`.                         |
+| `DAG`             | Produces an acyclic configuration graph.                                     |
+| `Circle`          | Produces a cyclic configuration graph.                                       |
+| `NonDetSAT`       | Solves SAT nondeterministically for formulas in conjunctive normal form.     |
+
+</details>
 
 ## Local development
 
-Write documentation, code comments, and user-facing text in English.
-
-### Prerequisites
-
-- Node.js (LTS recommended)
-- npm
-
-### Install dependencies
+Install **Node.js (LTS)** and **npm**, then run:
 
 ```bash
-npm install
-```
-
-### Start dev server
-
-```bash
+git clone https://github.com/TuringViz-org/TuringViz.git
+cd TuringViz
+npm ci
 npm run dev
 ```
 
-### Build production bundle
+Open the local URL printed by Vite.
 
-```bash
-npm run build
-```
+| Command                 | Purpose                                       |
+| ----------------------- | --------------------------------------------- |
+| `npm run dev`           | Start the development server.                 |
+| `npm run build`         | Create the production bundle in `dist/`.      |
+| `npm run preview`       | Preview the production bundle after building. |
+| `npm run typecheck`     | Check application and test types.             |
+| `npm test`              | Run tests in watch mode.                      |
+| `npm test -- --run`     | Run the test suite once.                      |
+| `npm run test:coverage` | Run tests with coverage reporting.            |
 
-### Preview production build locally
+The application uses **React, TypeScript, and Vite**, with Material UI, Monaco
+Editor, Cytoscape, React Flow, ELK layout, and Zustand. Tests use Vitest and Testing
+Library. The [architecture guide](docs/architecture.md) covers graph computation,
+layout, loading, and fullscreen lifecycles.
 
-```bash
-npm run preview
-```
+Write documentation, code comments, and user-facing text in **English**.
 
-### Run tests
+## Contributing and feedback
 
-```bash
-npm test
-npm run test:coverage
-```
+Bug reports, improvements, and new example machines are welcome. Open a
+[GitHub issue](https://github.com/TuringViz-org/TuringViz/issues) or email
+[public@christoph-greger.de](mailto:public@christoph-greger.de).
 
-## Architecture
+If you submit an example machine, include its purpose, a sample input, and the
+expected behavior. Included examples receive author credit. We would also like
+to hear how you use TuringViz in courses, lectures, or projects.
 
-The graph computation, layout, loading and fullscreen lifecycles are documented in
-[docs/architecture.md](docs/architecture.md).
+## Project background
 
-Run `npm run typecheck` to check the application and test types.
+TuringViz began in the **Software Engineering Lab** course at the **University of
+Regensburg**, developed by **Christoph Greger** and **Gregor Porsch**. Beyond the
+core functionality and initial prototypes, LLM agents also supported a significant
+part of the development process.
 
-## Tech stack
+We thank the **Chair of Algorithms and Complexity** for its continued support
+throughout the development of TuringViz.
 
-- React + TypeScript + Vite
-- Material UI
-- Monaco Editor with the custom TuringViz language adapter
-- Cytoscape + React Flow + ELK layout
-- Zustand state management
-- Vitest + Testing Library
+## License and acknowledgements
 
-## Feedback and contact
+TuringViz is released under the [BSD 3-Clause License](LICENSE).
 
-Feedback is always welcome.
-
-- Open an issue: [GitHub Issues](https://github.com/TuringViz-org/TuringViz/issues)
-- Contact by mail: `public@christoph-greger.de`
-
-We would also love to hear **where you use TuringViz** (course, lecture, project, etc.).
-We are also very happy to hear from people who want to **contribute and further develop the project**.
-
-We are always happy to receive **new, high-quality example machines**.  
-If you share one (via issue or email), we are glad to add it to the website and give proper **credits**.
-
-## Current built-in examples
-
-The following examples are currently available in the "Load Examples" menu:
-
-- `BinaryAdd`: Adds two binary numbers (input on tapes 1 and 2) and writes the result on tape 3.
-- `NonDetSubstring`: Nondeterministically guesses a start position and checks whether tape 2 is a substring of tape 1.
-- `vvWord`: Checks whether an input word has the form `vv` (the same substring repeated twice).
-- `NonDetSubSetSum`: Nondeterministic subset-sum machine using binary-encoded numbers.
-- `CheckEven`: Accepts iff the number of `1` symbols in a binary input is even.
-- `GCD`: Computes the greatest common divisor of two unary numbers.
-- `AllStrings`: Nondeterministically generates all binary strings of a fixed input length.
-- `Fib`: On input `1^n`, this machine has exactly `fib(n)` accepting paths.
-- `DAG`: Example whose configuration graph is acyclic (a directed acyclic graph).
-- `Circle`: Produces a cyclic configuration graph (a simple loop/circle structure).
-- `NonDetSAT`: Nondeterministic SAT solver for CNF formulas (accepts iff satisfiable).
-
-## Acknowledgements
-
-The TuringViz input format is based on the YAML-based Turing machine description format used by [turingmachine.io](https://turingmachine.io/) ([aepsilon/turing-machine-viz](https://github.com/aepsilon/turing-machine-viz)), which is licensed under the BSD 3-Clause License. TuringViz does not include source code from turingmachine.io.
+The project's input format draws inspiration from the YAML-based Turing machine
+description format used by [turingmachine.io](https://turingmachine.io/)
+([aepsilon/turing-machine-viz](https://github.com/aepsilon/turing-machine-viz)),
+which is licensed under the BSD 3-Clause License. The current TuringViz editor uses
+its own machine language. TuringViz does not include source code from
+turingmachine.io.
