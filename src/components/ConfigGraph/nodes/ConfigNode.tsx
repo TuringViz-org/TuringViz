@@ -1,41 +1,19 @@
-// src/components/ConfigGraph/nodes/ConfigNode.tsx
 import { Handle, Position, Node, NodeProps } from '@xyflow/react';
-import {
-  Box,
-  Typography,
-  Tooltip,
-  Paper,
-  useTheme,
-  ClickAwayListener,
-} from '@mui/material';
+import { Box, Typography, Tooltip, useTheme } from '@mui/material';
 import { alpha } from '@mui/material/styles';
-import Popper from '@mui/material/Popper';
 import { memo, useEffect, useMemo } from 'react';
 
-import { CONFIG_CARD_WIDTH, CONFIG_NODE_DIAMETER } from '../util/constants';
+import { CONFIG_NODE_DIAMETER } from '../util/constants';
 import { useHoverPopper } from '../hooks/useHoverPopper';
 import { HOVER_POPPER_DELAY_MS } from '@utils/constants';
-import ConfigCard from '../ConfigVisualization/ConfigCard';
-import type { Configuration } from '@mytypes/TMTypes';
+import { ConfigurationDetailPopper } from '@components/shared/ConfigurationDetailPopper';
+import type { ConfigNodeRenderData } from '../types';
 import { setConfiguration } from '@tmfunctions/Running';
 import { useGraphUI } from '@components/shared/GraphUIContext';
 
-export interface ConfigNodeData extends Record<string, unknown> {
-  label: string;
-  config: Configuration;
-  isStart: boolean;
-  isCurrent: boolean;
-  isComputed?: boolean;
-  isSelectable?: boolean;
-  showLabel?: boolean;
-  stateColor?: string;
-  pendingInteractive?: boolean;
-}
-
-type ConfigNode = Node<ConfigNodeData>;
+type ConfigNode = Node<ConfigNodeRenderData>;
 
 const ConfigNodeComponent = ({ id, data }: NodeProps<ConfigNode>) => {
-  // <-- id dazu
   const theme = useTheme();
   const {
     label,
@@ -49,21 +27,20 @@ const ConfigNodeComponent = ({ id, data }: NodeProps<ConfigNode>) => {
     stateColor,
   } = data;
 
-  const { selected, setSelected, setHoveredState } = useGraphUI();
+  const { active, selected, setSelected, setHoveredState } = useGraphUI();
 
-  // Selection richtig prüfen: nach Node-ID, nicht Label
+  // Match selection by node ID because labels need not be unique.
   const isSelected = selected.type === 'node' && selected.id === id;
 
   const {
     open,
-    virtualAnchor,
     anchorPos,
     onMouseEnter,
     onMouseMove,
     onMouseLeave,
     setAnchorPos,
     close,
-  } = useHoverPopper(HOVER_POPPER_DELAY_MS, isSelected);
+  } = useHoverPopper(HOVER_POPPER_DELAY_MS, isSelected, active);
 
   const greenLabels = ['done', 'accept', 'accepted'];
   const redLabels = ['error', 'reject', 'rejected'];
@@ -78,9 +55,6 @@ const ConfigNodeComponent = ({ id, data }: NodeProps<ConfigNode>) => {
   const handleEnter = (e: React.MouseEvent) => {
     onMouseEnter(e);
     setHoveredState(label);
-  };
-  const handleMove = (e: React.MouseEvent) => {
-    onMouseMove(e);
   };
   const handleLeave = () => {
     onMouseLeave();
@@ -104,7 +78,7 @@ const ConfigNodeComponent = ({ id, data }: NodeProps<ConfigNode>) => {
     return theme.palette.background.paper;
   }, [colorOnlyMode, stateColor, isCurrent, isAccepting, isRejecting, theme]);
 
-  // Hier `isSelected` verwenden (nicht "selected")
+  // Apply the selection border only to this node.
   const borderColor = isCurrent
     ? theme.palette.node.currentConfig
     : isSelectable
@@ -119,16 +93,15 @@ const ConfigNodeComponent = ({ id, data }: NodeProps<ConfigNode>) => {
       ? alpha(theme.palette.accent?.main ?? theme.palette.secondary.main, 0.25)
       : 'transparent';
 
-  const boxShadow =
-    isCurrent
-      ? [
-          `0 0 0 4px ${alpha(theme.palette.node.currentConfig, 0.34)}`,
-          `0 0 18px ${alpha(theme.palette.node.currentConfig, 0.55)}`,
-          `inset 0 0 0 9999px ${highlightColor}`,
-        ].join(', ')
-      : highlightColor !== 'transparent'
-        ? `inset 0 0 0 9999px ${highlightColor}`
-        : undefined;
+  const boxShadow = isCurrent
+    ? [
+        `0 0 0 4px ${alpha(theme.palette.node.currentConfig, 0.34)}`,
+        `0 0 18px ${alpha(theme.palette.node.currentConfig, 0.55)}`,
+        `inset 0 0 0 9999px ${highlightColor}`,
+      ].join(', ')
+    : highlightColor !== 'transparent'
+      ? `inset 0 0 0 9999px ${highlightColor}`
+      : undefined;
 
   return (
     <>
@@ -140,7 +113,7 @@ const ConfigNodeComponent = ({ id, data }: NodeProps<ConfigNode>) => {
       >
         <Box
           onMouseEnter={handleEnter}
-          onMouseMove={handleMove}
+          onMouseMove={onMouseMove}
           onMouseLeave={handleLeave}
           sx={{
             position: 'relative',
@@ -200,52 +173,17 @@ const ConfigNodeComponent = ({ id, data }: NodeProps<ConfigNode>) => {
         </Box>
       </Tooltip>
 
-      <Popper
+      <ConfigurationDetailPopper
         open={open}
-        anchorEl={anchorPos ? (virtualAnchor as any) : null}
-        placement="top-start"
-        modifiers={[
-          { name: 'offset', options: { offset: [0, 10] } },
-          { name: 'preventOverflow', options: { padding: 8 } },
-        ]}
-        sx={{ zIndex: (t) => t.zIndex.tooltip }}
-      >
-        <ClickAwayListener
-          onClickAway={() => {
-            setSelected({ type: null, id: null });
-            close();
-          }}
-        >
-          <Paper
-            elevation={6}
-            onMouseDown={(e) => e.stopPropagation()}
-            onClick={(e) => e.stopPropagation()}
-            onWheel={(e) => e.stopPropagation()}
-            onPointerDown={(e) => e.stopPropagation()}
-            sx={{
-              p: 1,
-              borderRadius: 2,
-              bgcolor: (t) => alpha(t.palette.background.paper, 0.97),
-              backdropFilter: 'blur(6px)',
-              border: (t) => `1px solid ${alpha(t.palette.divider, 0.32)}`,
-              boxShadow: (t) =>
-                `0 8px 28px ${alpha(t.palette.common.black, 0.18)}, 0 1px 2px ${alpha(
-                  t.palette.common.black,
-                  0.08
-                )}`,
-            }}
-          >
-            <ConfigCard
-              config={config}
-              cardWidth={CONFIG_CARD_WIDTH}
-              computed={isComputed}
-              showSelect
-              onSelect={() => setConfiguration(config)}
-              pendingInteractive={pendingInteractive}
-            />
-          </Paper>
-        </ClickAwayListener>
-      </Popper>
+        anchor={anchorPos}
+        config={config}
+        computed={isComputed}
+        pendingInteractive={pendingInteractive}
+        onClose={() => {
+          setSelected({ type: null, id: null });
+          close();
+        }}
+      />
     </>
   );
 };

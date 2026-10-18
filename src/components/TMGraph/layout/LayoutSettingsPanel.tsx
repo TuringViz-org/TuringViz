@@ -54,7 +54,7 @@ export function LayoutSettingsPanel({
   if (!open) return null;
 
   // Unify numeric slider handlers
-  const handleNumber = (k: keyof ElkOptions) => (_: any, val: number | number[]) =>
+  const handleNumber = (k: keyof ElkOptions) => (_: Event, val: number | number[]) =>
     onChange({ ...value, [k]: Array.isArray(val) ? val[0] : val });
 
   return (

@@ -7,8 +7,8 @@ import {
   Configuration,
   deepCopyTapeContent,
 } from '@mytypes/TMTypes';
-import { ConfigGraph } from '@tmfunctions/ConfigGraph';
-import { getColorMatching} from '@utils/ColorMatching';
+import type { ConfigGraph } from '@tmfunctions/configGraphModel';
+import { getColorMatching } from '@utils/ColorMatching';
 import type { RunMode } from '@utils/constants';
 
 export type RunChoiceOption = {
@@ -103,7 +103,8 @@ interface GlobalZustand {
   configGraph: ConfigGraph | null; //The graph representation of the configurations of the TM
   setConfigGraph: (configGraph: ConfigGraph) => void;
   configGraphComputing: boolean;
-  beginConfigGraphCompute: () => void;
+  // Returns an idempotent completion callback scoped to the loaded machine.
+  beginConfigGraphCompute: () => () => void;
   endConfigGraphCompute: () => void;
   configGraphComputeJobs: number;
 
@@ -131,152 +132,170 @@ interface GlobalZustand {
   reset: () => void;
 }
 
-export const useGlobalZustand = create<GlobalZustand>((set) => ({
-  setAll: (
-    states,
-    startState,
-    transitions,
-    blank,
-    numberOfTapes,
-    input,
-    configGraph
-  ) => {
-    set(prev => ({
-      // Keep input/tapes independent so runtime mutations never affect the original input.
-      input: deepCopyTapeContent(input),
-      tapes: deepCopyTapeContent(input),
-      blank,
-      numberOfTapes,
-      runningLive: false,
-      runningLiveID: 0,
-      lastState: '',
-      lastTransition: -1,
-      states,
-      configGraph,
-      startState,
-      transitions,
-      currentState: startState,
-      heads: Array(numberOfTapes).fill(0),
-      running: false,
-      stateColorMatching: getColorMatching(states, prev.stateColorMatching),
-      lastConfig: null,
-      pendingRunChoice: null,
-      runMode: 'manual',
-      machineLoadVersion: prev.machineLoadVersion + 1,
-    }));
-  },
-
-  configGraph: null,
-  setConfigGraph: (configGraph) => set({ configGraph }),
-  configGraphComputing: false,
-  configGraphComputeJobs: 0,
-  beginConfigGraphCompute: () =>
-    set((state) => ({
-      configGraphComputeJobs: state.configGraphComputeJobs + 1,
-      configGraphComputing: true,
-    })),
-  endConfigGraphCompute: () =>
+export const useGlobalZustand = create<GlobalZustand>((set) => {
+  let graphComputeGeneration = 0;
+  const endConfigGraphCompute = () =>
     set((state) => {
       const nextJobs = Math.max(0, state.configGraphComputeJobs - 1);
       return {
         configGraphComputeJobs: nextJobs,
         configGraphComputing: nextJobs > 0,
       };
-    }),
+    });
 
-  states: new Set<string>(),
-  setStates: (states) => set({ states }),
+  return {
+    setAll: (
+      states,
+      startState,
+      transitions,
+      blank,
+      numberOfTapes,
+      input,
+      configGraph
+    ) => {
+      graphComputeGeneration += 1;
+      set((prev) => ({
+        // Keep input/tapes independent so runtime mutations never affect the original input.
+        input: deepCopyTapeContent(input),
+        tapes: deepCopyTapeContent(input),
+        blank,
+        numberOfTapes,
+        runningLive: false,
+        runningLiveID: 0,
+        lastState: '',
+        lastTransition: -1,
+        states,
+        configGraph,
+        configGraphComputing: false,
+        configGraphComputeJobs: 0,
+        startState,
+        transitions,
+        currentState: startState,
+        heads: Array(numberOfTapes).fill(0),
+        running: false,
+        stateColorMatching: getColorMatching(states, prev.stateColorMatching),
+        lastConfig: null,
+        pendingRunChoice: null,
+        runMode: 'manual',
+        machineLoadVersion: prev.machineLoadVersion + 1,
+      }));
+    },
 
-  startState: '',
-  setStartState: (state) => set({ startState: state }),
+    configGraph: null,
+    setConfigGraph: (configGraph) => set({ configGraph }),
+    configGraphComputing: false,
+    configGraphComputeJobs: 0,
+    beginConfigGraphCompute: () => {
+      const generation = graphComputeGeneration;
+      let finished = false;
+      set((state) => ({
+        configGraphComputeJobs: state.configGraphComputeJobs + 1,
+        configGraphComputing: true,
+      }));
+      return () => {
+        if (finished || generation !== graphComputeGeneration) return;
+        finished = true;
+        endConfigGraphCompute();
+      };
+    },
+    endConfigGraphCompute,
 
-  currentState: '',
-  setCurrentState: (state) => set({ currentState: state }),
+    states: new Set<string>(),
+    setStates: (states) => set({ states }),
 
-  transitions: new Map<string, Transition[]>(),
-  setTransitions: (transitions) => set({ transitions }),
+    startState: '',
+    setStartState: (state) => set({ startState: state }),
 
-  numberOfTapes: 1,
-  setNumberOfTapes: (numberOfTapes) => set({ numberOfTapes }),
+    currentState: '',
+    setCurrentState: (state) => set({ currentState: state }),
 
-  blank: ' ',
-  setBlank: (blank) => set({ blank }),
+    transitions: new Map<string, Transition[]>(),
+    setTransitions: (transitions) => set({ transitions }),
 
-  tapes: [[[], []]],
-  setTapes: (tapes) => set({ tapes }),
+    numberOfTapes: 1,
+    setNumberOfTapes: (numberOfTapes) => set({ numberOfTapes }),
 
-  heads: [0],
-  setHeads: (heads) => set({ heads }),
+    blank: ' ',
+    setBlank: (blank) => set({ blank }),
 
-  running: false,
-  setRunning: (running) => set({ running }),
+    tapes: [[[], []]],
+    setTapes: (tapes) => set({ tapes }),
 
-  runningLive: false,
-  setRunningLive: (runningLive) => set({ runningLive }),
+    heads: [0],
+    setHeads: (heads) => set({ heads }),
 
-  runningLiveID: 0,
-  incrementRunningLiveID: () =>
-    set((state) => ({ runningLiveID: state.runningLiveID + 1 })),
+    running: false,
+    setRunning: (running) => set({ running }),
 
-  runSpeedMs: 700,
-  setRunSpeedMs: (runSpeedMs) => set({ runSpeedMs }),
+    runningLive: false,
+    setRunningLive: (runningLive) => set({ runningLive }),
 
-  runMode: 'manual',
-  setRunMode: (runMode) => set({ runMode }),
+    runningLiveID: 0,
+    incrementRunningLiveID: () =>
+      set((state) => ({ runningLiveID: state.runningLiveID + 1 })),
 
-  input: [[[], []]],
-  setInput: (input) => set({ input }),
+    runSpeedMs: 700,
+    setRunSpeedMs: (runSpeedMs) => set({ runSpeedMs }),
 
-  lastState: '',
-  setLastState: (state) => set({ lastState: state }),
+    runMode: 'manual',
+    setRunMode: (runMode) => set({ runMode }),
 
-  lastTransition: -1,
-  setLastTransition: (transition) => set({ lastTransition: transition }),
+    input: [[[], []]],
+    setInput: (input) => set({ input }),
 
-  configGraphVersion: 0,
-  incrementConfigGraphVersion: () =>
-    set((state) => ({ configGraphVersion: state.configGraphVersion + 1 })),
+    lastState: '',
+    setLastState: (state) => set({ lastState: state }),
 
-  machineLoadVersion: 0,
+    lastTransition: -1,
+    setLastTransition: (transition) => set({ lastTransition: transition }),
 
-  lastTransitionTrigger: 0,
-  triggerTransition: () =>
-    set((state) => ({ lastTransitionTrigger: state.lastTransitionTrigger + 1 })),
+    configGraphVersion: 0,
+    incrementConfigGraphVersion: () =>
+      set((state) => ({ configGraphVersion: state.configGraphVersion + 1 })),
 
-  stateColorMatching: new Map<string, string>(),
-  setStateColorMatching: (stateColorMatching) => set({ stateColorMatching: stateColorMatching }),
+    machineLoadVersion: 0,
 
-  pendingRunChoice: null,
-  setPendingRunChoice: (pendingRunChoice) => set({ pendingRunChoice }),
-  clearRunChoice: () => set({ pendingRunChoice: null }),
+    lastTransitionTrigger: 0,
+    triggerTransition: () =>
+      set((state) => ({ lastTransitionTrigger: state.lastTransitionTrigger + 1 })),
 
-  reset: () =>
-    set({
-      states: new Set<string>(),
-      startState: '',
-      currentState: '',
-      transitions: new Map<string, Transition[]>(),
-      blank: ' ',
-      tapes: [[[], []]],
-      numberOfTapes: 1,
-      heads: [0],
-      running: false,
-      runningLive: false,
-      configGraph: null,
-      configGraphComputing: false,
-      configGraphComputeJobs: 0,
-      lastState: '',
-      lastTransition: -1,
-      input: [[[], []]],
-      stateColorMatching: new Map<string, string>(),
-      lastConfig: null,
-      pendingRunChoice: null,
-      machineLoadVersion: 0,
-      runSpeedMs: 700,
-      runMode: 'manual',
-    }),
+    stateColorMatching: new Map<string, string>(),
+    setStateColorMatching: (stateColorMatching) =>
+      set({ stateColorMatching: stateColorMatching }),
 
-  lastConfig: null,
-  setLastConfig: (config) => set({ lastConfig: config }),
+    pendingRunChoice: null,
+    setPendingRunChoice: (pendingRunChoice) => set({ pendingRunChoice }),
+    clearRunChoice: () => set({ pendingRunChoice: null }),
 
-}));
+    reset: () => {
+      graphComputeGeneration += 1;
+      set({
+        states: new Set<string>(),
+        startState: '',
+        currentState: '',
+        transitions: new Map<string, Transition[]>(),
+        blank: ' ',
+        tapes: [[[], []]],
+        numberOfTapes: 1,
+        heads: [0],
+        running: false,
+        runningLive: false,
+        configGraph: null,
+        configGraphComputing: false,
+        configGraphComputeJobs: 0,
+        lastState: '',
+        lastTransition: -1,
+        input: [[[], []]],
+        stateColorMatching: new Map<string, string>(),
+        lastConfig: null,
+        pendingRunChoice: null,
+        machineLoadVersion: 0,
+        runSpeedMs: 700,
+        runMode: 'manual',
+      });
+    },
+
+    lastConfig: null,
+    setLastConfig: (config) => set({ lastConfig: config }),
+  };
+});

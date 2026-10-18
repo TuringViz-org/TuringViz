@@ -1,5 +1,9 @@
 import { MarkerType, type Edge as RFEdge, type Node as RFNode } from '@xyflow/react';
 
+import type {
+  ConfigNodeRenderData,
+  ConfigEdgeData,
+} from '@components/ConfigGraph/types';
 import type { Configuration, Transition } from '@mytypes/TMTypes';
 import { ConfigNodeMode } from '@utils/constants';
 import {
@@ -34,7 +38,7 @@ type TransitionEdgeParams = {
   isLoop?: boolean;
   compressed?: boolean;
   compressedLength?: number;
-  data?: Record<string, unknown>;
+  data?: ConfigEdgeData;
 };
 
 export function createConfigFlowNode({
@@ -46,7 +50,7 @@ export function createConfigFlowNode({
   isCurrent = false,
   isComputed,
   pendingInteractive,
-}: ConfigNodeParams): RFNode {
+}: ConfigNodeParams): RFNode<ConfigNodeRenderData> {
   const isCard = nodeMode === ConfigNodeMode.CARDS;
   return {
     id,
@@ -76,7 +80,7 @@ export function createTransitionFlowEdge({
   compressed = false,
   compressedLength,
   data,
-}: TransitionEdgeParams): RFEdge {
+}: TransitionEdgeParams): RFEdge<ConfigEdgeData> {
   return {
     id,
     source,

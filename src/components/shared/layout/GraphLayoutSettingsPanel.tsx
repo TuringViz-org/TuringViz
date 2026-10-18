@@ -39,8 +39,8 @@ function RowLabel({ children }: { children: React.ReactNode }) {
 }
 
 /**
- * Panel für ELK-Layout (layered-only), analog zum ConfigGraph-Panel
- * – ohne Algorithmus-Auswahl.
+ * Settings panel for the ELK layered layout, matching the ConfigGraph panel.
+ * The layout algorithm is fixed, so no algorithm selector is shown.
  */
 export function GraphLayoutSettingsPanel({
   open,
@@ -54,7 +54,7 @@ export function GraphLayoutSettingsPanel({
 }: GraphLayoutSettingsPanelProps) {
   if (!open) return null;
 
-  const handleNumber = (k: keyof ElkOptions) => (_: any, val: number | number[]) =>
+  const handleNumber = (k: keyof ElkOptions) => (_: Event, val: number | number[]) =>
     onChange({ ...value, [k]: Array.isArray(val) ? val[0] : val });
   const directionMode = value.autoDirection ? 'AUTO' : value.direction;
   const sliderLimits =
@@ -120,7 +120,13 @@ export function GraphLayoutSettingsPanel({
 
       <Stack spacing={1.25}>
         {/* Direction */}
-        <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" rowGap={0.75}>
+        <Stack
+          direction="row"
+          spacing={1}
+          alignItems="center"
+          flexWrap="wrap"
+          rowGap={0.75}
+        >
           <RowLabel>Direction</RowLabel>
           <Box
             sx={{

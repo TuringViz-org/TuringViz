@@ -1,5 +1,6 @@
 // src/components/ConfigGraph/util/buildConfigGraph.ts
-import { Node, Edge } from '@xyflow/react';
+import type { Node, Edge } from '@xyflow/react';
+import type { ConfigNodeRenderData, ConfigEdgeData } from '../types';
 import { hashConfig } from '@mytypes/TMTypes';
 import type { Configuration, Transition } from '@mytypes/TMTypes';
 import type { ConfigGraph } from '@tmfunctions/ConfigGraph';
@@ -21,9 +22,13 @@ export function buildConfigGraph(
   transitionsByState: Map<string, Transition[]>,
   currentConfig?: Configuration | null,
   mode: ConfigNodeMode = ConfigNodeMode.NODES
-): { nodes: Node[]; edges: Edge[]; topoKey: string } {
-  const nodes: Node[] = [];
-  const edges: Edge[] = [];
+): {
+  nodes: Node<ConfigNodeRenderData>[];
+  edges: Edge<ConfigEdgeData>[];
+  topoKey: string;
+} {
+  const nodes: Node<ConfigNodeRenderData>[] = [];
+  const edges: Edge<ConfigEdgeData>[] = [];
 
   const currentHash = currentConfig ? hashConfig(currentConfig) : null;
   const isCardMode = mode === ConfigNodeMode.CARDS;
@@ -36,15 +41,17 @@ export function buildConfigGraph(
     const config = val.config;
     includedNodeIds.add(hash);
 
-    nodes.push(createConfigFlowNode({
-      id: hash,
-      config,
-      nodeMode: mode,
-      label: config.state,
-      isStart: hash === cfgGraph.startconfighash,
-      isCurrent: currentHash === hash,
-      isComputed: val.computed,
-    }));
+    nodes.push(
+      createConfigFlowNode({
+        id: hash,
+        config,
+        nodeMode: mode,
+        label: config.state,
+        isStart: hash === cfgGraph.startconfighash,
+        isCurrent: currentHash === hash,
+        isComputed: val.computed,
+      })
+    );
   });
 
   // --- Edges ---
@@ -59,21 +66,25 @@ export function buildConfigGraph(
       const isLoop = fromHash === toHash;
       const edgeId = `${fromHash}→${toHash}#${tIdx}`;
 
-      edges.push(createTransitionFlowEdge({
-        id: edgeId,
-        source: fromHash,
-        target: toHash,
-        isLoop,
-        label: transition ? `${fromCfg.state} #${tIdx + 1}` : '',
-        transition,
-      }));
+      edges.push(
+        createTransitionFlowEdge({
+          id: edgeId,
+          source: fromHash,
+          target: toHash,
+          isLoop,
+          label: transition ? `${fromCfg.state} #${tIdx + 1}` : '',
+          transition,
+        })
+      );
     }
   });
 
   const nodeIds = nodes.map((n) => n.id).sort();
   const edgeKeys = Array.from(
     new Set(
-      edges.filter((e) => e.source !== e.target).map((e) => `${e.source}→${e.target}`)
+      edges
+        .filter((e) => e.source !== e.target)
+        .map((e) => `${e.source}→${e.target}`)
     )
   ).sort();
   const topoKey = buildTopologyKey(nodeIds, edgeKeys);

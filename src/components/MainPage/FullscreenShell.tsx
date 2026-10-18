@@ -91,14 +91,7 @@ export function FullscreenShell(props: {
           ) : null}
 
           <Tooltip title="Close Fullscreen">
-            <IconButton
-              edge="end"
-              onClick={() => {
-                setRender(false);
-                onClose();
-              }}
-              sx={{ ml: 1 }}
-            >
+            <IconButton edge="end" onClick={handleClose} sx={{ ml: 1 }}>
               <CloseFullscreen />
             </IconButton>
           </Tooltip>
@@ -111,13 +104,21 @@ export function FullscreenShell(props: {
           sx={{ height: '100%', borderRadius: 2, overflow: 'hidden' }}
         >
           <Box sx={{ height: '100%', position: 'relative' }}>
-            {render ? (
-              children
-            ) : (
+            <Box
+              sx={{
+                height: '100%',
+                visibility: render ? 'visible' : 'hidden',
+                // Descendants may override visibility, but never parent opacity.
+                opacity: render ? 1 : 0,
+              }}
+            >
+              {children}
+            </Box>
+            {!render && (
               <Stack
                 alignItems="center"
                 justifyContent="center"
-                sx={{ height: '100%' }}
+                sx={{ position: 'absolute', inset: 0 }}
                 spacing={2}
               >
                 <CircularProgress size={28} />

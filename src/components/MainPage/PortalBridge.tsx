@@ -40,6 +40,7 @@ export function PortalBridge(props: PortalBridgeProps) {
   const portalNodeRef = useRef<HTMLDivElement | null>(null);
   const lastContainerRef = useRef<HTMLElement | null>(null);
   const locationRef = useRef<PortalBridgeLocation | null>(null);
+  const switchVersionRef = useRef(0);
 
   if (!portalNodeRef.current) {
     const node = document.createElement('div');
@@ -52,6 +53,8 @@ export function PortalBridge(props: PortalBridgeProps) {
   useLayoutEffect(() => {
     const portalNode = portalNodeRef.current;
     if (!portalNode) return;
+
+    const version = ++switchVersionRef.current;
 
     if (!enabled) {
       const prev = lastContainerRef.current;
@@ -73,9 +76,12 @@ export function PortalBridge(props: PortalBridgeProps) {
 
     if (id && locationChanged) {
       window.dispatchEvent(
-        new CustomEvent<PortalBridgeSwitchDetail>(PORTAL_BRIDGE_BEFORE_SWITCH_EVENT, {
-          detail: { id, location: nextLocation },
-        })
+        new CustomEvent<PortalBridgeSwitchDetail>(
+          PORTAL_BRIDGE_BEFORE_SWITCH_EVENT,
+          {
+            detail: { id, location: nextLocation },
+          }
+        )
       );
     }
 
@@ -98,6 +104,8 @@ export function PortalBridge(props: PortalBridgeProps) {
             ? queueMicrotask
             : (cb: () => void) => Promise.resolve().then(cb);
         schedule(() => {
+          // A later move or unmount supersedes this notification.
+          if (switchVersionRef.current !== version) return;
           window.dispatchEvent(
             new CustomEvent<PortalBridgeSwitchDetail>(PORTAL_BRIDGE_SWITCH_EVENT, {
               detail: { id, location: nextLocation },
@@ -106,16 +114,22 @@ export function PortalBridge(props: PortalBridgeProps) {
         });
       }
     }
+  }, [active, enabled, fallbackRef, targetRef, id]);
 
+  // Detach only at unmount, never between two destinations. Moving the stable
+  // portal node preserves the renderer, its pending work and viewport.
+  useLayoutEffect(() => {
     return () => {
+      switchVersionRef.current += 1;
+      const portalNode = portalNodeRef.current;
       const current = lastContainerRef.current;
-      if (current && current.contains(portalNode)) {
+      if (current && portalNode && current.contains(portalNode)) {
         current.removeChild(portalNode);
       }
       lastContainerRef.current = null;
       locationRef.current = null;
     };
-  }, [active, enabled, fallbackRef, targetRef]);
+  }, []);
 
   if (!enabled || !portalNodeRef.current) {
     return null;

@@ -1,6 +1,6 @@
-// src/components/ConfigGraph/hooks/useHoverPopper.ts
 import { useMemo, useState, useRef, useEffect, useCallback } from 'react';
-import type { VirtualElement } from '@popperjs/core';
+import type { GraphAnchor } from '@components/shared/GraphUIContext';
+import { makeVirtualAnchor } from '@components/shared/graphAnchor';
 
 import { HOVER_POPPER_DELAY_MS } from '@utils/constants';
 
@@ -10,23 +10,17 @@ import {
   type PointerSnapshot,
 } from '@components/shared/pointerTracker';
 
-/**
- * Custom hook to manage hover state and popper anchor
- * for configuration nodes.
- */
-export function useHoverPopper(delayMs = HOVER_POPPER_DELAY_MS, selected = false) {
-  // Is the mouse currently hovering over the element
+/** Delayed hover details and persistent selection share the same pointer anchor. */
+export function useHoverPopper(
+  delayMs = HOVER_POPPER_DELAY_MS,
+  selected = false,
+  active = true
+) {
   const [hovering, setHovering] = useState(false);
-  // Whether the popper should be open (after delay or if selected)
   const [delayedOpen, setDelayedOpen] = useState(false);
-  // Position of the anchor (follows mouse)
-  const [anchorPos, setAnchorPos] = useState<{ top: number; left: number } | null>(
-    null
-  );
+  const [anchorPos, setAnchorPos] = useState<GraphAnchor | null>(null);
 
-  // Ref to store timer ID for delayed opening
   const timerRef = useRef<number | null>(null);
-  // Ref to store the latest pointer state
   const pointerStateRef = useRef<PointerSnapshot>(getPointerSnapshot());
 
   const clearTimer = useCallback(() => {
@@ -52,25 +46,20 @@ export function useHoverPopper(delayMs = HOVER_POPPER_DELAY_MS, selected = false
       const next = getPointerSnapshot();
 
       // If dragging started, close the popper
-      if (!prev.isDragging && next.isDragging) {
+      if (active && !prev.isDragging && next.isDragging) {
         close();
       }
 
       pointerStateRef.current = next;
     });
 
-    return () => {
-      pointerStateRef.current = getPointerSnapshot();
-      unsubscribe();
-    };
-  }, [close]);
-
-  const getPointerState = useCallback(() => pointerStateRef.current, []);
+    return unsubscribe;
+  }, [active, close]);
 
   const onMouseEnter = useCallback(
     (evt: React.MouseEvent) => {
-      if (selected) return;
-      if (getPointerState().isDragging) return;
+      if (!active || selected) return;
+      if (pointerStateRef.current.isDragging) return;
 
       setHovering(true);
       setAnchorPos({ top: evt.clientY, left: evt.clientX });
@@ -81,12 +70,12 @@ export function useHoverPopper(delayMs = HOVER_POPPER_DELAY_MS, selected = false
         timerRef.current = null;
       }, delayMs);
     },
-    [selected, getPointerState, clearTimer, delayMs]
+    [active, selected, clearTimer, delayMs]
   );
 
   const onMouseMove = useCallback(
     (evt: React.MouseEvent) => {
-      if (getPointerState().isDragging) {
+      if (pointerStateRef.current.isDragging) {
         close();
         return;
       }
@@ -94,7 +83,7 @@ export function useHoverPopper(delayMs = HOVER_POPPER_DELAY_MS, selected = false
         setAnchorPos({ top: evt.clientY + 8, left: evt.clientX + 8 });
       }
     },
-    [getPointerState, close, hovering, selected]
+    [close, hovering, selected]
   );
 
   const onMouseLeave = useCallback(() => {
@@ -110,33 +99,22 @@ export function useHoverPopper(delayMs = HOVER_POPPER_DELAY_MS, selected = false
   useEffect(() => clearTimer, [clearTimer]);
 
   useEffect(() => {
-    if (selected) setDelayedOpen(true);
-    else setDelayedOpen(false);
+    if (active) return;
+    setHovering(false);
+    setDelayedOpen(false);
+    clearTimer();
+    if (!selected) setAnchorPos(null);
+  }, [active, selected, clearTimer]);
+
+  useEffect(() => {
+    setDelayedOpen(selected);
   }, [selected]);
 
-  const virtualAnchor = useMemo<VirtualElement>(() => {
-    const top = anchorPos?.top ?? 0;
-    const left = anchorPos?.left ?? 0;
-
-    return {
-      getBoundingClientRect: () =>
-        ({
-          width: 0,
-          height: 0,
-          x: left,
-          y: top,
-          top,
-          left,
-          right: left,
-          bottom: top,
-          toJSON: () => {},
-        }) as DOMRect,
-    };
-  }, [anchorPos]);
-
-  const currentPointerState = pointerStateRef.current;
+  const virtualAnchor = useMemo(() => makeVirtualAnchor(anchorPos), [anchorPos]);
   const open =
-    (selected || (delayedOpen && !currentPointerState.isDragging)) && !!anchorPos;
+    active &&
+    (selected || (delayedOpen && !pointerStateRef.current.isDragging)) &&
+    !!anchorPos;
 
   return {
     hovering,

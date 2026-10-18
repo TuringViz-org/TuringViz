@@ -11,6 +11,23 @@ import {
 } from '@mytypes/TMTypes';
 import { EdgeType, NodeType, STATE_NODE_DIAMETER } from './constants';
 
+export interface TMNodeData extends Record<string, unknown> {
+  label: string;
+  isStart?: boolean;
+  isCurrent?: boolean;
+  isLast?: boolean;
+}
+
+export interface TMEdgeData extends Record<string, unknown> {
+  transitions: Transition[];
+  bended?: boolean;
+  bendDirection?: 'up' | 'down';
+  highlighted: boolean;
+}
+
+export type TMGraphNode = Node<TMNodeData>;
+export type TMGraphEdge = Edge<TMEdgeData>;
+
 /**
  * Builds a react flow graph representing the TM from the zustand store
  * - Node-Type: "state"
@@ -19,7 +36,7 @@ import { EdgeType, NodeType, STATE_NODE_DIAMETER } from './constants';
 export function buildTMGraph(
   states: Set<string>,
   transitions: Map<string, Transition[]>
-): { nodes: Node[]; edges: Edge[]; topoKey: string } {
+): { nodes: TMGraphNode[]; edges: TMGraphEdge[]; topoKey: string } {
   // --- Nodes ---
   const stateSet = new Set<string>(states);
   transitions.forEach((list, fromState) => {
@@ -30,7 +47,7 @@ export function buildTMGraph(
     });
   });
   const stateIds = Array.from(stateSet);
-  const nodes: Node[] = stateIds.map((s) => ({
+  const nodes: TMGraphNode[] = stateIds.map((s) => ({
     id: s,
     type: NodeType.STATE,
     data: {
@@ -90,7 +107,7 @@ export function buildTMGraph(
   });
 
   // Build real edges from the grouped pairs^
-  const edges: Edge[] = [];
+  const edges: TMGraphEdge[] = [];
   edgesByPair.forEach(({ from, to, labels, transitions }) => {
     const isLoop = from === to;
     const id = dirKey(from, to);
@@ -136,7 +153,7 @@ const fmtPattern = (p: TapePattern) =>
   p
     .map(
       (f) =>
-        isTapePatternRealFieldbyField(f) ? (f.value === ' ' ? '_' : f.value) : '_' // Wildcard/All-Feld
+        isTapePatternRealFieldbyField(f) ? (f.value === ' ' ? '_' : f.value) : '_' // Wildcard
     )
     .join(', ');
 

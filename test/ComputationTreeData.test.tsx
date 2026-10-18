@@ -2,10 +2,26 @@ import { act, cleanup, renderHook, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useComputationTreeData } from '@components/ComputationTree/ComputationTree';
 import { buildComputationTreeGraph } from '@components/ComputationTree/util/buildComputationTree';
-import { computeComputationTreeInWorker } from '@utils/graphWorkerClient';
-import { End, type ComputationTree } from '@tmfunctions/ComputationTree';
+import {
+  cancelComputationTreeCompute,
+  computeComputationTreeInWorker,
+} from '@utils/graphWorkerClient';
+import {
+  End,
+  getComputationTreeFromInputs,
+  type ComputationTree,
+} from '@tmfunctions/ComputationTree';
 import { ConfigNodeMode } from '@utils/constants';
 import { useGlobalZustand } from '@zustands/GlobalZustand';
+
+vi.mock('@tmfunctions/ComputationTree', async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import('@tmfunctions/ComputationTree')>();
+  return {
+    ...actual,
+    getComputationTreeFromInputs: vi.fn(actual.getComputationTreeFromInputs),
+  };
+});
 
 vi.mock('@utils/graphWorkerClient', () => ({
   computeComputationTreeInWorker: vi.fn(),
@@ -42,6 +58,8 @@ describe('retained computation tree data', () => {
     useGlobalZustand.getState().setCurrentState('q0');
     vi.mocked(computeComputationTreeInWorker).mockReset();
     vi.mocked(buildComputationTreeGraph).mockClear();
+    vi.mocked(cancelComputationTreeCompute).mockClear();
+    vi.mocked(getComputationTreeFromInputs).mockClear();
   });
   afterEach(cleanup);
 
@@ -97,5 +115,47 @@ describe('retained computation tree data', () => {
     expect(view.result.current.model).toBe(tree);
     expect(computeComputationTreeInWorker).toHaveBeenCalledOnce();
     expect(buildComputationTreeGraph).toHaveBeenCalledOnce();
+  });
+
+  it('ignores a superseded result without replacing the new topology', async () => {
+    let finishOld!: (result: ComputationTree) => void;
+    const newest = { ...tree, edges: [] };
+    vi.mocked(computeComputationTreeInWorker)
+      .mockReturnValueOnce(
+        new Promise((resolve) => {
+          finishOld = resolve;
+        })
+      )
+      .mockResolvedValueOnce(newest);
+    const view = renderHook(
+      ({ target }) =>
+        useComputationTreeData(target, false, ConfigNodeMode.NODES, false),
+      { initialProps: { target: 10 } }
+    );
+    view.rerender({ target: 20 });
+    await waitFor(() => expect(view.result.current.model).toBe(newest));
+    await act(async () => {
+      finishOld(tree);
+    });
+    expect(view.result.current.model).toBe(newest);
+    expect(cancelComputationTreeCompute).toHaveBeenCalledOnce();
+  });
+
+  it('does not run the expensive fallback after unmount cancels a worker', async () => {
+    let fail!: (error: Error) => void;
+    vi.mocked(computeComputationTreeInWorker).mockReturnValue(
+      new Promise((_, reject) => {
+        fail = reject;
+      })
+    );
+    const view = renderHook(() =>
+      useComputationTreeData(17000, false, ConfigNodeMode.NODES, false)
+    );
+    view.unmount();
+    await act(async () => {
+      fail(new Error('cancelled'));
+    });
+    expect(cancelComputationTreeCompute).toHaveBeenCalledOnce();
+    expect(getComputationTreeFromInputs).not.toHaveBeenCalled();
   });
 });

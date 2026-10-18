@@ -1,42 +1,29 @@
-// src/components/ConfigGraph/edges/EdgeTooltip.tsx
 import { Popper, ClickAwayListener } from '@mui/material';
 import { Paper, Stack, Typography, Box } from '@mui/material';
 import { alpha } from '@mui/material/styles';
 import type { VirtualElement } from '@popperjs/core';
 
-import type { Transition, TapePatternField } from '@mytypes/TMTypes';
+import type { Transition } from '@mytypes/TMTypes';
 import { useGlobalZustand } from '@zustands/GlobalZustand';
 
-type Props = {
-  open: boolean;
-  anchorEl: VirtualElement;
+export type EdgeTooltipContent = {
   transition?: Transition;
   isCompressed?: boolean;
   compressedLength?: number;
   sourceLabel?: string;
   targetLabel?: string;
+};
+
+type Props = EdgeTooltipContent & {
+  open: boolean;
+  anchorEl: VirtualElement;
   onClose: () => void;
 };
 
-/* --- Helpers for rendering transition details --- */
-const isSameWrite = (val: any): boolean =>
-  !!val && typeof val === 'object' && !('value' in val);
-
-const sym = (val: TapePatternField, blank: string): string => {
-  const v =
-    val && typeof val === 'object' && 'value' in val ? (val as any).value : val;
-  if (v === blank && blank === ' ') return '□';
-  return String(v);
-};
-
-const wildcard = (val: any): boolean =>
-  !(val && typeof val === 'object' && 'value' in val);
-
-const dirSym = (d: any): string => {
-  if (d == null) return '—';
-  const s = String(d);
-  return s;
-};
+function formatTapeField(field: unknown, blank: string): string {
+  if (!field || typeof field !== 'object' || !('value' in field)) return '-';
+  return field.value === blank && blank === ' ' ? '□' : String(field.value);
+}
 
 // Edge tooltip: shows transition details on hover
 export function EdgeTooltip({
@@ -49,10 +36,7 @@ export function EdgeTooltip({
   targetLabel,
   onClose,
 }: Props) {
-  // Global Zustand state
   const blank = useGlobalZustand((s) => s.blank);
-
-  const hasTransition = !!transition;
 
   return (
     <Popper
@@ -63,15 +47,19 @@ export function EdgeTooltip({
         { name: 'offset', options: { offset: [0, 8] } },
         { name: 'preventOverflow', options: { padding: 8 } },
       ]}
-      sx={{ zIndex: (t) => t.zIndex.tooltip }}
+      sx={{ zIndex: (t) => t.zIndex.tooltip, pointerEvents: 'none' }}
     >
-      <ClickAwayListener onClickAway={onClose}>
+      {/* Dismiss before Cytoscape's mouseup/touchend tap selects a new element. */}
+      <ClickAwayListener
+        onClickAway={onClose}
+        mouseEvent="onMouseDown"
+        touchEvent="onTouchStart"
+      >
         <Paper
           elevation={6}
           sx={{
             p: 1.25,
             borderRadius: 2,
-            pointerEvents: 'none',
             bgcolor: (t) => alpha(t.palette.background.paper, 0.95),
             backdropFilter: 'blur(6px)',
             border: (t) => `1px solid ${alpha(t.palette.divider, 0.32)}`,
@@ -84,7 +72,7 @@ export function EdgeTooltip({
           }}
         >
           {/* Header */}
-          {isCompressed && !hasTransition ? (
+          {isCompressed && !transition ? (
             <Box
               sx={{
                 display: 'flex',
@@ -127,7 +115,7 @@ export function EdgeTooltip({
           )}
 
           {/*  Body  */}
-          {hasTransition ? (
+          {transition ? (
             // Uncompressed: full transition details
             <Box sx={{ px: 0.5, py: 0.25 }}>
               <Box
@@ -148,14 +136,14 @@ export function EdgeTooltip({
               <Stack spacing={0.15}>
                 {Array.from({
                   length: Math.max(
-                    transition!.tapecondition?.length ?? 0,
-                    transition!.write?.length ?? 0,
-                    transition!.direction?.length ?? 0
+                    transition.tapecondition?.length ?? 0,
+                    transition.write?.length ?? 0,
+                    transition.direction?.length ?? 0
                   ),
                 }).map((_, k) => {
-                  const read = transition!.tapecondition?.[k];
-                  const write = transition!.write?.[k];
-                  const move = transition!.direction?.[k];
+                  const read = transition.tapecondition?.[k];
+                  const write = transition.write?.[k];
+                  const move = transition.direction?.[k];
 
                   return (
                     <Box
@@ -180,7 +168,7 @@ export function EdgeTooltip({
                           fontFamily: (t) => t.typography.fontFamilyMonospace,
                         }}
                       >
-                        {wildcard(read) ? '-' : sym(read, blank)}
+                        {formatTapeField(read, blank)}
                       </Typography>
 
                       <Typography
@@ -189,11 +177,7 @@ export function EdgeTooltip({
                           fontFamily: (t) => t.typography.fontFamilyMonospace,
                         }}
                       >
-                        {wildcard(write)
-                          ? '-'
-                          : isSameWrite(write)
-                            ? sym(read, blank)
-                            : sym(write, blank)}
+                        {formatTapeField(write, blank)}
                       </Typography>
 
                       <Typography
@@ -202,7 +186,7 @@ export function EdgeTooltip({
                           fontFamily: (t) => t.typography.fontFamilyMonospace,
                         }}
                       >
-                        {dirSym(move)}
+                        {String(move ?? '—')}
                       </Typography>
                     </Box>
                   );

@@ -19,20 +19,19 @@ type Props = {
   onClose: () => void;
 };
 
-const isSameWrite = (val: any): boolean =>
+const isSameWrite = (val: unknown): boolean =>
   !!val && typeof val === 'object' && !('value' in val);
 
 const sym = (val: TapePatternField, blank: string): string => {
-  const v =
-    val && typeof val === 'object' && 'value' in val ? (val as any).value : val;
+  const v = val && typeof val === 'object' && 'value' in val ? val.value : val;
   if (v === blank && blank === ' ') return '□';
   return String(v);
 };
 
-const wildcard = (val: any): boolean =>
+const wildcard = (val: unknown): boolean =>
   !(val && typeof val === 'object' && 'value' in val);
 
-const dirSym = (d: any): string => {
+const dirSym = (d: unknown): string => {
   if (d == null) return '—';
   const s = String(d);
   return s;

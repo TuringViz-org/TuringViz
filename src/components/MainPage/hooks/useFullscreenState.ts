@@ -8,28 +8,21 @@ export type FullscreenState = {
   closeFullscreen: () => void;
 };
 
-/**
- * Shared state for fullscreen panel lifecycle.
- * `render` is controlled independently from `open` so heavy graph trees can
- * stay mounted only after fullscreen transition has completed.
- */
+/** The graph stays mounted; render only marks the settled fullscreen destination. */
 export function useFullscreenState(): FullscreenState {
-  const [open, setOpen] = useState(false);
-  const [render, setRender] = useState(false);
-
+  const [state, setState] = useState({ open: false, render: false });
   const openFullscreen = useCallback(() => {
-    setOpen(true);
+    setState({ open: true, render: false });
   }, []);
-
   const closeFullscreen = useCallback(() => {
-    setOpen(false);
+    setState({ open: false, render: false });
   }, []);
-
-  return {
-    open,
-    render,
-    setRender,
-    openFullscreen,
-    closeFullscreen,
-  };
+  const setRender = useCallback((render: boolean) => {
+    setState((state) => {
+      // Ignore late transition callbacks after the dialog has already closed.
+      const ready = state.open && render;
+      return state.render === ready ? state : { ...state, render: ready };
+    });
+  }, []);
+  return { ...state, setRender, openFullscreen, closeFullscreen };
 }
