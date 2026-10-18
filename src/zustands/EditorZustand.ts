@@ -1,6 +1,6 @@
 // src/zustands/EditorZustand.ts
 import { create } from 'zustand';
-import { ExampleTMs } from '@utils/ExampleTMs';
+import { NonDetSubstring } from '@utils/ExampleTMs';
 
 const RECENT_MACHINES_STORAGE_KEY = 'turingviz.recentMachines.v1';
 const MAX_RECENT_MACHINES = 10;
@@ -80,7 +80,7 @@ interface EditorZustand {
 }
 
 export const useEditorZustand = create<EditorZustand>((set, get) => ({
-  code: ExampleTMs[0].code,
+  code: NonDetSubstring.code,
   autoLoadVersion: 0,
   recentMachines: loadRecentMachinesFromStorage(),
   nonce: 0,
