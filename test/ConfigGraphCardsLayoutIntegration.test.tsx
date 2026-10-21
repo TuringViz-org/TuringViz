@@ -1,6 +1,6 @@
 import { useState, type ReactNode, type CSSProperties } from 'react';
 import type { Node } from '@xyflow/react';
-import type { ElkNode } from 'elkjs/lib/elk-api.js';
+import type { ElkNode } from '@openedges/elk-layout';
 import { act, cleanup, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ConfigGraphCards } from '@components/ConfigGraph/ConfigGraphCards';

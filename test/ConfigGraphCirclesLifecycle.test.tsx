@@ -1,5 +1,5 @@
 import cytoscape, { type Core } from 'cytoscape';
-import type { ElkNode } from 'elkjs/lib/elk-api.js';
+import type { ElkNode } from '@openedges/elk-layout';
 import { act, cleanup, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ConfigGraphCircles } from '@components/ConfigGraph/ConfigGraphCircles';

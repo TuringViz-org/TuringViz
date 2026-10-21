@@ -4,13 +4,21 @@ import react from '@vitejs/plugin-react';
 export default defineConfig({
   plugins: [react()],
   base: '/',
+  // Keep the generated WASM glue inside the module layout worker.
+  worker: { format: 'es' },
   build: {
     // Worker bundles (ELK/Monaco) are intentionally large and isolated already.
     chunkSizeWarningLimit: 2500,
     rollupOptions: {
       output: {
         manualChunks(id) {
+          // Shared helpers must not pull a lazy layout backend into initial load.
+          if (id.includes('commonjsHelpers') || id.includes('vite/preload-helper'))
+            return 'vendor';
           if (!id.includes('node_modules')) return;
+
+          // Keep the legacy backend out of the eagerly loaded general vendor.
+          if (id.includes('/elkjs/')) return 'elk-legacy-vendor';
 
           if (id.includes('monaco-editor')) {
             return 'monaco-editor-vendor';
@@ -24,7 +32,7 @@ export default defineConfig({
             return 'reactflow-vendor';
           }
 
-          if (id.includes('elkjs') || id.includes('cytoscape')) {
+          if (id.includes('cytoscape')) {
             return 'layout-vendor';
           }
 

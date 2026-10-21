@@ -1,6 +1,6 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { StrictMode } from 'react';
-import type { ElkNode } from 'elkjs/lib/elk-api.js';
+import type { ElkNode } from '@openedges/elk-layout';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useGraphElkLayout } from '@components/shared/layout/useGraphElkLayout';
@@ -63,6 +63,9 @@ describe('Graph ELK layout lifecycle', () => {
     );
     const restart = result.current.restart;
     act(() => restart());
+    expect(createWorkerMock).toHaveBeenCalledWith('graph-elk-layout-worker', {
+      positionsOnly: true,
+    });
     rerender({ padding: 90, direction: 'RIGHT' });
     expect(result.current.restart).toBe(restart);
     act(() => {
@@ -105,6 +108,79 @@ describe('Graph ELK layout lifecycle', () => {
     expect(result.current.completedLayouts).toBe(0);
     expect(result.current.running).toBe(false);
   });
+
+  it.each(['node ID', 'edge endpoint'] as const)(
+    'rejects a pending result after an in-place %s change',
+    async (change) => {
+      const pending = deferred();
+      const onLayout = vi.fn();
+      const graphNodes = nodes.map((node) => ({ ...node }));
+      const graphEdges = edges.map((edge) => ({ ...edge }));
+      layoutMock.mockReturnValueOnce(pending.promise);
+      const { result } = renderHook(() =>
+        useGraphElkLayout({
+          ...options,
+          nodes: graphNodes,
+          edges: graphEdges,
+          onLayout,
+        })
+      );
+      act(() => result.current.restart());
+      await act(async () => {
+        if (change === 'node ID') graphNodes[1].id = 'changed';
+        else graphEdges[0].target = 'c';
+        pending.resolve(resultGraph);
+      });
+      expect(onLayout).not.toHaveBeenCalled();
+      expect(result.current.completedLayouts).toBe(0);
+      expect(result.current.running).toBe(false);
+    }
+  );
+
+  it.each(['reorder', 'duplicate edge', 'self-loop'] as const)(
+    'accepts the same topology after an in-place %s change',
+    async (change) => {
+      const pending = deferred();
+      const previousCallback = vi.fn();
+      const currentCallback = vi.fn();
+      const graphNodes = nodes.map((node) => ({ ...node }));
+      const graphEdges = edges.map((edge) => ({ ...edge }));
+      layoutMock.mockReturnValueOnce(pending.promise);
+      const { result, rerender } = renderHook(
+        ({ onLayout }) =>
+          useGraphElkLayout({
+            ...options,
+            nodes: graphNodes,
+            edges: graphEdges,
+            onLayout,
+          }),
+        { initialProps: { onLayout: previousCallback } }
+      );
+      act(() => result.current.restart());
+      if (change === 'reorder') {
+        graphNodes.reverse();
+        graphEdges.reverse();
+      } else if (change === 'duplicate edge') {
+        graphEdges.push({ id: 'duplicate-ab', source: 'a', target: 'b' });
+      } else {
+        graphEdges.push({ id: 'self-loop', source: 'a', target: 'a' });
+      }
+      rerender({ onLayout: currentCallback });
+      await act(async () => {
+        pending.resolve(resultGraph);
+      });
+      expect(previousCallback).not.toHaveBeenCalled();
+      expect(currentCallback).toHaveBeenCalledExactlyOnceWith(
+        new Map([
+          ['a', { x: 0, y: 0 }],
+          ['b', { x: 10, y: 20 }],
+          ['c', { x: 30, y: 40 }],
+        ])
+      );
+      expect(result.current.completedLayouts).toBe(1);
+      expect(result.current.running).toBe(false);
+    }
+  );
 
   it('applies a pending result through the latest committed callback', async () => {
     const pending = deferred();

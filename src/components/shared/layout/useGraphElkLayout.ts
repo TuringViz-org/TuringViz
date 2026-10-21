@@ -6,7 +6,7 @@ import {
   useRef,
   useState,
 } from 'react';
-import type Elk from 'elkjs/lib/elk-api.js';
+import type { ElkLayoutEngine } from './elkWorkerClient';
 import type { Edge as RFEdge, Node as RFNode } from '@xyflow/react';
 import { toast } from 'sonner';
 
@@ -21,6 +21,7 @@ import { buildSinglePathLayout } from './singlePathLayout';
 import {
   buildElkGraph,
   buildRecoveryLayout,
+  captureGraphTopologySnapshot,
   getDefaultNodeLayoutSize,
   getGraphTopologyKey,
   readElkPositions,
@@ -96,9 +97,7 @@ export function useGraphElkLayout({
   const lastTopoKeyRef = useRef('');
   const lastSizeKeyRef = useRef('');
   const lastFailureToastTopoKeyRef = useRef('');
-  const workerRef = useRef<{ elk: InstanceType<typeof Elk>; key: string } | null>(
-    null
-  );
+  const workerRef = useRef<{ elk: ElkLayoutEngine; key: string } | null>(null);
   const activeRunRef = useRef<AbortController | null>(null);
   const requestVersionRef = useRef(0);
   const mountedRef = useRef(false);
@@ -188,13 +187,15 @@ export function useGraphElkLayout({
           version = requestVersionRef.current;
           const current = inputRef.current;
           if (!current.nodes.length) break;
-          const topology = getGraphTopologyKey(current.nodes, current.edges);
+          const topology = captureGraphTopologySnapshot(
+            current.nodes,
+            current.edges
+          );
           const isCurrent = () =>
             activeRunRef.current === controller &&
             !controller.signal.aborted &&
             version === requestVersionRef.current &&
-            topology ===
-              getGraphTopologyKey(inputRef.current.nodes, inputRef.current.edges);
+            topology.matches(inputRef.current.nodes, inputRef.current.edges);
           const effectiveDirection = current.autoDirection
             ? resolveAutoDirection({
                 nodes: current.nodes,
@@ -223,11 +224,13 @@ export function useGraphElkLayout({
 
           if (!positions) {
             try {
-              const workerKey = `${current.workerName}:${topology}`;
+              const workerKey = `${current.workerName}:${topology.key}`;
               if (workerRef.current?.key !== workerKey) {
                 disposeWorker();
                 workerRef.current = {
-                  elk: createElkWithWorker(current.workerName),
+                  elk: createElkWithWorker(current.workerName, {
+                    positionsOnly: true,
+                  }),
                   key: workerKey,
                 };
               }
@@ -244,7 +247,7 @@ export function useGraphElkLayout({
                   controller.signal
                 )
               );
-            } catch {
+            } catch (error) {
               if (controller.signal.aborted) return;
               disposeWorker();
               if (!isCurrent()) continue;
@@ -255,8 +258,9 @@ export function useGraphElkLayout({
                 retryWhenVisibleRef.current = true;
                 return;
               }
-              if (lastFailureToastTopoKeyRef.current !== topology) {
-                lastFailureToastTopoKeyRef.current = topology;
+              if (lastFailureToastTopoKeyRef.current !== topology.key) {
+                lastFailureToastTopoKeyRef.current = topology.key;
+                console.warn('ELK layout failed', error);
                 toast.warning('Layout failed. Please try again with fewer nodes.');
               }
               // A hidden panel still needs its result. Only document suspension

@@ -149,9 +149,12 @@ Open the local URL printed by Vite.
 | `npm run test:coverage` | Run tests with coverage reporting.            |
 
 The application uses **React, TypeScript, and Vite**, with Material UI, Monaco
-Editor, Cytoscape, React Flow, ELK layout, and Zustand. Tests use Vitest and Testing
-Library. The [architecture guide](docs/architecture.md) covers graph computation,
-layout, loading, and fullscreen lifecycles.
+Editor, Cytoscape, React Flow, OpenEdges ELK (Rust/WebAssembly), and Zustand.
+The [local WASM build](src/vendor/elk-wasm/README.md) includes stack-safe graph
+traversals for Safari workers.
+ELK.js remains a lazy compatibility fallback for the optional developer layouts.
+Tests use Vitest and Testing Library. The [architecture guide](docs/architecture.md)
+covers graph computation, layout, loading, and fullscreen lifecycles.
 
 Write documentation, code comments, and user-facing text in **English**.
 

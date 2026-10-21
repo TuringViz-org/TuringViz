@@ -1,0 +1,366 @@
+--- a/plugins/org.eclipse.elk.graph.json/src/org/eclipse/elk/graph/json/layout_api.rs
++++ b/plugins/org.eclipse.elk.graph.json/src/org/eclipse/elk/graph/json/layout_api.rs
+@@ -213,6 +213,125 @@
+ ///
+ /// Returns the laid-out graph JSON string, or an error message.
+ pub fn layout_json(graph_json: &str, options_json: &str) -> Result<String, String> {
++    layout_json_impl(graph_json, options_json, false)
++}
++
++/// Run the same complete layout pipeline, returning only root and direct-child
++/// geometry for flat, unlabelled layered graphs. Unsupported graph structures
++/// and options retain the ordinary full JSON result, including exporter fixes.
++/// Every returned position and dimension uses the ordinary JSON conversion.
++pub fn layout_positions_json(graph_json: &str, options_json: &str) -> Result<String, String> {
++    layout_json_impl(graph_json, options_json, true)
++}
++
++// The compact export is safe only when no export-time hierarchy, port, label,
++// or coordinate-mode corrections can affect node geometry. Everything else
++// still runs the ordinary exporter after the identical layout pipeline.
++fn supports_flat_positions(input: &Value) -> bool {
++    use std::collections::HashSet;
++    fn options_ok(value: Option<&Value>) -> bool {
++        let Some(value) = value else {
++            return true;
++        };
++        let Some(options) = value.as_object() else {
++            return false;
++        };
++        options.iter().all(|(key, value)| {
++            let key = key
++                .strip_prefix("org.eclipse.elk.")
++                .or_else(|| key.strip_prefix("elk."))
++                .unwrap_or(key);
++            if key == "algorithm" {
++                return matches!(value.as_str(), Some("layered" | "org.eclipse.elk.layered"));
++            }
++            matches!(
++                key,
++                "direction"
++                    | "spacing.nodeNode"
++                    | "layered.spacing.nodeNodeBetweenLayers"
++                    | "spacing.edgeEdge"
++                    | "spacing.edgeNode"
++                    | "padding"
++                    | "layered.nodePlacement.bk.fixedAlignment"
++            ) && (value.is_string() || value.is_number())
++        })
++    }
++    fn node_ok(node: &Value, root: bool) -> bool {
++        node.as_object().is_some_and(|node| {
++            node.keys().all(|key| {
++                matches!(
++                    key.as_str(),
++                    "id" | "x" | "y" | "width" | "height" | "layoutOptions"
++                ) || (root && matches!(key.as_str(), "children" | "edges"))
++            })
++        }) && node.get("id").is_some_and(Value::is_string)
++            && options_ok(node.get("layoutOptions"))
++    }
++    if !node_ok(input, true) {
++        return false;
++    }
++    let Some(children) = input.get("children").and_then(Value::as_array) else {
++        return false;
++    };
++    let Some(edges) = input.get("edges").and_then(Value::as_array) else {
++        return false;
++    };
++    let mut ids = HashSet::new();
++    ids.insert(input["id"].as_str().unwrap());
++    let mut node_ids = HashSet::new();
++    for node in children {
++        if !node_ok(node, false) {
++            return false;
++        }
++        let id = node["id"].as_str().unwrap();
++        if !ids.insert(id) {
++            return false;
++        }
++        node_ids.insert(id);
++    }
++    for edge in edges {
++        let Some(object) = edge.as_object() else {
++            return false;
++        };
++        if !object
++            .keys()
++            .all(|key| matches!(key.as_str(), "id" | "sources" | "targets" | "container"))
++        {
++            return false;
++        }
++        let Some(id) = edge.get("id").and_then(Value::as_str) else {
++            return false;
++        };
++        if !ids.insert(id) {
++            return false;
++        }
++        if edge
++            .get("container")
++            .is_some_and(|container| container != &input["id"])
++        {
++            return false;
++        }
++        for endpoint in ["sources", "targets"] {
++            let Some(endpoints) = edge.get(endpoint).and_then(Value::as_array) else {
++                return false;
++            };
++            if endpoints.len() != 1
++                || !endpoints[0]
++                    .as_str()
++                    .is_some_and(|id| node_ids.contains(id))
++            {
++                return false;
++            }
++        }
++    }
++    true
++}
++
++fn layout_json_impl(
++    graph_json: &str,
++    options_json: &str,
++    positions_only: bool,
++) -> Result<String, String> {
+     ensure_initialized();
+ 
+     let result = panic::catch_unwind(AssertUnwindSafe(|| -> Result<String, String> {
+@@ -220,6 +339,7 @@
+             .map_err(|err| format!("Failed to parse graph JSON: {err}"))?;
+ 
+         merge_global_options(&mut input_value, options_json)?;
++        let positions_only = positions_only && supports_flat_positions(&input_value);
+ 
+         let shared = Rc::new(RefCell::new(input_value));
+         let mut importer_slot: Maybe<JsonImporter> = Maybe::default();
+@@ -234,6 +354,17 @@
+         let mut engine = RecursiveGraphLayoutEngine::new();
+         let mut monitor = BasicProgressMonitor::new();
+         engine.layout(&root, &mut monitor);
++        if positions_only {
++            let importer = importer_slot
++                .get_mut()
++                .ok_or_else(|| "internal error: missing json importer slot".to_string())?;
++            let output = importer
++                .flat_layout_positions(&root)
++                .map_err(|err| format!("{err}"))?;
++            let serialized = serde_json::to_string(&output)
++                .map_err(|err| format!("Failed to serialize JSON: {err}"))?;
++            return Ok(serialized);
++        }
+ 
+         let importer = importer_slot
+             .get_mut()
+@@ -249,7 +380,7 @@
+     }));
+ 
+     match result {
+-            Ok(inner) => inner,
++        Ok(inner) => inner,
+         Err(payload) => {
+             let msg = panic_payload_to_string(&*payload);
+             // If the panic message already contains an ELK exception class name,
+@@ -467,4 +598,147 @@
+         let value: Value = serde_json::from_str(&result).unwrap();
+         assert!(!value.as_array().unwrap().is_empty());
+     }
+-}
++    fn project_flat_geometry(full: &Value) -> Value {
++        fn shape(node: &Value) -> Value {
++            json!({"id": node["id"], "x": node["x"], "y": node["y"],
++                "width": node["width"], "height": node["height"]})
++        }
++        let mut output = shape(full);
++        output["children"] = full["children"]
++            .as_array()
++            .unwrap()
++            .iter()
++            .map(shape)
++            .collect();
++        output
++    }
++
++    fn positions_test_graph() -> Value {
++        json!({
++            "id": "root", "x": 17, "y": 23,
++            "layoutOptions": {"elk.algorithm": "layered", "elk.direction": "RIGHT"},
++            "children": [
++                {"id": "z", "width": 64, "height": 48},
++                {"id": "b", "width": 96, "height": 31},
++                {"id": "a", "width": 33, "height": 80},
++                {"id": "isolated", "width": 17, "height": 11}
++            ],
++            "edges": [
++                {"id": "za", "sources": ["z"], "targets": ["a"]},
++                {"id": "zb", "sources": ["z"], "targets": ["b"]},
++                {"id": "ba", "sources": ["b"], "targets": ["a"]},
++                {"id": "az", "sources": ["a"], "targets": ["z"]},
++                {"id": "aa", "sources": ["a"], "targets": ["a"]}
++            ]
++        })
++    }
++
++    #[test]
++    fn positions_export_preserves_exact_geometry_and_order() {
++        for direction in ["RIGHT", "DOWN", "LEFT", "UP"] {
++            let mut graph = positions_test_graph();
++            graph["layoutOptions"]["elk.direction"] = json!(direction);
++            assert!(supports_flat_positions(&graph));
++            let graph = graph.to_string();
++            let options = "{}";
++            let full: Value = serde_json::from_str(&layout_json(&graph, options).unwrap()).unwrap();
++            let positions: Value =
++                serde_json::from_str(&layout_positions_json(&graph, options).unwrap()).unwrap();
++            assert_eq!(
++                positions,
++                project_flat_geometry(&full),
++                "direction {direction}"
++            );
++            assert!(positions.get("edges").is_none());
++        }
++    }
++
++    #[test]
++    fn positions_export_preserves_empty_and_omitted_children() {
++        for graph in [
++            json!({"id": "root"}),
++            json!({"id": "root", "children": []}),
++            json!({"id": "root", "children": [], "edges": []}),
++        ] {
++            let text = graph.to_string();
++            let full: Value = serde_json::from_str(&layout_json(&text, "{}").unwrap()).unwrap();
++            let positions: Value =
++                serde_json::from_str(&layout_positions_json(&text, "{}").unwrap()).unwrap();
++            if supports_flat_positions(&graph) {
++                assert_eq!(positions, project_flat_geometry(&full));
++            } else {
++                assert_eq!(positions, full);
++            }
++        }
++    }
++
++    #[test]
++    fn positions_export_falls_back_for_richer_graphs_and_options() {
++        let mut labelled = positions_test_graph();
++        labelled["children"][0]["labels"] = json!([{"text": "A label", "width": 80, "height": 15}]);
++        let mut ports = positions_test_graph();
++        ports["children"][0]["ports"] = json!([{"id": "port", "width": 5, "height": 5}]);
++        ports["edges"][0]["sources"] = json!(["port"]);
++        let mut hierarchy = positions_test_graph();
++        hierarchy["children"][0]["children"] = json!([{"id": "nested", "width": 50, "height": 20}]);
++        let mut coordinates = positions_test_graph();
++        coordinates["layoutOptions"]["org.eclipse.elk.json.shapeCoords"] = json!("ROOT");
++        let mut unknown = positions_test_graph();
++        unknown["layoutOptions"]["org.eclipse.elk.aspectRatio"] = json!(1.7);
++        let mut metadata = positions_test_graph();
++        metadata["customMetadata"] = json!({"preserve": true});
++        for graph in [labelled, ports, hierarchy, coordinates, unknown, metadata] {
++            assert!(!supports_flat_positions(&graph));
++            let text = graph.to_string();
++            assert_eq!(layout_positions_json(&text, "{}"), layout_json(&text, "{}"));
++        }
++        let text = positions_test_graph().to_string();
++        for options in [
++            r#"{"org.eclipse.elk.json.shapeCoords":"ROOT"}"#,
++            r#"{"org.eclipse.elk.spacing.nodeNode":35}"#,
++        ] {
++            // Global defaults are merged onto edges too; edge options retain
++            // the conservative full-export fallback, even for known keys.
++            assert_eq!(
++                layout_positions_json(&text, options),
++                layout_json(&text, options)
++            );
++        }
++    }
++
++    #[test]
++    fn positions_export_falls_back_for_other_algorithms() {
++        for algorithm in ["force", "mrtree", "radial", "stress"] {
++            let mut graph = positions_test_graph();
++            graph["layoutOptions"]["elk.algorithm"] = json!(algorithm);
++            graph["edges"] = json!([
++                {"id":"za", "sources":["z"], "targets":["a"]},
++                {"id":"zb", "sources":["z"], "targets":["b"]}
++            ]);
++            assert!(!supports_flat_positions(&graph));
++            let text = graph.to_string();
++            assert_eq!(layout_positions_json(&text, "{}"), layout_json(&text, "{}"));
++        }
++    }
++
++    #[test]
++    fn positions_export_rejects_unsupported_references_and_preserves_errors() {
++        let mut duplicate = positions_test_graph();
++        duplicate["children"][0]["id"] = json!("a");
++        let mut missing = positions_test_graph();
++        missing["edges"][0]["targets"] = json!(["missing"]);
++        let mut hyperedge = positions_test_graph();
++        hyperedge["edges"][0]["targets"] = json!(["a", "b"]);
++        let mut invalid_container = positions_test_graph();
++        invalid_container["edges"][0]["container"] = json!("a");
++        for graph in [duplicate, missing, hyperedge, invalid_container] {
++            assert!(!supports_flat_positions(&graph));
++        }
++        for (graph, options) in [("{", "{}"), ("{}", "{}"), ("{\"id\":\"root\"}", "{")] {
++            assert_eq!(
++                layout_positions_json(graph, options),
++                layout_json(graph, options)
++            );
++        }
++    }
++}
+--- a/plugins/org.eclipse.elk.graph.json/src/org/eclipse/elk/graph/json/json_importer.rs
++++ b/plugins/org.eclipse.elk.graph.json/src/org/eclipse/elk/graph/json/json_importer.rs
+@@ -87,6 +87,38 @@
+ 
+     pub fn input_model(&self) -> Option<Rc<RefCell<Value>>> {
+         self.input_model.clone()
++    }
++
++    // Used only after layout_api validates the conservative flat-graph contract.
++    // Original JSON order and the full exporter's number conversion are retained.
++    pub(crate) fn flat_layout_positions(&self, graph: &ElkNodeRef) -> JsonResult<Value> {
++        fn shape_value(node: &ElkNodeRef, id: Value) -> Value {
++            let mut node = node.borrow_mut();
++            let shape = node.connectable().shape();
++            serde_json::json!({"id": id, "x": f64_to_number(shape.x()), "y": f64_to_number(shape.y()), "width": f64_to_number(shape.width()), "height": f64_to_number(shape.height())})
++        }
++        let shared = self
++            .input_model
++            .as_ref()
++            .ok_or_else(|| JsonImportException::new("No input model available."))?;
++        let input = shared.borrow();
++        let mut output = shape_value(graph, input["id"].clone());
++        let mut children = Vec::new();
++        if let Some(input_children) = input.get("children").and_then(Value::as_array) {
++            for child in input_children {
++                let object = child
++                    .as_object()
++                    .ok_or_else(|| JsonImportException::new("Invalid child."))?;
++                let id = JsonAdapter::get_id(object)?;
++                let node = self
++                    .node_id_map
++                    .get(&id)
++                    .ok_or_else(|| JsonImportException::new("Missing child node."))?;
++                children.push(shape_value(node, child["id"].clone()));
++            }
++        }
++        output["children"] = Value::Array(children);
++        Ok(output)
+     }
+ 
+     pub fn transfer_layout(&mut self, graph: &ElkNodeRef) -> JsonResult<()> {
+--- a/plugins/org.eclipse.elk.wasm/src/lib.rs
++++ b/plugins/org.eclipse.elk.wasm/src/lib.rs
+@@ -30,3 +30,10 @@
+ pub fn known_layout_categories() -> Result<String, JsError> {
+     layout_api::known_layout_categories().map_err(|e| JsError::new(&e))
+ }
++
++/// Run the complete layout and return root/child geometry for supported flat
++/// layered graphs; richer graphs retain the ordinary full JSON result.
++#[wasm_bindgen]
++pub fn layout_positions_json(graph_json: &str, options_json: &str) -> Result<String, JsError> {
++    layout_api::layout_positions_json(graph_json, options_json).map_err(|e| JsError::new(&e))
++}

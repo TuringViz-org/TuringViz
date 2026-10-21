@@ -1,0 +1,394 @@
+diff --git a/plugins/org.eclipse.elk.alg.common/src/org/eclipse/elk/alg/common/networksimplex/network_simplex.rs b/plugins/org.eclipse.elk.alg.common/src/org/eclipse/elk/alg/common/networksimplex/network_simplex.rs
+index e0d38a2..2e2f145 100644
+--- a/plugins/org.eclipse.elk.alg.common/src/org/eclipse/elk/alg/common/networksimplex/network_simplex.rs
++++ b/plugins/org.eclipse.elk.alg.common/src/org/eclipse/elk/alg/common/networksimplex/network_simplex.rs
+@@ -365,32 +365,48 @@ impl<'a> NetworkSimplex<'a> {
+     fn tight_tree_dfs(&mut self, nid: usize) -> usize {
+         let mut node_count = 1;
+         self.n_tree_node[nid] = true;
+-
+-        // Use cached adjacency list — zero Vec alloc, zero edge locks
+-        let num_adj = self.node_edges[nid].len();
+-        for i in 0..num_adj {
+-            let eid = self.node_edges[nid][i];
++        let mut stack = vec![(nid, 0usize)];
++
++        // Resume each node at its next edge after visiting a child. This keeps
++        // edge discovery and tree insertion identical to recursive DFS, without
++        // consuming the browser worker's native stack on deep graphs.
++        while let Some((current, cursor)) = stack.last_mut() {
++            if *cursor == self.node_edges[*current].len() {
++                stack.pop();
++                continue;
++            }
++            let eid = self.node_edges[*current][*cursor];
++            *cursor += 1;
+             if self.edge_visited[eid] {
+                 continue;
+             }
+             self.edge_visited[eid] = true;
+ 
+-            let opp_id = if self.e_src_id[eid] == nid {
++            let opp_id = if self.e_src_id[eid] == *current {
+                 self.e_tgt_id[eid]
+             } else {
+                 self.e_src_id[eid]
+             };
+ 
+-            if self.e_tree[eid] {
+-                node_count += self.tight_tree_dfs(opp_id);
++            let descend = if self.e_tree[eid] {
++                true
+             } else if !self.n_tree_node[opp_id] {
+                 let src_layer = self.n_layer[self.e_src_id[eid]];
+                 let tgt_layer = self.n_layer[self.e_tgt_id[eid]];
+                 if self.e_delta[eid] == tgt_layer - src_layer {
+                     self.e_tree[eid] = true;
+                     self.tree_edge_ids.push(eid);
+-                    node_count += self.tight_tree_dfs(opp_id);
++                    true
++                } else {
++                    false
+                 }
++            } else {
++                false
++            };
++            if descend {
++                self.n_tree_node[opp_id] = true;
++                node_count += 1;
++                stack.push((opp_id, 0));
+             }
+         }
+ 
+@@ -829,3 +845,117 @@ fn add_edge_to_node(node: &NNodeRef, edge: &NEdgeRef, outgoing: bool) {
+         node_guard.incoming_edges_mut().push(edge.clone());
+     }
+ }
++
++#[cfg(test)]
++mod tests {
++    use super::{NGraph, NetworkSimplex};
++
++    fn setup<'a>(
++        graph: &'a mut NGraph,
++        layers: &[i32],
++        edges: &[(usize, usize, i32)],
++    ) -> NetworkSimplex<'a> {
++        let mut simplex = NetworkSimplex::for_graph(graph);
++        simplex.n_layer = layers.to_vec();
++        simplex.n_tree_node = vec![false; layers.len()];
++        simplex.node_edges = vec![Vec::new(); layers.len()];
++        simplex.edge_visited = vec![false; edges.len()];
++        simplex.e_tree = vec![false; edges.len()];
++        for (eid, &(source, target, delta)) in edges.iter().enumerate() {
++            simplex.e_src_id.push(source);
++            simplex.e_tgt_id.push(target);
++            simplex.e_delta.push(delta);
++            simplex.node_edges[target].push(eid);
++        }
++        for (eid, &(source, _, _)) in edges.iter().enumerate() {
++            simplex.node_edges[source].push(eid);
++        }
++        simplex
++    }
++
++    // Retain the original recursive behavior as an oracle for small graphs.
++    fn recursive_reference(simplex: &mut NetworkSimplex<'_>, nid: usize) -> usize {
++        let mut count = 1;
++        simplex.n_tree_node[nid] = true;
++        for cursor in 0..simplex.node_edges[nid].len() {
++            let eid = simplex.node_edges[nid][cursor];
++            if simplex.edge_visited[eid] {
++                continue;
++            }
++            simplex.edge_visited[eid] = true;
++            let other = if simplex.e_src_id[eid] == nid {
++                simplex.e_tgt_id[eid]
++            } else {
++                simplex.e_src_id[eid]
++            };
++            if simplex.e_tree[eid] {
++                count += recursive_reference(simplex, other);
++            } else if !simplex.n_tree_node[other]
++                && simplex.e_delta[eid]
++                    == simplex.n_layer[simplex.e_tgt_id[eid]]
++                        - simplex.n_layer[simplex.e_src_id[eid]]
++            {
++                simplex.e_tree[eid] = true;
++                simplex.tree_edge_ids.push(eid);
++                count += recursive_reference(simplex, other);
++            }
++        }
++        count
++    }
++
++    #[test]
++    fn tight_tree_dfs_preserves_recursive_edge_order_and_state() {
++        let mut seed = 79u32;
++        for _ in 0..100 {
++            let layers: Vec<_> = (0..25).map(|idx| idx / 3).collect();
++            let mut edges = Vec::new();
++            for source in 0..layers.len() {
++                for target in source + 1..layers.len() {
++                    seed = seed.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
++                    if seed.is_multiple_of(5) {
++                        let delta = if seed.is_multiple_of(2) {
++                            layers[target] - layers[source]
++                        } else {
++                            1
++                        };
++                        edges.push((source, target, delta));
++                    }
++                }
++            }
++            let mut actual_graph = NGraph::new();
++            let mut expected_graph = NGraph::new();
++            let mut actual = setup(&mut actual_graph, &layers, &edges);
++            let mut expected = setup(&mut expected_graph, &layers, &edges);
++
++            // The second traversal also covers pre-existing tree edges.
++            for _ in 0..2 {
++                assert_eq!(
++                    actual.tight_tree_dfs(0),
++                    recursive_reference(&mut expected, 0)
++                );
++                assert_eq!(actual.tree_edge_ids, expected.tree_edge_ids);
++                assert_eq!(actual.e_tree, expected.e_tree);
++                assert_eq!(actual.edge_visited, expected.edge_visited);
++                assert_eq!(actual.n_tree_node, expected.n_tree_node);
++                actual.edge_visited.fill(false);
++                expected.edge_visited.fill(false);
++                actual.n_tree_node.fill(false);
++                expected.n_tree_node.fill(false);
++            }
++        }
++    }
++
++    #[test]
++    fn tight_tree_dfs_handles_deep_graph_without_native_recursion() {
++        let node_count = 20_000;
++        let layers: Vec<_> = (0..node_count as i32).collect();
++        let edges: Vec<_> = (1..node_count).map(|idx| (idx - 1, idx, 1)).collect();
++        let mut graph = NGraph::new();
++        let mut simplex = setup(&mut graph, &layers, &edges);
++
++        assert_eq!(simplex.tight_tree_dfs(0), node_count);
++        assert_eq!(simplex.tree_edge_ids, (0..node_count - 1).collect::<Vec<_>>());
++        assert!(simplex.n_tree_node.iter().all(|&value| value));
++        assert!(simplex.edge_visited.iter().all(|&value| value));
++    }
++}
+diff --git a/plugins/org.eclipse.elk.alg.layered/src/org/eclipse/elk/alg/layered/components/components_processor.rs b/plugins/org.eclipse.elk.alg.layered/src/org/eclipse/elk/alg/layered/components/components_processor.rs
+index 300c19b..2cf1175 100644
+--- a/plugins/org.eclipse.elk.alg.layered/src/org/eclipse/elk/alg/layered/components/components_processor.rs
++++ b/plugins/org.eclipse.elk.alg.layered/src/org/eclipse/elk/alg/layered/components/components_processor.rs
+@@ -122,7 +122,7 @@ impl ComponentsProcessor {
+             }
+         }
+ 
+-        // DFS using pre-built adjacency — lock-free, no Vec alloc per recursive call
++        // DFS using pre-built adjacency — lock-free and independent of native stack depth.
+         let mut result: Vec<LGraphRef> = Vec::new();
+         let mut visited = vec![false; num_nodes];
+ 
+@@ -248,7 +248,7 @@ impl ComponentsProcessor {
+         combine_simple_row(components, target);
+     }
+ 
+-    /// Lock-free recursive DFS over pre-built adjacency list.
++    /// Lock-free DFS over pre-built adjacency, preserving recursive visitation order.
+     fn dfs_flat(
+         idx: usize,
+         adjacency: &[Vec<usize>],
+@@ -257,25 +257,22 @@ impl ComponentsProcessor {
+         component: &mut Vec<usize>,
+         ext_port_sides: &mut EnumSet<PortSide>,
+     ) {
+-        if visited[idx] {
+-            return;
+-        }
+-        visited[idx] = true;
+-        component.push(idx);
++        let mut stack = vec![idx];
++        while let Some(current) = stack.pop() {
++            if visited[current] {
++                continue;
++            }
++            visited[current] = true;
++            component.push(current);
+ 
+-        if let Some(side) = ext_port_side[idx] {
+-            ext_port_sides.insert(side);
+-        }
++            if let Some(side) = ext_port_side[current] {
++                ext_port_sides.insert(side);
++            }
+ 
+-        for &neighbor in &adjacency[idx] {
+-            Self::dfs_flat(
+-                neighbor,
+-                adjacency,
+-                ext_port_side,
+-                visited,
+-                component,
+-                ext_port_sides,
+-            );
++            // Mark on entry, rather than when queued: a descendant may reach a
++            // queued sibling first. Reversing the push order preserves the
++            // recursive DFS preorder used to construct each component graph.
++            stack.extend(adjacency[current].iter().rev().copied());
+         }
+     }
+ }
+@@ -1301,11 +1298,62 @@ mod tests {
+     use std::sync::Arc;
+ 
+     use org_eclipse_elk_core::org::eclipse::elk::core::data::LayoutMetaDataService;
++    use org_eclipse_elk_core::org::eclipse::elk::core::options::port_side::PortSide;
++    use org_eclipse_elk_core::org::eclipse::elk::core::util::EnumSet;
+ 
+-    use crate::org::eclipse::elk::alg::layered::components::components_processor::sort_components_by_priority;
++    use crate::org::eclipse::elk::alg::layered::components::components_processor::{
++        sort_components_by_priority, ComponentsProcessor,
++    };
+     use crate::org::eclipse::elk::alg::layered::graph::{LGraph, LNode};
+     use crate::org::eclipse::elk::alg::layered::options::LayeredMetaDataProvider;
+ 
++    #[test]
++    fn component_dfs_preserves_preorder_with_cycles_and_shared_neighbors() {
++        let adjacency = vec![vec![1, 2], vec![0, 2, 3], vec![0, 1, 4], vec![1], vec![2], vec![]];
++        let sides = vec![
++            None,
++            Some(PortSide::North),
++            None,
++            Some(PortSide::East),
++            Some(PortSide::West),
++            Some(PortSide::South),
++        ];
++        let mut visited = vec![false; adjacency.len()];
++        let mut component = Vec::new();
++        let mut ext_port_sides = EnumSet::none_of();
++
++        ComponentsProcessor::dfs_flat(
++            0, &adjacency, &sides, &mut visited, &mut component, &mut ext_port_sides,
++        );
++
++        assert_eq!(component, vec![0, 1, 2, 4, 3]);
++        assert_eq!(visited, vec![true, true, true, true, true, false]);
++        assert!(ext_port_sides.contains(&PortSide::North));
++        assert!(ext_port_sides.contains(&PortSide::East));
++        assert!(ext_port_sides.contains(&PortSide::West));
++        assert!(!ext_port_sides.contains(&PortSide::South));
++    }
++
++    #[test]
++    fn component_dfs_handles_deep_connected_graph_without_native_recursion() {
++        let node_count = 20_000;
++        let mut adjacency = vec![Vec::new(); node_count];
++        for idx in 1..node_count {
++            adjacency[idx - 1].push(idx);
++            adjacency[idx].push(idx - 1);
++        }
++        let sides = vec![None; node_count];
++        let mut visited = vec![false; node_count];
++        let mut component = Vec::new();
++
++        ComponentsProcessor::dfs_flat(
++            0, &adjacency, &sides, &mut visited, &mut component, &mut EnumSet::none_of(),
++        );
++
++        assert_eq!(component, (0..node_count).collect::<Vec<_>>());
++        assert!(visited.iter().all(|&value| value));
++    }
++
+     #[test]
+     fn sort_components_by_priority_keeps_input_order_for_ties() {
+         LayoutMetaDataService::get_instance()
+diff --git a/plugins/org.eclipse.elk.alg.layered/src/org/eclipse/elk/alg/layered/p2layers/network_simplex_layerer.rs b/plugins/org.eclipse.elk.alg.layered/src/org/eclipse/elk/alg/layered/p2layers/network_simplex_layerer.rs
+index a13cc8d..a6e6aa5 100644
+--- a/plugins/org.eclipse.elk.alg.layered/src/org/eclipse/elk/alg/layered/p2layers/network_simplex_layerer.rs
++++ b/plugins/org.eclipse.elk.alg.layered/src/org/eclipse/elk/alg/layered/p2layers/network_simplex_layerer.rs
+@@ -133,7 +133,7 @@ impl NetworkSimplexLayerer {
+         components
+     }
+ 
+-    /// Lock-free recursive DFS over pre-built adjacency list.
++    /// Lock-free DFS that preserves recursive preorder without using the native stack.
+     fn dfs_flat(
+         idx: usize,
+         adjacency: &[Vec<usize>],
+@@ -141,14 +141,14 @@ impl NetworkSimplexLayerer {
+         visited: &mut [bool],
+         component: &mut Vec<LNodeRef>,
+     ) {
+-        if visited[idx] {
+-            return;
+-        }
+-        visited[idx] = true;
+-        component.push(nodes[idx].clone());
+-
+-        for &neighbor in &adjacency[idx] {
+-            Self::dfs_flat(neighbor, adjacency, nodes, visited, component);
++        let mut stack = vec![idx];
++        while let Some(current) = stack.pop() {
++            if visited[current] {
++                continue;
++            }
++            visited[current] = true;
++            component.push(nodes[current].clone());
++            stack.extend(adjacency[current].iter().rev().copied());
+         }
+     }
+ 
+@@ -312,3 +312,51 @@ impl ILayoutPhase<LayeredPhases, LGraph> for NetworkSimplexLayerer {
+         ))
+     }
+ }
++
++#[cfg(test)]
++mod tests {
++    use std::sync::Arc;
++
++    use super::NetworkSimplexLayerer;
++    use crate::org::eclipse::elk::alg::layered::graph::{LGraph, LNode};
++
++    #[test]
++    fn layerer_dfs_preserves_recursive_preorder_with_shared_neighbors() {
++        let graph = LGraph::new();
++        let nodes: Vec<_> = (0..6).map(|_| LNode::new(&graph)).collect();
++        let adjacency = vec![vec![1, 2], vec![0, 2, 3], vec![0, 1, 4], vec![1], vec![2], vec![]];
++        let mut visited = vec![false; nodes.len()];
++        let mut component = Vec::new();
++
++        NetworkSimplexLayerer::dfs_flat(0, &adjacency, &nodes, &mut visited, &mut component);
++
++        let expected = [0, 1, 2, 4, 3];
++        assert_eq!(component.len(), expected.len());
++        for (node, idx) in component.iter().zip(expected) {
++            assert!(Arc::ptr_eq(node, &nodes[idx]));
++        }
++        assert_eq!(visited, vec![true, true, true, true, true, false]);
++    }
++
++    #[test]
++    fn layerer_dfs_handles_deep_connected_graph_without_native_recursion() {
++        let node_count = 20_000;
++        let graph = LGraph::new();
++        let nodes: Vec<_> = (0..node_count).map(|_| LNode::new(&graph)).collect();
++        let mut adjacency = vec![Vec::new(); node_count];
++        for idx in 1..node_count {
++            adjacency[idx - 1].push(idx);
++            adjacency[idx].push(idx - 1);
++        }
++        let mut visited = vec![false; node_count];
++        let mut component = Vec::new();
++
++        NetworkSimplexLayerer::dfs_flat(0, &adjacency, &nodes, &mut visited, &mut component);
++
++        assert_eq!(component.len(), nodes.len());
++        for (actual, expected) in component.iter().zip(&nodes) {
++            assert!(Arc::ptr_eq(actual, expected));
++        }
++        assert!(visited.iter().all(|&value| value));
++    }
++}

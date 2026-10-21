@@ -81,10 +81,61 @@ preserving the order of nodes, transitions, and pending configurations.
 
 ## Layout
 
+Normal layout runs through a local WebAssembly build of OpenEdges ELK 0.12.0.
+The Rust source is pinned to the upstream release and patched to avoid recursive
+graph traversals that overflow Safari's worker stack. The generated backend,
+source patch, license, and rebuild instructions live in `src/vendor/elk-wasm/`;
+`@openedges/elk-layout` supplies the compatible TypeScript graph types.
+`elkWorkerClient.ts` creates workers lazily: a module
+worker (`elkLayout.worker.ts`) for WASM, or the original ELK.js worker for legacy
+developer algorithms. Each selected worker is reused until the hook disposes it.
+Request IDs associate responses with their promises. Termination and transport
+failures reject pending requests immediately. The existing 12-second deadline,
+unmount cancellation, and recovery layout still apply. In environments without
+Web Workers, `elkBackend.ts` selects and lazily loads the corresponding backend
+on the calling thread.
+
+Vite emits the worker, local ESM loader, and `.wasm` asset into the production
+build. The same relative binary URL works in development. Worker output uses
+ES modules. No external CDN or runtime Rust installation is needed. Separate
+lazy chunks keep the legacy JavaScript backend out of normal WASM layouts,
+including the no-worker fallback. A WASM failure does not switch to JavaScript.
+
+Before posting a normal layout, `compactElkGraph.ts` replaces long configuration
+IDs with short transport IDs, preserving input order and options. It restores
+all node, edge, and section references when the worker returns. This avoids
+serializing large configuration strings repeatedly inside WASM and across
+workers. Unsupported graph structures use their original IDs unchanged.
+
+The layout hook requests positions-only output. Rust still performs the complete
+layout with the same options, then exports just root and node geometry for the
+supported flat graphs. This avoids building, serializing, and transferring edge
+sections that TuringViz never reads. The importer retains the original child order
+and uses the same numeric conversion as the full exporter. Richer graphs use the
+full exporter, and callers that do not opt in still receive the complete ELK
+result. Developer algorithms retain their original ELK.js output.
+
 `graphLayout.ts` contains pure functions for ELK inputs, topology keys, node sizes,
 and recovery layouts. `singlePathLayout.ts`, `autoDirection.ts`, and
 `scaleToContainer.ts` retain the existing geometry rules. Successful layouts
 continue to use the same options, ordering, and spacing.
+
+The normal UI uses the `layered` algorithm. `ElkWasmLayout.test.ts` executes the
+actual browser WASM against 28 frozen ELK.js 0.10.0 layouts, including all bundled
+example state graphs, cycles, disconnected components, circle/card dimensions,
+and all four directions. Coordinate comparisons allow only `1e-6` floating-point
+rounding differences. OpenEdges follows ELK 0.12.0, whose `force`, `mrtree`,
+`stress`, and `radial` layouts can differ from ELK.js 0.10.0. These algorithms
+remain selectable in the TMGraph developer controls (`?dev=true` or `/dev`) and
+use the pinned ELK.js 0.10.0 compatibility backend in a dedicated worker.
+The bundled ELK.js entry point must not run inside the WASM worker: it detects
+the worker global and replaces its message handler.
+`ElkBackend.test.ts` verifies exact positions against the six additional
+legacy fixtures and checks that normal layouts initialize only WASM.
+`ElkCompactGraph.test.ts` additionally checks the complete default NonDetSAT
+configuration graph (14,199 nodes) against its legacy coordinate digest and
+runs a 10,000-node chain in a worker with a 1 MiB stack to catch recursive
+traversals that can fail in Safari.
 
 `useGraphElkLayout` retains the latest committed inputs and processes requests
 serially. It coalesces additional restart requests while a layout is running. The
@@ -92,6 +143,11 @@ next pass reads the current options. Results are committed only if the request,
 topology, and hook lifetime still match. An AbortController stops waiting on
 unmount and also protects React StrictMode from delayed results belonging to an
 earlier mount cycle.
+
+Each run snapshots node IDs and edge endpoints. An ordered comparison accepts an
+unchanged topology without rebuilding its sorted key. Any difference falls back
+to the original canonical comparison, preserving the treatment of reordering,
+duplicate edges, and self-loops. Snapshot values also detect in-place mutations.
 
 A hidden application panel may report a size of `0 × 0`. Background computation
 then retains the last usable container size. A failure in a hidden browser

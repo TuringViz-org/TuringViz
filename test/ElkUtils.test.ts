@@ -1,11 +1,11 @@
-import type Elk from 'elkjs/lib/elk-api.js';
+import type { ElkLayoutEngine } from '@components/shared/layout/elkWorkerClient';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { runElkLayoutWithTimeout } from '@components/shared/layout/elkUtils';
 
 const graph = { id: 'root' };
 const worker = (layout: ReturnType<typeof vi.fn>) =>
-  ({ layout }) as unknown as InstanceType<typeof Elk>;
+  ({ layout, terminateWorker: vi.fn() }) satisfies ElkLayoutEngine;
 
 describe('ELK layout deadline', () => {
   afterEach(() => vi.useRealTimers());
