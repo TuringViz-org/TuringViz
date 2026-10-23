@@ -104,7 +104,7 @@ export function ComputationTreeCards({
   const loadingMaskVisible = !useGraphReveal(showLoadingOverlay);
 
   useGraphLayoutRequest(
-    JSON.stringify([structureKey, computationTreeNodeMode, machineLoadVersion]),
+    [structureKey, computationTreeNodeMode, machineLoadVersion],
     !paused && nodesReady && nodes.length > 0,
     viewport.prepareLayout,
     scheduleLayoutRestart

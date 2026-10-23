@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import cytoscape, { type Core } from 'cytoscape';
 import {
   act,
@@ -31,13 +31,32 @@ vi.mock('cytoscape', async (original) => {
   };
 });
 vi.mock('@components/ConfigGraph/layout/useElkLayout', () => ({
-  useElkLayout: () => ({ running: false, completedLayouts: 0, restart: () => {} }),
+  useElkLayout: ({
+    nodes,
+    onLayout,
+  }: {
+    nodes: Array<{ id: string; position: { x: number; y: number } }>;
+    onLayout: (positions: Map<string, { x: number; y: number }>) => void;
+  }) => {
+    const [completedLayouts, setCompletedLayouts] = useState(0);
+    const inputRef = useRef({ nodes, onLayout });
+    inputRef.current = { nodes, onLayout };
+    const restart = useCallback(() => {
+      const current = inputRef.current;
+      current.onLayout(
+        new Map(current.nodes.map((node) => [node.id, node.position]))
+      );
+      setCompletedLayouts((count) => count + 1);
+    }, []);
+    return { running: false, completedLayouts, restart };
+  },
 }));
 vi.mock('@components/ConfigGraph/util/buildConfigGraph', () => ({
   buildConfigGraph: () => ({ nodes, edges, topoKey: 'abc' }),
 }));
 vi.mock('@hooks/useCurrentConfigHighlight', () => ({
   useCurrentConfigHighlight: (structure: unknown) => structure,
+  configurationHashFromNodeId: (node: { id: string }) => node.id,
 }));
 vi.mock('@components/ConfigGraph/ConfigGraphControls', () => ({
   ConfigGraphControls: () => null,
@@ -156,6 +175,7 @@ describe.each(['computation tree', 'configuration graph'] as const)(
           ],
         });
       view = render(content());
+      act(() => vi.advanceTimersByTime(20));
       cy = instances.current!;
     });
     afterEach(() => {

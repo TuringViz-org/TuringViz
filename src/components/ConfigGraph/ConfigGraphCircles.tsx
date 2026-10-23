@@ -5,7 +5,7 @@ import { useTheme } from '@mui/material/styles';
 import { useGraphUI } from '@components/shared/GraphUIContext';
 import { useCytoscapeGraphInteractions } from '@components/shared/useCytoscapeGraphInteractions';
 import { syncCytoscapeElements } from '@components/shared/cytoscapeElements';
-import { useCytoscapeClass } from '@components/shared/useCytoscapeClass';
+import { useCytoscapeClassSync } from '@components/shared/useCytoscapeClass';
 import { LegendPanel } from '@components/shared/LegendPanel';
 import { LoadingOverlay } from '@components/shared/LoadingOverlay';
 import { ConfigGraphControls } from './ConfigGraphControls';
@@ -45,6 +45,11 @@ export function ConfigGraphCircles({ active = true }: { active?: boolean }) {
     refreshSelectedAnchors,
   });
   const { saveViewport } = viewport;
+  const syncHighlightClass = useCytoscapeClassSync(
+    cyRef,
+    highlightedEdgeId,
+    'ct-highlighted'
+  );
   // Cytoscape init
   const cyStyles = useMemo(() => getConfigGraphStyles(theme), [theme]);
   const initialCyStylesRef = useRef(cyStyles);
@@ -91,7 +96,7 @@ export function ConfigGraphCircles({ active = true }: { active?: boolean }) {
   const lastEdges = useRef(data.edges);
   useEffect(() => {
     const cy = cyRef.current;
-    if (!cy) return;
+    if (!cy || !viewport.maySyncElements) return;
     if (data.nodes.length > 0) lastNodes.current = data.nodes;
     if (data.edges.length > 0) lastEdges.current = data.edges;
     syncCytoscapeElements(
@@ -104,9 +109,26 @@ export function ConfigGraphCircles({ active = true }: { active?: boolean }) {
       )
     );
     cy.nodes().ungrabify();
-  }, [data.nodes, data.edges, theme, data.resolveColorForState]);
-  useEffect(syncSelectionClass, [syncSelectionClass]);
-  useCytoscapeClass(cyRef, highlightedEdgeId, 'ct-highlighted');
+  }, [
+    data.nodes,
+    data.edges,
+    theme,
+    data.resolveColorForState,
+    viewport.maySyncElements,
+  ]);
+  useEffect(syncSelectionClass, [
+    syncSelectionClass,
+    data.nodes,
+    data.edges,
+    viewport.maySyncElements,
+  ]);
+  useEffect(syncHighlightClass, [
+    syncHighlightClass,
+    data.nodes,
+    data.edges,
+    viewport.maySyncElements,
+  ]);
+  useEffect(viewport.onElementsSynced, [viewport.onElementsSynced]);
   useEffect(viewport.observeContainer, [viewport.observeContainer]);
   return (
     <Box

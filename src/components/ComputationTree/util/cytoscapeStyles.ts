@@ -91,13 +91,6 @@ export const getCyStyles = (theme: Theme): cytoscape.StylesheetJson =>
           normalizeColor(theme.palette.node?.currentConfig) ??
           normalizeColor(theme.palette.primary.dark),
         'border-width': 12,
-        'shadow-blur': 18,
-        'shadow-color':
-          normalizeColor(theme.palette.node?.currentConfig) ??
-          normalizeColor(theme.palette.primary.dark),
-        'shadow-opacity': 0.65,
-        'shadow-offset-x': 0,
-        'shadow-offset-y': 0,
         'z-index': 20,
       },
     },

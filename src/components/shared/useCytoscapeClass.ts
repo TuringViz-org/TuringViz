@@ -11,7 +11,13 @@ export function useCytoscapeClassSync(
   const previousCore = useRef<Core | null>(null);
   return useCallback(() => {
     const cy = cyRef.current;
-    if (!cy || (previousCore.current === cy && previousId.current === id)) return;
+    if (!cy) return;
+    if (
+      previousCore.current === cy &&
+      previousId.current === id &&
+      (!id || cy.getElementById(id).hasClass(className))
+    )
+      return;
     cy.batch(() => {
       if (previousId.current)
         cy.getElementById(previousId.current).removeClass(className);
