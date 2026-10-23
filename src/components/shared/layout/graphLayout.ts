@@ -1,4 +1,4 @@
-import type { ElkExtendedEdge, ElkNode } from 'elkjs/lib/elk-api.js';
+import type { ElkExtendedEdge, ElkNode } from '@openedges/elk-layout';
 import type { Edge as RFEdge, Node as RFNode } from '@xyflow/react';
 import type { Direction } from '@mytypes/graphTypes';
 
@@ -39,6 +39,50 @@ export function getGraphTopologyKey(rfNodes: RFNode[], rfEdges: RFEdge[]): strin
     .sort()
     .join('|');
   return `${nIds}__${ePairs}`;
+}
+
+/** Snapshot values so in-place edits remain visible without sorting unchanged graphs. */
+export function captureGraphTopologySnapshot(
+  nodes: RFNode[],
+  edges: RFEdge[]
+): {
+  key: string;
+  matches: (currentNodes: RFNode[], currentEdges: RFEdge[]) => boolean;
+} {
+  const nodeIds = nodes.map((node) => String(node.id));
+  const sources = edges.map((edge) => String(edge.source));
+  const targets = edges.map((edge) => String(edge.target));
+  const key = getGraphTopologyKey(nodes, edges);
+
+  function matchesInOrder(currentNodes: RFNode[], currentEdges: RFEdge[]) {
+    if (
+      currentNodes.length !== nodeIds.length ||
+      currentEdges.length !== sources.length
+    ) {
+      return false;
+    }
+    for (let i = 0; i < nodeIds.length; i++) {
+      if (String(currentNodes[i].id) !== nodeIds[i]) return false;
+    }
+    for (let i = 0; i < sources.length; i++) {
+      if (
+        String(currentEdges[i].source) !== sources[i] ||
+        String(currentEdges[i].target) !== targets[i]
+      ) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  return {
+    key,
+    matches: (currentNodes, currentEdges) =>
+      matchesInOrder(currentNodes, currentEdges) ||
+      // Reordering, duplicate edges and self-loops can differ in the snapshot
+      // while representing exactly the same topology under the existing key.
+      getGraphTopologyKey(currentNodes, currentEdges) === key,
+  };
 }
 
 export function getDefaultNodeLayoutSize(node: RFNode): NodeLayoutSize {

@@ -5,6 +5,7 @@ import {
 } from '@tmfunctions/ComputationTree';
 import { computeConfigGraph, type ConfigGraph } from '@tmfunctions/configGraphModel';
 import { DEFAULT_CONFIG_GRAPH_TARGET_NODES } from '@utils/constants';
+import type { PackedConfigGraph } from './configGraphCodec';
 
 export type ConfigGraphPayload = {
   startConfig: Configuration;
@@ -29,6 +30,11 @@ export interface GraphComputeResults {
   configGraph: ConfigGraph;
 }
 
+export interface GraphComputeWireResults {
+  computationTree: ComputationTree;
+  configGraph: ConfigGraph | PackedConfigGraph;
+}
+
 export type GraphComputeKind = keyof GraphComputePayloads;
 export type GraphComputeRequest = {
   [Kind in GraphComputeKind]: {
@@ -43,7 +49,7 @@ export type GraphComputeResponse<Kind extends GraphComputeKind = GraphComputeKin
     id: number;
     type: Kind;
   } & (
-    | { result: GraphComputeResults[Kind] }
+    | { result: GraphComputeWireResults[Kind] }
     | { error: { name: string; message: string } }
   );
 

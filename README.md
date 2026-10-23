@@ -149,9 +149,12 @@ Open the local URL printed by Vite.
 | `npm run test:coverage` | Run tests with coverage reporting.            |
 
 The application uses **React, TypeScript, and Vite**, with Material UI, Monaco
-Editor, Cytoscape, React Flow, ELK layout, and Zustand. Tests use Vitest and Testing
-Library. The [architecture guide](docs/architecture.md) covers graph computation,
-layout, loading, and fullscreen lifecycles.
+Editor, Cytoscape, React Flow, OpenEdges ELK (Rust/WebAssembly), and Zustand.
+The [local WASM build](src/vendor/elk-wasm/README.md) includes stack-safe graph
+traversals for Safari workers. Optional developer algorithms select a lazily
+loaded ELK.js compatibility backend to preserve their existing layouts.
+Tests use Vitest and Testing Library. The [architecture guide](docs/architecture.md)
+covers graph computation, layout, loading, and fullscreen lifecycles.
 
 Write documentation, code comments, and user-facing text in **English**.
 
@@ -178,6 +181,8 @@ throughout the development of TuringViz.
 ## License and acknowledgements
 
 TuringViz is released under the [BSD 3-Clause License](LICENSE).
+The vendored OpenEdges ELK backend includes its own
+[license](src/vendor/elk-wasm/LICENSE) and [attribution](src/vendor/elk-wasm/NOTICE).
 
 The project's input format draws inspiration from the YAML-based Turing machine
 description format used by [turingmachine.io](https://turingmachine.io/)

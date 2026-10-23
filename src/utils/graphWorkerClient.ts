@@ -1,9 +1,11 @@
+import { isPackedConfigGraph, unpackConfigGraph } from '../workers/configGraphCodec';
 import {
   graphComputations,
   type GraphComputeKind,
   type GraphComputePayloads,
   type GraphComputeResponse,
   type GraphComputeResults,
+  type GraphComputeWireResults,
 } from '../workers/graphComputeProtocol';
 
 const WORKER_TIMEOUT_MS = 4500;
@@ -27,13 +29,15 @@ function createComputeChannel<Kind extends GraphComputeKind>(
   type: Kind,
   name: string,
   resetMessage: string,
-  compute: (payload: GraphComputePayloads[Kind]) => GraphComputeResults[Kind]
+  compute: (payload: GraphComputePayloads[Kind]) => GraphComputeResults[Kind],
+  decode: (result: GraphComputeWireResults[Kind]) => GraphComputeResults[Kind]
 ) {
   type Pending = {
     id: number;
     resolve: (value: GraphComputeResults[Kind]) => void;
     reject: (error: unknown) => void;
     timer?: ReturnType<typeof setTimeout>;
+    recover: () => void;
   };
   let worker: Worker | null = null;
   let pending: Pending | null = null;
@@ -63,7 +67,12 @@ function createComputeChannel<Kind extends GraphComputeKind>(
     if (pending) cancel();
 
     return new Promise((resolve, reject) => {
-      const job: Pending = { id: ++sequence, resolve, reject };
+      const job: Pending = {
+        id: ++sequence,
+        resolve,
+        reject,
+        recover: () => fallback(),
+      };
       pending = job;
 
       const fallback = () => {
@@ -103,13 +112,28 @@ function createComputeChannel<Kind extends GraphComputeKind>(
                 message.id !== current.id
               )
                 return;
-              if (!take(current)) return;
               if ('error' in message) {
-                const error = new Error(message.error.message);
-                error.name = message.error.name;
-                current.reject(error);
+                const reported = message.error;
+                if (
+                  !reported ||
+                  typeof reported.name !== 'string' ||
+                  typeof reported.message !== 'string'
+                ) {
+                  current.recover();
+                  return;
+                }
+                const error = new Error(reported.message);
+                error.name = reported.name;
+                if (take(current)) current.reject(error);
               } else {
-                current.resolve(message.result);
+                try {
+                  const result = decode(message.result);
+                  if (take(current)) current.resolve(result);
+                } catch {
+                  // A malformed response is a transport failure, like a clone
+                  // error. Retry the same pure computation through the fallback.
+                  current.recover();
+                }
               }
             }
           );
@@ -140,13 +164,15 @@ const treeChannel = createComputeChannel(
   'computationTree',
   'graph-compute-tree',
   'Tree worker reset',
-  graphComputations.computationTree
+  graphComputations.computationTree,
+  (result) => result
 );
 const configChannel = createComputeChannel(
   'configGraph',
   'graph-compute-config',
   'Config worker reset',
-  graphComputations.configGraph
+  graphComputations.configGraph,
+  (result) => (isPackedConfigGraph(result) ? unpackConfigGraph(result) : result)
 );
 
 export const computeComputationTreeInWorker = treeChannel.run;

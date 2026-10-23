@@ -1,6 +1,9 @@
 import { renderHook } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import { useCurrentConfigHighlight } from '@hooks/useCurrentConfigHighlight';
+import {
+  configurationHashFromNodeId,
+  useCurrentConfigHighlight,
+} from '@hooks/useCurrentConfigHighlight';
 import { hashConfig, type Configuration } from '@mytypes/TMTypes';
 
 vi.mock('@mytypes/TMTypes', async (importOriginal) => {
@@ -50,5 +53,53 @@ describe('current configuration highlight', () => {
     expect(view.result.current.nodes.every((node) => node.data.isCurrent)).toBe(
       true
     );
+  });
+
+  it('reuses configuration graph IDs with identical highlights while stepping', () => {
+    const nodes = Array.from({ length: 1000 }, (_, index) => {
+      const config: Configuration = {
+        state: `q${index}`,
+        tapes: [[[{ value: 'a' }], [{ value: 'b' }, { value: '_' }]]],
+        heads: [index % 3],
+      };
+      return {
+        id: hashConfig(config),
+        position: { x: index * 80, y: 40 },
+        data: { config, isCurrent: false },
+      };
+    });
+    const base = {
+      nodes,
+      edges: [{ id: 'edge', source: nodes[0].id, target: nodes[1].id }],
+      topoKey: 'unchanged',
+    };
+    const original = renderHook(
+      ({ config }) => useCurrentConfigHighlight(base, config),
+      { initialProps: { config: nodes[0].data.config } }
+    );
+    vi.mocked(hashConfig).mockClear();
+    const optimized = renderHook(
+      ({ config }) =>
+        useCurrentConfigHighlight(base, config, configurationHashFromNodeId),
+      { initialProps: { config: nodes[0].data.config } }
+    );
+    expect(hashConfig).toHaveBeenCalledOnce();
+    expect(optimized.result.current).toEqual(original.result.current);
+
+    original.rerender({ config: nodes[1].data.config });
+    vi.mocked(hashConfig).mockClear();
+    optimized.rerender({ config: nodes[1].data.config });
+    expect(hashConfig).toHaveBeenCalledOnce();
+    expect(optimized.result.current).toEqual(original.result.current);
+    expect(optimized.result.current.edges).toBe(base.edges);
+    expect(optimized.result.current.nodes[0]).toBe(base.nodes[0]);
+    expect(optimized.result.current.nodes[1].position).toBe(nodes[1].position);
+    expect(optimized.result.current.nodes[20]).toBe(base.nodes[20]);
+
+    const absent = { ...nodes[0].data.config, state: 'not in graph' };
+    original.rerender({ config: absent });
+    optimized.rerender({ config: absent });
+    expect(optimized.result.current).toBe(base);
+    expect(optimized.result.current).toEqual(original.result.current);
   });
 });

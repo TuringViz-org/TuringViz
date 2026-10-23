@@ -169,7 +169,7 @@ export function useTreeCircleLayout({
     fitAfterLayoutRef.current = true;
   }, [invalidateViewport, isContainerVisible]);
   useGraphLayoutRequest(
-    JSON.stringify([structureKey, computationTreeNodeMode, machineLoadVersion]),
+    [structureKey, computationTreeNodeMode, machineLoadVersion],
     !paused && nodes.length > 0,
     prepareLayout,
     scheduleLayoutRestart

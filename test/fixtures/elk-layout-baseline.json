@@ -1,0 +1,4260 @@
+{
+  "generatedWith": "elkjs@0.10.0",
+  "description": "Flat buildElkGraph-compatible inputs captured before the WebAssembly migration. Positions are the exact x/y values consumed by readElkPositions; every fixture was repeated to check determinism.",
+  "fixtures": [
+    {
+      "name": "empty",
+      "input": {
+        "id": "root",
+        "layoutOptions": {
+          "elk.algorithm": "layered",
+          "elk.spacing.nodeNode": "44",
+          "elk.layered.spacing.nodeNodeBetweenLayers": "36",
+          "elk.spacing.edgeEdge": "8",
+          "elk.spacing.edgeNode": "28",
+          "elk.padding": "8",
+          "elk.direction": "RIGHT",
+          "elk.layered.nodePlacement.bk.fixedAlignment": "BALANCED"
+        },
+        "children": [],
+        "edges": []
+      },
+      "positions": []
+    },
+    {
+      "name": "single-circle",
+      "input": {
+        "id": "root",
+        "layoutOptions": {
+          "elk.algorithm": "layered",
+          "elk.spacing.nodeNode": "44",
+          "elk.layered.spacing.nodeNodeBetweenLayers": "36",
+          "elk.spacing.edgeEdge": "8",
+          "elk.spacing.edgeNode": "28",
+          "elk.padding": "8",
+          "elk.direction": "RIGHT",
+          "elk.layered.nodePlacement.bk.fixedAlignment": "BALANCED"
+        },
+        "children": [
+          {
+            "id": "isolated",
+            "width": 64,
+            "height": 64
+          }
+        ],
+        "edges": []
+      },
+      "positions": [
+        {
+          "id": "isolated",
+          "x": 12,
+          "y": 12
+        }
+      ]
+    },
+    {
+      "name": "branch-circles-right",
+      "input": {
+        "id": "root",
+        "layoutOptions": {
+          "elk.algorithm": "layered",
+          "elk.spacing.nodeNode": "44",
+          "elk.layered.spacing.nodeNodeBetweenLayers": "36",
+          "elk.spacing.edgeEdge": "8",
+          "elk.spacing.edgeNode": "28",
+          "elk.padding": "8",
+          "elk.direction": "RIGHT",
+          "elk.layered.nodePlacement.bk.fixedAlignment": "BALANCED"
+        },
+        "children": [
+          {
+            "id": "root-state",
+            "width": 64,
+            "height": 64
+          },
+          {
+            "id": "left",
+            "width": 64,
+            "height": 64
+          },
+          {
+            "id": "right",
+            "width": 64,
+            "height": 64
+          },
+          {
+            "id": "left-a",
+            "width": 64,
+            "height": 64
+          },
+          {
+            "id": "left-b",
+            "width": 64,
+            "height": 64
+          },
+          {
+            "id": "right-a",
+            "width": 64,
+            "height": 64
+          },
+          {
+            "id": "right-b",
+            "width": 64,
+            "height": 64
+          }
+        ],
+        "edges": [
+          {
+            "id": "e0",
+            "sources": ["root-state"],
+            "targets": ["left"]
+          },
+          {
+            "id": "e1",
+            "sources": ["root-state"],
+            "targets": ["right"]
+          },
+          {
+            "id": "e2",
+            "sources": ["left"],
+            "targets": ["left-a"]
+          },
+          {
+            "id": "e3",
+            "sources": ["left"],
+            "targets": ["left-b"]
+          },
+          {
+            "id": "e4",
+            "sources": ["right"],
+            "targets": ["right-a"]
+          },
+          {
+            "id": "e5",
+            "sources": ["right"],
+            "targets": ["right-b"]
+          }
+        ]
+      },
+      "positions": [
+        {
+          "id": "root-state",
+          "x": 12,
+          "y": 173.99999999999997
+        },
+        {
+          "id": "left",
+          "x": 112,
+          "y": 282
+        },
+        {
+          "id": "right",
+          "x": 112,
+          "y": 65.99999999999999
+        },
+        {
+          "id": "left-a",
+          "x": 212,
+          "y": 228
+        },
+        {
+          "id": "left-b",
+          "x": 212,
+          "y": 336
+        },
+        {
+          "id": "right-a",
+          "x": 212,
+          "y": 12
+        },
+        {
+          "id": "right-b",
+          "x": 212,
+          "y": 120
+        }
+      ]
+    },
+    {
+      "name": "branch-circles-down",
+      "input": {
+        "id": "root",
+        "layoutOptions": {
+          "elk.algorithm": "layered",
+          "elk.spacing.nodeNode": "44",
+          "elk.layered.spacing.nodeNodeBetweenLayers": "36",
+          "elk.spacing.edgeEdge": "8",
+          "elk.spacing.edgeNode": "28",
+          "elk.padding": "8",
+          "elk.direction": "DOWN",
+          "elk.layered.nodePlacement.bk.fixedAlignment": "BALANCED"
+        },
+        "children": [
+          {
+            "id": "root-state",
+            "width": 64,
+            "height": 64
+          },
+          {
+            "id": "left",
+            "width": 64,
+            "height": 64
+          },
+          {
+            "id": "right",
+            "width": 64,
+            "height": 64
+          },
+          {
+            "id": "left-a",
+            "width": 64,
+            "height": 64
+          },
+          {
+            "id": "left-b",
+            "width": 64,
+            "height": 64
+          },
+          {
+            "id": "right-a",
+            "width": 64,
+            "height": 64
+          },
+          {
+            "id": "right-b",
+            "width": 64,
+            "height": 64
+          }
+        ],
+        "edges": [
+          {
+            "id": "e0",
+            "sources": ["root-state"],
+            "targets": ["left"]
+          },
+          {
+            "id": "e1",
+            "sources": ["root-state"],
+            "targets": ["right"]
+          },
+          {
+            "id": "e2",
+            "sources": ["left"],
+            "targets": ["left-a"]
+          },
+          {
+            "id": "e3",
+            "sources": ["left"],
+            "targets": ["left-b"]
+          },
+          {
+            "id": "e4",
+            "sources": ["right"],
+            "targets": ["right-a"]
+          },
+          {
+            "id": "e5",
+            "sources": ["right"],
+            "targets": ["right-b"]
+          }
+        ]
+      },
+      "positions": [
+        {
+          "id": "root-state",
+          "x": 173.99999999999997,
+          "y": 12
+        },
+        {
+          "id": "left",
+          "x": 282,
+          "y": 112
+        },
+        {
+          "id": "right",
+          "x": 65.99999999999999,
+          "y": 112
+        },
+        {
+          "id": "left-a",
+          "x": 228,
+          "y": 212
+        },
+        {
+          "id": "left-b",
+          "x": 336,
+          "y": 212
+        },
+        {
+          "id": "right-a",
+          "x": 12,
+          "y": 212
+        },
+        {
+          "id": "right-b",
+          "x": 120,
+          "y": 212
+        }
+      ]
+    },
+    {
+      "name": "branch-circles-left",
+      "input": {
+        "id": "root",
+        "layoutOptions": {
+          "elk.algorithm": "layered",
+          "elk.spacing.nodeNode": "44",
+          "elk.layered.spacing.nodeNodeBetweenLayers": "36",
+          "elk.spacing.edgeEdge": "8",
+          "elk.spacing.edgeNode": "28",
+          "elk.padding": "8",
+          "elk.direction": "LEFT",
+          "elk.layered.nodePlacement.bk.fixedAlignment": "BALANCED"
+        },
+        "children": [
+          {
+            "id": "root-state",
+            "width": 64,
+            "height": 64
+          },
+          {
+            "id": "left",
+            "width": 64,
+            "height": 64
+          },
+          {
+            "id": "right",
+            "width": 64,
+            "height": 64
+          },
+          {
+            "id": "left-a",
+            "width": 64,
+            "height": 64
+          },
+          {
+            "id": "left-b",
+            "width": 64,
+            "height": 64
+          },
+          {
+            "id": "right-a",
+            "width": 64,
+            "height": 64
+          },
+          {
+            "id": "right-b",
+            "width": 64,
+            "height": 64
+          }
+        ],
+        "edges": [
+          {
+            "id": "e0",
+            "sources": ["root-state"],
+            "targets": ["left"]
+          },
+          {
+            "id": "e1",
+            "sources": ["root-state"],
+            "targets": ["right"]
+          },
+          {
+            "id": "e2",
+            "sources": ["left"],
+            "targets": ["left-a"]
+          },
+          {
+            "id": "e3",
+            "sources": ["left"],
+            "targets": ["left-b"]
+          },
+          {
+            "id": "e4",
+            "sources": ["right"],
+            "targets": ["right-a"]
+          },
+          {
+            "id": "e5",
+            "sources": ["right"],
+            "targets": ["right-b"]
+          }
+        ]
+      },
+      "positions": [
+        {
+          "id": "root-state",
+          "x": 212,
+          "y": 173.99999999999997
+        },
+        {
+          "id": "left",
+          "x": 112,
+          "y": 282
+        },
+        {
+          "id": "right",
+          "x": 112,
+          "y": 65.99999999999999
+        },
+        {
+          "id": "left-a",
+          "x": 12,
+          "y": 228
+        },
+        {
+          "id": "left-b",
+          "x": 12,
+          "y": 336
+        },
+        {
+          "id": "right-a",
+          "x": 12,
+          "y": 12
+        },
+        {
+          "id": "right-b",
+          "x": 12,
+          "y": 120
+        }
+      ]
+    },
+    {
+      "name": "branch-circles-up",
+      "input": {
+        "id": "root",
+        "layoutOptions": {
+          "elk.algorithm": "layered",
+          "elk.spacing.nodeNode": "44",
+          "elk.layered.spacing.nodeNodeBetweenLayers": "36",
+          "elk.spacing.edgeEdge": "8",
+          "elk.spacing.edgeNode": "28",
+          "elk.padding": "8",
+          "elk.direction": "UP",
+          "elk.layered.nodePlacement.bk.fixedAlignment": "BALANCED"
+        },
+        "children": [
+          {
+            "id": "root-state",
+            "width": 64,
+            "height": 64
+          },
+          {
+            "id": "left",
+            "width": 64,
+            "height": 64
+          },
+          {
+            "id": "right",
+            "width": 64,
+            "height": 64
+          },
+          {
+            "id": "left-a",
+            "width": 64,
+            "height": 64
+          },
+          {
+            "id": "left-b",
+            "width": 64,
+            "height": 64
+          },
+          {
+            "id": "right-a",
+            "width": 64,
+            "height": 64
+          },
+          {
+            "id": "right-b",
+            "width": 64,
+            "height": 64
+          }
+        ],
+        "edges": [
+          {
+            "id": "e0",
+            "sources": ["root-state"],
+            "targets": ["left"]
+          },
+          {
+            "id": "e1",
+            "sources": ["root-state"],
+            "targets": ["right"]
+          },
+          {
+            "id": "e2",
+            "sources": ["left"],
+            "targets": ["left-a"]
+          },
+          {
+            "id": "e3",
+            "sources": ["left"],
+            "targets": ["left-b"]
+          },
+          {
+            "id": "e4",
+            "sources": ["right"],
+            "targets": ["right-a"]
+          },
+          {
+            "id": "e5",
+            "sources": ["right"],
+            "targets": ["right-b"]
+          }
+        ]
+      },
+      "positions": [
+        {
+          "id": "root-state",
+          "x": 173.99999999999997,
+          "y": 212
+        },
+        {
+          "id": "left",
+          "x": 282,
+          "y": 112
+        },
+        {
+          "id": "right",
+          "x": 65.99999999999999,
+          "y": 112
+        },
+        {
+          "id": "left-a",
+          "x": 228,
+          "y": 12
+        },
+        {
+          "id": "left-b",
+          "x": 336,
+          "y": 12
+        },
+        {
+          "id": "right-a",
+          "x": 12,
+          "y": 12
+        },
+        {
+          "id": "right-b",
+          "x": 120,
+          "y": 12
+        }
+      ]
+    },
+    {
+      "name": "merge-cycle-parallel-tm",
+      "input": {
+        "id": "root",
+        "layoutOptions": {
+          "elk.algorithm": "layered",
+          "elk.spacing.nodeNode": "120",
+          "elk.layered.spacing.nodeNodeBetweenLayers": "100",
+          "elk.spacing.edgeEdge": "24",
+          "elk.spacing.edgeNode": "100",
+          "elk.padding": "24",
+          "elk.direction": "RIGHT",
+          "elk.layered.nodePlacement.bk.fixedAlignment": "BALANCED"
+        },
+        "children": [
+          {
+            "id": "start",
+            "width": 76,
+            "height": 76
+          },
+          {
+            "id": "scan",
+            "width": 76,
+            "height": 76
+          },
+          {
+            "id": "branch-a",
+            "width": 76,
+            "height": 76
+          },
+          {
+            "id": "branch-b",
+            "width": 76,
+            "height": 76
+          },
+          {
+            "id": "join",
+            "width": 76,
+            "height": 76
+          },
+          {
+            "id": "accept",
+            "width": 76,
+            "height": 76
+          },
+          {
+            "id": "reject",
+            "width": 76,
+            "height": 76
+          }
+        ],
+        "edges": [
+          {
+            "id": "e0",
+            "sources": ["start"],
+            "targets": ["scan"]
+          },
+          {
+            "id": "e1",
+            "sources": ["scan"],
+            "targets": ["branch-a"]
+          },
+          {
+            "id": "e2",
+            "sources": ["scan"],
+            "targets": ["branch-b"]
+          },
+          {
+            "id": "e3",
+            "sources": ["branch-a"],
+            "targets": ["join"]
+          },
+          {
+            "id": "e4",
+            "sources": ["branch-b"],
+            "targets": ["join"]
+          },
+          {
+            "id": "e5",
+            "sources": ["join"],
+            "targets": ["scan"]
+          },
+          {
+            "id": "e6",
+            "sources": ["join"],
+            "targets": ["accept"]
+          },
+          {
+            "id": "e7",
+            "sources": ["branch-b"],
+            "targets": ["reject"]
+          },
+          {
+            "id": "e8",
+            "sources": ["scan"],
+            "targets": ["branch-a"]
+          }
+        ]
+      },
+      "positions": [
+        {
+          "id": "start",
+          "x": 12,
+          "y": 248.5
+        },
+        {
+          "id": "scan",
+          "x": 188,
+          "y": 248.5
+        },
+        {
+          "id": "branch-a",
+          "x": 364,
+          "y": 324.33333333333337
+        },
+        {
+          "id": "branch-b",
+          "x": 364,
+          "y": 24.666666666666686
+        },
+        {
+          "id": "join",
+          "x": 540,
+          "y": 208
+        },
+        {
+          "id": "accept",
+          "x": 716,
+          "y": 208
+        },
+        {
+          "id": "reject",
+          "x": 540,
+          "y": 12
+        }
+      ]
+    },
+    {
+      "name": "merge-cycle-parallel-circles",
+      "input": {
+        "id": "root",
+        "layoutOptions": {
+          "elk.algorithm": "layered",
+          "elk.spacing.nodeNode": "44",
+          "elk.layered.spacing.nodeNodeBetweenLayers": "36",
+          "elk.spacing.edgeEdge": "8",
+          "elk.spacing.edgeNode": "28",
+          "elk.padding": "8",
+          "elk.direction": "RIGHT",
+          "elk.layered.nodePlacement.bk.fixedAlignment": "BALANCED"
+        },
+        "children": [
+          {
+            "id": "start",
+            "width": 64,
+            "height": 64
+          },
+          {
+            "id": "scan",
+            "width": 64,
+            "height": 64
+          },
+          {
+            "id": "branch-a",
+            "width": 64,
+            "height": 64
+          },
+          {
+            "id": "branch-b",
+            "width": 64,
+            "height": 64
+          },
+          {
+            "id": "join",
+            "width": 64,
+            "height": 64
+          },
+          {
+            "id": "accept",
+            "width": 64,
+            "height": 64
+          },
+          {
+            "id": "reject",
+            "width": 64,
+            "height": 64
+          }
+        ],
+        "edges": [
+          {
+            "id": "e0",
+            "sources": ["start"],
+            "targets": ["scan"]
+          },
+          {
+            "id": "e1",
+            "sources": ["scan"],
+            "targets": ["branch-a"]
+          },
+          {
+            "id": "e2",
+            "sources": ["scan"],
+            "targets": ["branch-b"]
+          },
+          {
+            "id": "e3",
+            "sources": ["branch-a"],
+            "targets": ["join"]
+          },
+          {
+            "id": "e4",
+            "sources": ["branch-b"],
+            "targets": ["join"]
+          },
+          {
+            "id": "e5",
+            "sources": ["join"],
+            "targets": ["scan"]
+          },
+          {
+            "id": "e6",
+            "sources": ["join"],
+            "targets": ["accept"]
+          },
+          {
+            "id": "e7",
+            "sources": ["branch-b"],
+            "targets": ["reject"]
+          },
+          {
+            "id": "e8",
+            "sources": ["scan"],
+            "targets": ["branch-a"]
+          }
+        ]
+      },
+      "positions": [
+        {
+          "id": "start",
+          "x": 12,
+          "y": 126.5
+        },
+        {
+          "id": "scan",
+          "x": 112,
+          "y": 126.5
+        },
+        {
+          "id": "branch-a",
+          "x": 212,
+          "y": 162.33333333333331
+        },
+        {
+          "id": "branch-b",
+          "x": 212,
+          "y": 22.666666666666657
+        },
+        {
+          "id": "join",
+          "x": 312,
+          "y": 120
+        },
+        {
+          "id": "accept",
+          "x": 412,
+          "y": 120
+        },
+        {
+          "id": "reject",
+          "x": 312,
+          "y": 12
+        }
+      ]
+    },
+    {
+      "name": "merge-cycle-parallel-cards",
+      "input": {
+        "id": "root",
+        "layoutOptions": {
+          "elk.algorithm": "layered",
+          "elk.spacing.nodeNode": "120",
+          "elk.layered.spacing.nodeNodeBetweenLayers": "100",
+          "elk.spacing.edgeEdge": "24",
+          "elk.spacing.edgeNode": "300",
+          "elk.padding": "24",
+          "elk.direction": "DOWN",
+          "elk.layered.nodePlacement.bk.fixedAlignment": "BALANCED"
+        },
+        "children": [
+          {
+            "id": "start",
+            "width": 330,
+            "height": 240
+          },
+          {
+            "id": "scan",
+            "width": 330,
+            "height": 240
+          },
+          {
+            "id": "branch-a",
+            "width": 330,
+            "height": 240
+          },
+          {
+            "id": "branch-b",
+            "width": 330,
+            "height": 240
+          },
+          {
+            "id": "join",
+            "width": 330,
+            "height": 240
+          },
+          {
+            "id": "accept",
+            "width": 330,
+            "height": 240
+          },
+          {
+            "id": "reject",
+            "width": 330,
+            "height": 240
+          }
+        ],
+        "edges": [
+          {
+            "id": "e0",
+            "sources": ["start"],
+            "targets": ["scan"]
+          },
+          {
+            "id": "e1",
+            "sources": ["scan"],
+            "targets": ["branch-a"]
+          },
+          {
+            "id": "e2",
+            "sources": ["scan"],
+            "targets": ["branch-b"]
+          },
+          {
+            "id": "e3",
+            "sources": ["branch-a"],
+            "targets": ["join"]
+          },
+          {
+            "id": "e4",
+            "sources": ["branch-b"],
+            "targets": ["join"]
+          },
+          {
+            "id": "e5",
+            "sources": ["join"],
+            "targets": ["scan"]
+          },
+          {
+            "id": "e6",
+            "sources": ["join"],
+            "targets": ["accept"]
+          },
+          {
+            "id": "e7",
+            "sources": ["branch-b"],
+            "targets": ["reject"]
+          },
+          {
+            "id": "e8",
+            "sources": ["scan"],
+            "targets": ["branch-a"]
+          }
+        ]
+      },
+      "positions": [
+        {
+          "id": "start",
+          "x": 737.5,
+          "y": 12
+        },
+        {
+          "id": "scan",
+          "x": 737.5,
+          "y": 352
+        },
+        {
+          "id": "branch-a",
+          "x": 998,
+          "y": 692
+        },
+        {
+          "id": "branch-b",
+          "x": 67,
+          "y": 692
+        },
+        {
+          "id": "join",
+          "x": 532,
+          "y": 1032
+        },
+        {
+          "id": "accept",
+          "x": 532,
+          "y": 1372
+        },
+        {
+          "id": "reject",
+          "x": 12,
+          "y": 1032
+        }
+      ]
+    },
+    {
+      "name": "disconnected-circles",
+      "input": {
+        "id": "root",
+        "layoutOptions": {
+          "elk.algorithm": "layered",
+          "elk.spacing.nodeNode": "44",
+          "elk.layered.spacing.nodeNodeBetweenLayers": "36",
+          "elk.spacing.edgeEdge": "8",
+          "elk.spacing.edgeNode": "28",
+          "elk.padding": "8",
+          "elk.direction": "RIGHT",
+          "elk.layered.nodePlacement.bk.fixedAlignment": "BALANCED"
+        },
+        "children": [
+          {
+            "id": "root-a",
+            "width": 64,
+            "height": 64
+          },
+          {
+            "id": "a1",
+            "width": 64,
+            "height": 64
+          },
+          {
+            "id": "a2",
+            "width": 64,
+            "height": 64
+          },
+          {
+            "id": "root-b",
+            "width": 64,
+            "height": 64
+          },
+          {
+            "id": "b1",
+            "width": 64,
+            "height": 64
+          },
+          {
+            "id": "b2",
+            "width": 64,
+            "height": 64
+          },
+          {
+            "id": "isolated-a",
+            "width": 64,
+            "height": 64
+          },
+          {
+            "id": "isolated-b",
+            "width": 64,
+            "height": 64
+          }
+        ],
+        "edges": [
+          {
+            "id": "e0",
+            "sources": ["root-a"],
+            "targets": ["a1"]
+          },
+          {
+            "id": "e1",
+            "sources": ["root-a"],
+            "targets": ["a2"]
+          },
+          {
+            "id": "e2",
+            "sources": ["root-b"],
+            "targets": ["b1"]
+          },
+          {
+            "id": "e3",
+            "sources": ["b1"],
+            "targets": ["b2"]
+          },
+          {
+            "id": "e4",
+            "sources": ["b2"],
+            "targets": ["root-b"]
+          }
+        ]
+      },
+      "positions": [
+        {
+          "id": "root-a",
+          "x": 12,
+          "y": 264.5
+        },
+        {
+          "id": "a1",
+          "x": 112,
+          "y": 210.5
+        },
+        {
+          "id": "a2",
+          "x": 112,
+          "y": 318.5
+        },
+        {
+          "id": "root-b",
+          "x": 212,
+          "y": 96
+        },
+        {
+          "id": "b1",
+          "x": 12,
+          "y": 96
+        },
+        {
+          "id": "b2",
+          "x": 112,
+          "y": 126.5
+        },
+        {
+          "id": "isolated-a",
+          "x": 12,
+          "y": 12
+        },
+        {
+          "id": "isolated-b",
+          "x": 96,
+          "y": 12
+        }
+      ]
+    },
+    {
+      "name": "disconnected-cards",
+      "input": {
+        "id": "root",
+        "layoutOptions": {
+          "elk.algorithm": "layered",
+          "elk.spacing.nodeNode": "120",
+          "elk.layered.spacing.nodeNodeBetweenLayers": "100",
+          "elk.spacing.edgeEdge": "24",
+          "elk.spacing.edgeNode": "300",
+          "elk.padding": "24",
+          "elk.direction": "DOWN",
+          "elk.layered.nodePlacement.bk.fixedAlignment": "BALANCED"
+        },
+        "children": [
+          {
+            "id": "root-a",
+            "width": 330,
+            "height": 240
+          },
+          {
+            "id": "a1",
+            "width": 330,
+            "height": 240
+          },
+          {
+            "id": "a2",
+            "width": 330,
+            "height": 240
+          },
+          {
+            "id": "root-b",
+            "width": 330,
+            "height": 240
+          },
+          {
+            "id": "b1",
+            "width": 330,
+            "height": 240
+          },
+          {
+            "id": "b2",
+            "width": 330,
+            "height": 240
+          },
+          {
+            "id": "isolated-a",
+            "width": 330,
+            "height": 240
+          },
+          {
+            "id": "isolated-b",
+            "width": 330,
+            "height": 240
+          }
+        ],
+        "edges": [
+          {
+            "id": "e0",
+            "sources": ["root-a"],
+            "targets": ["a1"]
+          },
+          {
+            "id": "e1",
+            "sources": ["root-a"],
+            "targets": ["a2"]
+          },
+          {
+            "id": "e2",
+            "sources": ["root-b"],
+            "targets": ["b1"]
+          },
+          {
+            "id": "e3",
+            "sources": ["b1"],
+            "targets": ["b2"]
+          },
+          {
+            "id": "e4",
+            "sources": ["b2"],
+            "targets": ["root-b"]
+          }
+        ]
+      },
+      "positions": [
+        {
+          "id": "root-a",
+          "x": 937,
+          "y": 12
+        },
+        {
+          "id": "a1",
+          "x": 712,
+          "y": 352
+        },
+        {
+          "id": "a2",
+          "x": 1162,
+          "y": 352
+        },
+        {
+          "id": "root-b",
+          "x": 80,
+          "y": 1292
+        },
+        {
+          "id": "b1",
+          "x": 80,
+          "y": 612
+        },
+        {
+          "id": "b2",
+          "x": 313,
+          "y": 952
+        },
+        {
+          "id": "isolated-a",
+          "x": 12,
+          "y": 12
+        },
+        {
+          "id": "isolated-b",
+          "x": 362,
+          "y": 12
+        }
+      ]
+    },
+    {
+      "name": "varied-cards-right",
+      "input": {
+        "id": "root",
+        "layoutOptions": {
+          "elk.algorithm": "layered",
+          "elk.spacing.nodeNode": "120",
+          "elk.layered.spacing.nodeNodeBetweenLayers": "100",
+          "elk.spacing.edgeEdge": "24",
+          "elk.spacing.edgeNode": "300",
+          "elk.padding": "24",
+          "elk.direction": "RIGHT",
+          "elk.layered.nodePlacement.bk.fixedAlignment": "BALANCED"
+        },
+        "children": [
+          {
+            "id": "start",
+            "width": 330,
+            "height": 240
+          },
+          {
+            "id": "short-tape",
+            "width": 330,
+            "height": 182
+          },
+          {
+            "id": "long-tape",
+            "width": 416,
+            "height": 272
+          },
+          {
+            "id": "multi-tape",
+            "width": 330,
+            "height": 348
+          },
+          {
+            "id": "halt",
+            "width": 330,
+            "height": 200
+          }
+        ],
+        "edges": [
+          {
+            "id": "e0",
+            "sources": ["start"],
+            "targets": ["short-tape"]
+          },
+          {
+            "id": "e1",
+            "sources": ["start"],
+            "targets": ["long-tape"]
+          },
+          {
+            "id": "e2",
+            "sources": ["short-tape"],
+            "targets": ["multi-tape"]
+          },
+          {
+            "id": "e3",
+            "sources": ["long-tape"],
+            "targets": ["multi-tape"]
+          },
+          {
+            "id": "e4",
+            "sources": ["multi-tape"],
+            "targets": ["halt"]
+          },
+          {
+            "id": "e5",
+            "sources": ["multi-tape"],
+            "targets": ["start"]
+          }
+        ]
+      },
+      "positions": [
+        {
+          "id": "start",
+          "x": 12,
+          "y": 342.5
+        },
+        {
+          "id": "short-tape",
+          "x": 485,
+          "y": 705
+        },
+        {
+          "id": "long-tape",
+          "x": 442,
+          "y": 313
+        },
+        {
+          "id": "multi-tape",
+          "x": 958,
+          "y": 275
+        },
+        {
+          "id": "halt",
+          "x": 1388,
+          "y": 349
+        }
+      ]
+    },
+    {
+      "name": "varied-cards-down",
+      "input": {
+        "id": "root",
+        "layoutOptions": {
+          "elk.algorithm": "layered",
+          "elk.spacing.nodeNode": "120",
+          "elk.layered.spacing.nodeNodeBetweenLayers": "100",
+          "elk.spacing.edgeEdge": "24",
+          "elk.spacing.edgeNode": "300",
+          "elk.padding": "24",
+          "elk.direction": "DOWN",
+          "elk.layered.nodePlacement.bk.fixedAlignment": "BALANCED"
+        },
+        "children": [
+          {
+            "id": "start",
+            "width": 330,
+            "height": 240
+          },
+          {
+            "id": "short-tape",
+            "width": 330,
+            "height": 182
+          },
+          {
+            "id": "long-tape",
+            "width": 416,
+            "height": 272
+          },
+          {
+            "id": "multi-tape",
+            "width": 330,
+            "height": 348
+          },
+          {
+            "id": "halt",
+            "width": 330,
+            "height": 200
+          }
+        ],
+        "edges": [
+          {
+            "id": "e0",
+            "sources": ["start"],
+            "targets": ["short-tape"]
+          },
+          {
+            "id": "e1",
+            "sources": ["start"],
+            "targets": ["long-tape"]
+          },
+          {
+            "id": "e2",
+            "sources": ["short-tape"],
+            "targets": ["multi-tape"]
+          },
+          {
+            "id": "e3",
+            "sources": ["long-tape"],
+            "targets": ["multi-tape"]
+          },
+          {
+            "id": "e4",
+            "sources": ["multi-tape"],
+            "targets": ["halt"]
+          },
+          {
+            "id": "e5",
+            "sources": ["multi-tape"],
+            "targets": ["start"]
+          }
+        ]
+      },
+      "positions": [
+        {
+          "id": "start",
+          "x": 356,
+          "y": 12
+        },
+        {
+          "id": "short-tape",
+          "x": 849,
+          "y": 397
+        },
+        {
+          "id": "long-tape",
+          "x": 313,
+          "y": 352
+        },
+        {
+          "id": "multi-tape",
+          "x": 356,
+          "y": 724
+        },
+        {
+          "id": "halt",
+          "x": 356,
+          "y": 1172
+        }
+      ]
+    },
+    {
+      "name": "varied-cards-left",
+      "input": {
+        "id": "root",
+        "layoutOptions": {
+          "elk.algorithm": "layered",
+          "elk.spacing.nodeNode": "120",
+          "elk.layered.spacing.nodeNodeBetweenLayers": "100",
+          "elk.spacing.edgeEdge": "24",
+          "elk.spacing.edgeNode": "300",
+          "elk.padding": "24",
+          "elk.direction": "LEFT",
+          "elk.layered.nodePlacement.bk.fixedAlignment": "BALANCED"
+        },
+        "children": [
+          {
+            "id": "start",
+            "width": 330,
+            "height": 240
+          },
+          {
+            "id": "short-tape",
+            "width": 330,
+            "height": 182
+          },
+          {
+            "id": "long-tape",
+            "width": 416,
+            "height": 272
+          },
+          {
+            "id": "multi-tape",
+            "width": 330,
+            "height": 348
+          },
+          {
+            "id": "halt",
+            "width": 330,
+            "height": 200
+          }
+        ],
+        "edges": [
+          {
+            "id": "e0",
+            "sources": ["start"],
+            "targets": ["short-tape"]
+          },
+          {
+            "id": "e1",
+            "sources": ["start"],
+            "targets": ["long-tape"]
+          },
+          {
+            "id": "e2",
+            "sources": ["short-tape"],
+            "targets": ["multi-tape"]
+          },
+          {
+            "id": "e3",
+            "sources": ["long-tape"],
+            "targets": ["multi-tape"]
+          },
+          {
+            "id": "e4",
+            "sources": ["multi-tape"],
+            "targets": ["halt"]
+          },
+          {
+            "id": "e5",
+            "sources": ["multi-tape"],
+            "targets": ["start"]
+          }
+        ]
+      },
+      "positions": [
+        {
+          "id": "start",
+          "x": 1388,
+          "y": 342.5
+        },
+        {
+          "id": "short-tape",
+          "x": 915,
+          "y": 705
+        },
+        {
+          "id": "long-tape",
+          "x": 872,
+          "y": 313
+        },
+        {
+          "id": "multi-tape",
+          "x": 442,
+          "y": 275
+        },
+        {
+          "id": "halt",
+          "x": 12,
+          "y": 349
+        }
+      ]
+    },
+    {
+      "name": "varied-cards-up",
+      "input": {
+        "id": "root",
+        "layoutOptions": {
+          "elk.algorithm": "layered",
+          "elk.spacing.nodeNode": "120",
+          "elk.layered.spacing.nodeNodeBetweenLayers": "100",
+          "elk.spacing.edgeEdge": "24",
+          "elk.spacing.edgeNode": "300",
+          "elk.padding": "24",
+          "elk.direction": "UP",
+          "elk.layered.nodePlacement.bk.fixedAlignment": "BALANCED"
+        },
+        "children": [
+          {
+            "id": "start",
+            "width": 330,
+            "height": 240
+          },
+          {
+            "id": "short-tape",
+            "width": 330,
+            "height": 182
+          },
+          {
+            "id": "long-tape",
+            "width": 416,
+            "height": 272
+          },
+          {
+            "id": "multi-tape",
+            "width": 330,
+            "height": 348
+          },
+          {
+            "id": "halt",
+            "width": 330,
+            "height": 200
+          }
+        ],
+        "edges": [
+          {
+            "id": "e0",
+            "sources": ["start"],
+            "targets": ["short-tape"]
+          },
+          {
+            "id": "e1",
+            "sources": ["start"],
+            "targets": ["long-tape"]
+          },
+          {
+            "id": "e2",
+            "sources": ["short-tape"],
+            "targets": ["multi-tape"]
+          },
+          {
+            "id": "e3",
+            "sources": ["long-tape"],
+            "targets": ["multi-tape"]
+          },
+          {
+            "id": "e4",
+            "sources": ["multi-tape"],
+            "targets": ["halt"]
+          },
+          {
+            "id": "e5",
+            "sources": ["multi-tape"],
+            "targets": ["start"]
+          }
+        ]
+      },
+      "positions": [
+        {
+          "id": "start",
+          "x": 356,
+          "y": 1132
+        },
+        {
+          "id": "short-tape",
+          "x": 849,
+          "y": 805
+        },
+        {
+          "id": "long-tape",
+          "x": 313,
+          "y": 760
+        },
+        {
+          "id": "multi-tape",
+          "x": 356,
+          "y": 312
+        },
+        {
+          "id": "halt",
+          "x": 356,
+          "y": 12
+        }
+      ]
+    },
+    {
+      "name": "zero-spacing-circle-merge",
+      "input": {
+        "id": "root",
+        "layoutOptions": {
+          "elk.algorithm": "layered",
+          "elk.spacing.nodeNode": "0",
+          "elk.layered.spacing.nodeNodeBetweenLayers": "0",
+          "elk.spacing.edgeEdge": "0",
+          "elk.spacing.edgeNode": "0",
+          "elk.padding": "0",
+          "elk.direction": "RIGHT",
+          "elk.layered.nodePlacement.bk.fixedAlignment": "BALANCED"
+        },
+        "children": [
+          {
+            "id": "start",
+            "width": 64,
+            "height": 64
+          },
+          {
+            "id": "scan",
+            "width": 64,
+            "height": 64
+          },
+          {
+            "id": "branch-a",
+            "width": 64,
+            "height": 64
+          },
+          {
+            "id": "branch-b",
+            "width": 64,
+            "height": 64
+          },
+          {
+            "id": "join",
+            "width": 64,
+            "height": 64
+          },
+          {
+            "id": "accept",
+            "width": 64,
+            "height": 64
+          },
+          {
+            "id": "reject",
+            "width": 64,
+            "height": 64
+          }
+        ],
+        "edges": [
+          {
+            "id": "e0",
+            "sources": ["start"],
+            "targets": ["scan"]
+          },
+          {
+            "id": "e1",
+            "sources": ["scan"],
+            "targets": ["branch-a"]
+          },
+          {
+            "id": "e2",
+            "sources": ["scan"],
+            "targets": ["branch-b"]
+          },
+          {
+            "id": "e3",
+            "sources": ["branch-a"],
+            "targets": ["join"]
+          },
+          {
+            "id": "e4",
+            "sources": ["branch-b"],
+            "targets": ["join"]
+          },
+          {
+            "id": "e5",
+            "sources": ["join"],
+            "targets": ["scan"]
+          },
+          {
+            "id": "e6",
+            "sources": ["join"],
+            "targets": ["accept"]
+          },
+          {
+            "id": "e7",
+            "sources": ["branch-b"],
+            "targets": ["reject"]
+          },
+          {
+            "id": "e8",
+            "sources": ["scan"],
+            "targets": ["branch-a"]
+          }
+        ]
+      },
+      "positions": [
+        {
+          "id": "start",
+          "x": 12,
+          "y": 41.86666666666666
+        },
+        {
+          "id": "scan",
+          "x": 76,
+          "y": 41.86666666666666
+        },
+        {
+          "id": "branch-a",
+          "x": 180,
+          "y": 109
+        },
+        {
+          "id": "branch-b",
+          "x": 180,
+          "y": 22.666666666666664
+        },
+        {
+          "id": "join",
+          "x": 264,
+          "y": 76
+        },
+        {
+          "id": "accept",
+          "x": 328,
+          "y": 76
+        },
+        {
+          "id": "reject",
+          "x": 264,
+          "y": 12
+        }
+      ]
+    },
+    {
+      "name": "force-branch-circles",
+      "input": {
+        "id": "root",
+        "layoutOptions": {
+          "elk.algorithm": "force",
+          "elk.spacing.nodeNode": "44",
+          "elk.layered.spacing.nodeNodeBetweenLayers": "36",
+          "elk.spacing.edgeEdge": "8",
+          "elk.spacing.edgeNode": "28",
+          "elk.padding": "8",
+          "elk.direction": "RIGHT",
+          "elk.layered.nodePlacement.bk.fixedAlignment": "BALANCED"
+        },
+        "children": [
+          {
+            "id": "root-state",
+            "width": 64,
+            "height": 64
+          },
+          {
+            "id": "left",
+            "width": 64,
+            "height": 64
+          },
+          {
+            "id": "right",
+            "width": 64,
+            "height": 64
+          },
+          {
+            "id": "left-a",
+            "width": 64,
+            "height": 64
+          },
+          {
+            "id": "left-b",
+            "width": 64,
+            "height": 64
+          },
+          {
+            "id": "right-a",
+            "width": 64,
+            "height": 64
+          },
+          {
+            "id": "right-b",
+            "width": 64,
+            "height": 64
+          }
+        ],
+        "edges": [
+          {
+            "id": "e0",
+            "sources": ["root-state"],
+            "targets": ["left"]
+          },
+          {
+            "id": "e1",
+            "sources": ["root-state"],
+            "targets": ["right"]
+          },
+          {
+            "id": "e2",
+            "sources": ["left"],
+            "targets": ["left-a"]
+          },
+          {
+            "id": "e3",
+            "sources": ["left"],
+            "targets": ["left-b"]
+          },
+          {
+            "id": "e4",
+            "sources": ["right"],
+            "targets": ["right-a"]
+          },
+          {
+            "id": "e5",
+            "sources": ["right"],
+            "targets": ["right-b"]
+          }
+        ]
+      },
+      "positions": [
+        {
+          "id": "root-state",
+          "x": 359.7582054305168,
+          "y": 395.843186669581
+        },
+        {
+          "id": "left",
+          "x": 243.69001680753246,
+          "y": 297.96613950329765
+        },
+        {
+          "id": "right",
+          "x": 231.4592152306135,
+          "y": 495.3254928105421
+        },
+        {
+          "id": "left-a",
+          "x": 357.82065617971955,
+          "y": 50
+        },
+        {
+          "id": "left-b",
+          "x": 440.384814067249,
+          "y": 476.00430566470897
+        },
+        {
+          "id": "right-a",
+          "x": 329.0996904661404,
+          "y": 255.4390305782581
+        },
+        {
+          "id": "right-b",
+          "x": 49.99999999999997,
+          "y": 636.0840368711883
+        }
+      ]
+    },
+    {
+      "name": "mrtree-branch-circles",
+      "input": {
+        "id": "root",
+        "layoutOptions": {
+          "elk.algorithm": "mrtree",
+          "elk.spacing.nodeNode": "44",
+          "elk.layered.spacing.nodeNodeBetweenLayers": "36",
+          "elk.spacing.edgeEdge": "8",
+          "elk.spacing.edgeNode": "28",
+          "elk.padding": "8",
+          "elk.direction": "RIGHT",
+          "elk.layered.nodePlacement.bk.fixedAlignment": "BALANCED"
+        },
+        "children": [
+          {
+            "id": "root-state",
+            "width": 64,
+            "height": 64
+          },
+          {
+            "id": "left",
+            "width": 64,
+            "height": 64
+          },
+          {
+            "id": "right",
+            "width": 64,
+            "height": 64
+          },
+          {
+            "id": "left-a",
+            "width": 64,
+            "height": 64
+          },
+          {
+            "id": "left-b",
+            "width": 64,
+            "height": 64
+          },
+          {
+            "id": "right-a",
+            "width": 64,
+            "height": 64
+          },
+          {
+            "id": "right-b",
+            "width": 64,
+            "height": 64
+          }
+        ],
+        "edges": [
+          {
+            "id": "e0",
+            "sources": ["root-state"],
+            "targets": ["left"]
+          },
+          {
+            "id": "e1",
+            "sources": ["root-state"],
+            "targets": ["right"]
+          },
+          {
+            "id": "e2",
+            "sources": ["left"],
+            "targets": ["left-a"]
+          },
+          {
+            "id": "e3",
+            "sources": ["left"],
+            "targets": ["left-b"]
+          },
+          {
+            "id": "e4",
+            "sources": ["right"],
+            "targets": ["right-a"]
+          },
+          {
+            "id": "e5",
+            "sources": ["right"],
+            "targets": ["right-b"]
+          }
+        ]
+      },
+      "positions": [
+        {
+          "id": "root-state",
+          "x": 20,
+          "y": 182
+        },
+        {
+          "id": "left",
+          "x": 128,
+          "y": 74
+        },
+        {
+          "id": "right",
+          "x": 128,
+          "y": 290
+        },
+        {
+          "id": "left-a",
+          "x": 236,
+          "y": 20
+        },
+        {
+          "id": "left-b",
+          "x": 236,
+          "y": 128
+        },
+        {
+          "id": "right-a",
+          "x": 236,
+          "y": 236
+        },
+        {
+          "id": "right-b",
+          "x": 236,
+          "y": 344
+        }
+      ]
+    },
+    {
+      "name": "stress-branch-circles",
+      "input": {
+        "id": "root",
+        "layoutOptions": {
+          "elk.algorithm": "stress",
+          "elk.spacing.nodeNode": "44",
+          "elk.layered.spacing.nodeNodeBetweenLayers": "36",
+          "elk.spacing.edgeEdge": "8",
+          "elk.spacing.edgeNode": "28",
+          "elk.padding": "8",
+          "elk.direction": "RIGHT",
+          "elk.layered.nodePlacement.bk.fixedAlignment": "BALANCED"
+        },
+        "children": [
+          {
+            "id": "root-state",
+            "width": 64,
+            "height": 64
+          },
+          {
+            "id": "left",
+            "width": 64,
+            "height": 64
+          },
+          {
+            "id": "right",
+            "width": 64,
+            "height": 64
+          },
+          {
+            "id": "left-a",
+            "width": 64,
+            "height": 64
+          },
+          {
+            "id": "left-b",
+            "width": 64,
+            "height": 64
+          },
+          {
+            "id": "right-a",
+            "width": 64,
+            "height": 64
+          },
+          {
+            "id": "right-b",
+            "width": 64,
+            "height": 64
+          }
+        ],
+        "edges": [
+          {
+            "id": "e0",
+            "sources": ["root-state"],
+            "targets": ["left"]
+          },
+          {
+            "id": "e1",
+            "sources": ["root-state"],
+            "targets": ["right"]
+          },
+          {
+            "id": "e2",
+            "sources": ["left"],
+            "targets": ["left-a"]
+          },
+          {
+            "id": "e3",
+            "sources": ["left"],
+            "targets": ["left-b"]
+          },
+          {
+            "id": "e4",
+            "sources": ["right"],
+            "targets": ["right-a"]
+          },
+          {
+            "id": "e5",
+            "sources": ["right"],
+            "targets": ["right-b"]
+          }
+        ]
+      },
+      "positions": [
+        {
+          "id": "root-state",
+          "x": 244.6143135598773,
+          "y": 223.98095003509843
+        },
+        {
+          "id": "left",
+          "x": 331.3771277210203,
+          "y": 159.36201879880684
+        },
+        {
+          "id": "right",
+          "x": 152.49920794535456,
+          "y": 280.70741059238077
+        },
+        {
+          "id": "left-a",
+          "x": 333.80767525411324,
+          "y": 50
+        },
+        {
+          "id": "left-b",
+          "x": 435.67584226232776,
+          "y": 191.76833373785382
+        },
+        {
+          "id": "right-a",
+          "x": 50,
+          "y": 242.479646036816
+        },
+        {
+          "id": "right-b",
+          "x": 143.9813803113962,
+          "y": 389.58386569295783
+        }
+      ]
+    },
+    {
+      "name": "radial-branch-circles",
+      "input": {
+        "id": "root",
+        "layoutOptions": {
+          "elk.algorithm": "radial",
+          "elk.spacing.nodeNode": "44",
+          "elk.layered.spacing.nodeNodeBetweenLayers": "36",
+          "elk.spacing.edgeEdge": "8",
+          "elk.spacing.edgeNode": "28",
+          "elk.padding": "8",
+          "elk.direction": "RIGHT",
+          "elk.layered.nodePlacement.bk.fixedAlignment": "BALANCED"
+        },
+        "children": [
+          {
+            "id": "root-state",
+            "width": 64,
+            "height": 64
+          },
+          {
+            "id": "left",
+            "width": 64,
+            "height": 64
+          },
+          {
+            "id": "right",
+            "width": 64,
+            "height": 64
+          },
+          {
+            "id": "left-a",
+            "width": 64,
+            "height": 64
+          },
+          {
+            "id": "left-b",
+            "width": 64,
+            "height": 64
+          },
+          {
+            "id": "right-a",
+            "width": 64,
+            "height": 64
+          },
+          {
+            "id": "right-b",
+            "width": 64,
+            "height": 64
+          }
+        ],
+        "edges": [
+          {
+            "id": "e0",
+            "sources": ["root-state"],
+            "targets": ["left"]
+          },
+          {
+            "id": "e1",
+            "sources": ["root-state"],
+            "targets": ["right"]
+          },
+          {
+            "id": "e2",
+            "sources": ["left"],
+            "targets": ["left-a"]
+          },
+          {
+            "id": "e3",
+            "sources": ["left"],
+            "targets": ["left-b"]
+          },
+          {
+            "id": "e4",
+            "sources": ["right"],
+            "targets": ["right-a"]
+          },
+          {
+            "id": "e5",
+            "sources": ["right"],
+            "targets": ["right-b"]
+          }
+        ]
+      },
+      "positions": [
+        {
+          "id": "root-state",
+          "x": 140.00000000000006,
+          "y": 140.0000000000001
+        },
+        {
+          "id": "left",
+          "x": 140.00000000000006,
+          "y": 230.5096679918782
+        },
+        {
+          "id": "right",
+          "x": 140.0000000000001,
+          "y": 49.490332008122024
+        },
+        {
+          "id": "left-a",
+          "x": 268.00000000000006,
+          "y": 268.0000000000001
+        },
+        {
+          "id": "left-b",
+          "x": 12,
+          "y": 268.00000000000006
+        },
+        {
+          "id": "right-a",
+          "x": 12.000000000000142,
+          "y": 12
+        },
+        {
+          "id": "right-b",
+          "x": 268.0000000000001,
+          "y": 12.000000000000199
+        }
+      ]
+    },
+    {
+      "name": "tm-BinaryAdd-right",
+      "input": {
+        "id": "root",
+        "layoutOptions": {
+          "elk.algorithm": "layered",
+          "elk.spacing.nodeNode": "120",
+          "elk.layered.spacing.nodeNodeBetweenLayers": "100",
+          "elk.spacing.edgeEdge": "24",
+          "elk.spacing.edgeNode": "100",
+          "elk.padding": "24",
+          "elk.direction": "RIGHT",
+          "elk.layered.nodePlacement.bk.fixedAlignment": "BALANCED"
+        },
+        "children": [
+          {
+            "width": 64,
+            "height": 64,
+            "id": "goright"
+          },
+          {
+            "width": 64,
+            "height": 64,
+            "id": "add"
+          },
+          {
+            "width": 64,
+            "height": 64,
+            "id": "carry"
+          },
+          {
+            "width": 64,
+            "height": 64,
+            "id": "done"
+          }
+        ],
+        "edges": [
+          {
+            "id": "goright→add",
+            "sources": ["goright"],
+            "targets": ["add"]
+          },
+          {
+            "id": "add→carry",
+            "sources": ["add"],
+            "targets": ["carry"]
+          },
+          {
+            "id": "carry→add",
+            "sources": ["carry"],
+            "targets": ["add"]
+          },
+          {
+            "id": "carry→done",
+            "sources": ["carry"],
+            "targets": ["done"]
+          }
+        ]
+      },
+      "positions": [
+        {
+          "id": "goright",
+          "x": 12,
+          "y": 212
+        },
+        {
+          "id": "add",
+          "x": 176,
+          "y": 196
+        },
+        {
+          "id": "carry",
+          "x": 12,
+          "y": 28
+        },
+        {
+          "id": "done",
+          "x": 176,
+          "y": 12
+        }
+      ]
+    },
+    {
+      "name": "tm-NonDetSubstring-right",
+      "input": {
+        "id": "root",
+        "layoutOptions": {
+          "elk.algorithm": "layered",
+          "elk.spacing.nodeNode": "120",
+          "elk.layered.spacing.nodeNodeBetweenLayers": "100",
+          "elk.spacing.edgeEdge": "24",
+          "elk.spacing.edgeNode": "100",
+          "elk.padding": "24",
+          "elk.direction": "RIGHT",
+          "elk.layered.nodePlacement.bk.fixedAlignment": "BALANCED"
+        },
+        "children": [
+          {
+            "width": 64,
+            "height": 64,
+            "id": "goright"
+          },
+          {
+            "width": 64,
+            "height": 64,
+            "id": "compare"
+          },
+          {
+            "width": 64,
+            "height": 64,
+            "id": "accept"
+          },
+          {
+            "width": 64,
+            "height": 64,
+            "id": "reject"
+          }
+        ],
+        "edges": [
+          {
+            "id": "goright→compare",
+            "sources": ["goright"],
+            "targets": ["compare"]
+          },
+          {
+            "id": "goright→reject",
+            "sources": ["goright"],
+            "targets": ["reject"]
+          },
+          {
+            "id": "compare→accept",
+            "sources": ["compare"],
+            "targets": ["accept"]
+          },
+          {
+            "id": "compare→reject",
+            "sources": ["compare"],
+            "targets": ["reject"]
+          }
+        ]
+      },
+      "positions": [
+        {
+          "id": "goright",
+          "x": 12,
+          "y": 114.66666666666666
+        },
+        {
+          "id": "compare",
+          "x": 176,
+          "y": 22.66666666666666
+        },
+        {
+          "id": "accept",
+          "x": 340,
+          "y": 12
+        },
+        {
+          "id": "reject",
+          "x": 340,
+          "y": 196
+        }
+      ]
+    },
+    {
+      "name": "tm-vvWord-right",
+      "input": {
+        "id": "root",
+        "layoutOptions": {
+          "elk.algorithm": "layered",
+          "elk.spacing.nodeNode": "120",
+          "elk.layered.spacing.nodeNodeBetweenLayers": "100",
+          "elk.spacing.edgeEdge": "24",
+          "elk.spacing.edgeNode": "100",
+          "elk.padding": "24",
+          "elk.direction": "RIGHT",
+          "elk.layered.nodePlacement.bk.fixedAlignment": "BALANCED"
+        },
+        "children": [
+          {
+            "width": 64,
+            "height": 64,
+            "id": "gobyone"
+          },
+          {
+            "width": 64,
+            "height": 64,
+            "id": "goright"
+          },
+          {
+            "width": 64,
+            "height": 64,
+            "id": "copydown"
+          },
+          {
+            "width": 64,
+            "height": 64,
+            "id": "gotoendfirst"
+          },
+          {
+            "width": 64,
+            "height": 64,
+            "id": "compare"
+          },
+          {
+            "width": 64,
+            "height": 64,
+            "id": "accept"
+          },
+          {
+            "width": 64,
+            "height": 64,
+            "id": "reject"
+          }
+        ],
+        "edges": [
+          {
+            "id": "gobyone→goright",
+            "sources": ["gobyone"],
+            "targets": ["goright"]
+          },
+          {
+            "id": "goright→copydown",
+            "sources": ["goright"],
+            "targets": ["copydown"]
+          },
+          {
+            "id": "goright→reject",
+            "sources": ["goright"],
+            "targets": ["reject"]
+          },
+          {
+            "id": "copydown→gotoendfirst",
+            "sources": ["copydown"],
+            "targets": ["gotoendfirst"]
+          },
+          {
+            "id": "gotoendfirst→compare",
+            "sources": ["gotoendfirst"],
+            "targets": ["compare"]
+          },
+          {
+            "id": "compare→accept",
+            "sources": ["compare"],
+            "targets": ["accept"]
+          },
+          {
+            "id": "compare→reject",
+            "sources": ["compare"],
+            "targets": ["reject"]
+          }
+        ]
+      },
+      "positions": [
+        {
+          "id": "gobyone",
+          "x": 12,
+          "y": 114.66666666666666
+        },
+        {
+          "id": "goright",
+          "x": 176,
+          "y": 114.66666666666666
+        },
+        {
+          "id": "copydown",
+          "x": 340,
+          "y": 22.66666666666666
+        },
+        {
+          "id": "gotoendfirst",
+          "x": 504,
+          "y": 22.66666666666666
+        },
+        {
+          "id": "compare",
+          "x": 668,
+          "y": 22.66666666666666
+        },
+        {
+          "id": "accept",
+          "x": 832,
+          "y": 12
+        },
+        {
+          "id": "reject",
+          "x": 832,
+          "y": 196
+        }
+      ]
+    },
+    {
+      "name": "tm-NonDetSubSetSum-right",
+      "input": {
+        "id": "root",
+        "layoutOptions": {
+          "elk.algorithm": "layered",
+          "elk.spacing.nodeNode": "120",
+          "elk.layered.spacing.nodeNodeBetweenLayers": "100",
+          "elk.spacing.edgeEdge": "24",
+          "elk.spacing.edgeNode": "100",
+          "elk.padding": "24",
+          "elk.direction": "RIGHT",
+          "elk.layered.nodePlacement.bk.fixedAlignment": "BALANCED"
+        },
+        "children": [
+          {
+            "width": 64,
+            "height": 64,
+            "id": "choose_state"
+          },
+          {
+            "width": 64,
+            "height": 64,
+            "id": "skip"
+          },
+          {
+            "width": 64,
+            "height": 64,
+            "id": "take"
+          },
+          {
+            "width": 64,
+            "height": 64,
+            "id": "add"
+          },
+          {
+            "width": 64,
+            "height": 64,
+            "id": "carry"
+          },
+          {
+            "width": 64,
+            "height": 64,
+            "id": "continue"
+          },
+          {
+            "width": 64,
+            "height": 64,
+            "id": "goforcompare"
+          },
+          {
+            "width": 64,
+            "height": 64,
+            "id": "compare"
+          },
+          {
+            "width": 64,
+            "height": 64,
+            "id": "accept"
+          },
+          {
+            "width": 64,
+            "height": 64,
+            "id": "reject"
+          }
+        ],
+        "edges": [
+          {
+            "id": "choose_state→skip",
+            "sources": ["choose_state"],
+            "targets": ["skip"]
+          },
+          {
+            "id": "choose_state→take",
+            "sources": ["choose_state"],
+            "targets": ["take"]
+          },
+          {
+            "id": "choose_state→goforcompare",
+            "sources": ["choose_state"],
+            "targets": ["goforcompare"]
+          },
+          {
+            "id": "skip→choose_state",
+            "sources": ["skip"],
+            "targets": ["choose_state"]
+          },
+          {
+            "id": "take→add",
+            "sources": ["take"],
+            "targets": ["add"]
+          },
+          {
+            "id": "take→goforcompare",
+            "sources": ["take"],
+            "targets": ["goforcompare"]
+          },
+          {
+            "id": "add→carry",
+            "sources": ["add"],
+            "targets": ["carry"]
+          },
+          {
+            "id": "add→continue",
+            "sources": ["add"],
+            "targets": ["continue"]
+          },
+          {
+            "id": "carry→add",
+            "sources": ["carry"],
+            "targets": ["add"]
+          },
+          {
+            "id": "carry→continue",
+            "sources": ["carry"],
+            "targets": ["continue"]
+          },
+          {
+            "id": "continue→choose_state",
+            "sources": ["continue"],
+            "targets": ["choose_state"]
+          },
+          {
+            "id": "goforcompare→compare",
+            "sources": ["goforcompare"],
+            "targets": ["compare"]
+          },
+          {
+            "id": "compare→accept",
+            "sources": ["compare"],
+            "targets": ["accept"]
+          },
+          {
+            "id": "compare→reject",
+            "sources": ["compare"],
+            "targets": ["reject"]
+          }
+        ]
+      },
+      "positions": [
+        {
+          "id": "choose_state",
+          "x": 504,
+          "y": 211.5
+        },
+        {
+          "id": "skip",
+          "x": 668,
+          "y": 196
+        },
+        {
+          "id": "take",
+          "x": 668,
+          "y": 12
+        },
+        {
+          "id": "add",
+          "x": 176,
+          "y": 12
+        },
+        {
+          "id": "carry",
+          "x": 12,
+          "y": 35.5
+        },
+        {
+          "id": "continue",
+          "x": 340,
+          "y": 211.5
+        },
+        {
+          "id": "goforcompare",
+          "x": 832,
+          "y": 170
+        },
+        {
+          "id": "compare",
+          "x": 996,
+          "y": 170
+        },
+        {
+          "id": "accept",
+          "x": 1160,
+          "y": 78
+        },
+        {
+          "id": "reject",
+          "x": 1160,
+          "y": 262
+        }
+      ]
+    },
+    {
+      "name": "tm-CheckEven-right",
+      "input": {
+        "id": "root",
+        "layoutOptions": {
+          "elk.algorithm": "layered",
+          "elk.spacing.nodeNode": "120",
+          "elk.layered.spacing.nodeNodeBetweenLayers": "100",
+          "elk.spacing.edgeEdge": "24",
+          "elk.spacing.edgeNode": "100",
+          "elk.padding": "24",
+          "elk.direction": "RIGHT",
+          "elk.layered.nodePlacement.bk.fixedAlignment": "BALANCED"
+        },
+        "children": [
+          {
+            "width": 64,
+            "height": 64,
+            "id": "even"
+          },
+          {
+            "width": 64,
+            "height": 64,
+            "id": "odd"
+          },
+          {
+            "width": 64,
+            "height": 64,
+            "id": "accept"
+          },
+          {
+            "width": 64,
+            "height": 64,
+            "id": "reject"
+          }
+        ],
+        "edges": [
+          {
+            "id": "even→odd",
+            "sources": ["even"],
+            "targets": ["odd"]
+          },
+          {
+            "id": "even→accept",
+            "sources": ["even"],
+            "targets": ["accept"]
+          },
+          {
+            "id": "odd→even",
+            "sources": ["odd"],
+            "targets": ["even"]
+          },
+          {
+            "id": "odd→reject",
+            "sources": ["odd"],
+            "targets": ["reject"]
+          }
+        ]
+      },
+      "positions": [
+        {
+          "id": "even",
+          "x": 176,
+          "y": 196
+        },
+        {
+          "id": "odd",
+          "x": 12,
+          "y": 188
+        },
+        {
+          "id": "accept",
+          "x": 340,
+          "y": 196
+        },
+        {
+          "id": "reject",
+          "x": 176,
+          "y": 12
+        }
+      ]
+    },
+    {
+      "name": "tm-GCD-right",
+      "input": {
+        "id": "root",
+        "layoutOptions": {
+          "elk.algorithm": "layered",
+          "elk.spacing.nodeNode": "120",
+          "elk.layered.spacing.nodeNodeBetweenLayers": "100",
+          "elk.spacing.edgeEdge": "24",
+          "elk.spacing.edgeNode": "100",
+          "elk.padding": "24",
+          "elk.direction": "RIGHT",
+          "elk.layered.nodePlacement.bk.fixedAlignment": "BALANCED"
+        },
+        "children": [
+          {
+            "width": 64,
+            "height": 64,
+            "id": "copy_first"
+          },
+          {
+            "width": 64,
+            "height": 64,
+            "id": "copy_second"
+          },
+          {
+            "width": 64,
+            "height": 64,
+            "id": "move_to_begin"
+          },
+          {
+            "width": 64,
+            "height": 64,
+            "id": "euclid"
+          },
+          {
+            "width": 64,
+            "height": 64,
+            "id": "firstsmaller_goright"
+          },
+          {
+            "width": 64,
+            "height": 64,
+            "id": "secondsmaller_goright"
+          },
+          {
+            "width": 64,
+            "height": 64,
+            "id": "firstsmaller_substract"
+          },
+          {
+            "width": 64,
+            "height": 64,
+            "id": "secondsmaller_substract"
+          },
+          {
+            "width": 64,
+            "height": 64,
+            "id": "copy_result"
+          },
+          {
+            "width": 64,
+            "height": 64,
+            "id": "finish_up"
+          },
+          {
+            "width": 64,
+            "height": 64,
+            "id": "accept"
+          }
+        ],
+        "edges": [
+          {
+            "id": "copy_first→copy_second",
+            "sources": ["copy_first"],
+            "targets": ["copy_second"]
+          },
+          {
+            "id": "copy_second→move_to_begin",
+            "sources": ["copy_second"],
+            "targets": ["move_to_begin"]
+          },
+          {
+            "id": "move_to_begin→euclid",
+            "sources": ["move_to_begin"],
+            "targets": ["euclid"]
+          },
+          {
+            "id": "euclid→firstsmaller_goright",
+            "sources": ["euclid"],
+            "targets": ["firstsmaller_goright"]
+          },
+          {
+            "id": "euclid→secondsmaller_goright",
+            "sources": ["euclid"],
+            "targets": ["secondsmaller_goright"]
+          },
+          {
+            "id": "euclid→copy_result",
+            "sources": ["euclid"],
+            "targets": ["copy_result"]
+          },
+          {
+            "id": "firstsmaller_goright→firstsmaller_substract",
+            "sources": ["firstsmaller_goright"],
+            "targets": ["firstsmaller_substract"]
+          },
+          {
+            "id": "secondsmaller_goright→secondsmaller_substract",
+            "sources": ["secondsmaller_goright"],
+            "targets": ["secondsmaller_substract"]
+          },
+          {
+            "id": "firstsmaller_substract→move_to_begin",
+            "sources": ["firstsmaller_substract"],
+            "targets": ["move_to_begin"]
+          },
+          {
+            "id": "secondsmaller_substract→move_to_begin",
+            "sources": ["secondsmaller_substract"],
+            "targets": ["move_to_begin"]
+          },
+          {
+            "id": "copy_result→finish_up",
+            "sources": ["copy_result"],
+            "targets": ["finish_up"]
+          },
+          {
+            "id": "finish_up→accept",
+            "sources": ["finish_up"],
+            "targets": ["accept"]
+          }
+        ]
+      },
+      "positions": [
+        {
+          "id": "copy_first",
+          "x": 176,
+          "y": 196
+        },
+        {
+          "id": "copy_second",
+          "x": 340,
+          "y": 196
+        },
+        {
+          "id": "move_to_begin",
+          "x": 504,
+          "y": 261.99999999999994
+        },
+        {
+          "id": "euclid",
+          "x": 12,
+          "y": 394.5
+        },
+        {
+          "id": "firstsmaller_goright",
+          "x": 176,
+          "y": 461
+        },
+        {
+          "id": "secondsmaller_goright",
+          "x": 176,
+          "y": 12
+        },
+        {
+          "id": "firstsmaller_substract",
+          "x": 340,
+          "y": 461
+        },
+        {
+          "id": "secondsmaller_substract",
+          "x": 340,
+          "y": 12
+        },
+        {
+          "id": "copy_result",
+          "x": 176,
+          "y": 645
+        },
+        {
+          "id": "finish_up",
+          "x": 340,
+          "y": 645
+        },
+        {
+          "id": "accept",
+          "x": 504,
+          "y": 645
+        }
+      ]
+    },
+    {
+      "name": "tm-AllStrings-right",
+      "input": {
+        "id": "root",
+        "layoutOptions": {
+          "elk.algorithm": "layered",
+          "elk.spacing.nodeNode": "120",
+          "elk.layered.spacing.nodeNodeBetweenLayers": "100",
+          "elk.spacing.edgeEdge": "24",
+          "elk.spacing.edgeNode": "100",
+          "elk.padding": "24",
+          "elk.direction": "RIGHT",
+          "elk.layered.nodePlacement.bk.fixedAlignment": "BALANCED"
+        },
+        "children": [
+          {
+            "width": 64,
+            "height": 64,
+            "id": "generate"
+          },
+          {
+            "width": 64,
+            "height": 64,
+            "id": "done"
+          }
+        ],
+        "edges": [
+          {
+            "id": "generate→done",
+            "sources": ["generate"],
+            "targets": ["done"]
+          }
+        ]
+      },
+      "positions": [
+        {
+          "id": "generate",
+          "x": 12,
+          "y": 12
+        },
+        {
+          "id": "done",
+          "x": 176,
+          "y": 12
+        }
+      ]
+    },
+    {
+      "name": "tm-Fib-right",
+      "input": {
+        "id": "root",
+        "layoutOptions": {
+          "elk.algorithm": "layered",
+          "elk.spacing.nodeNode": "120",
+          "elk.layered.spacing.nodeNodeBetweenLayers": "100",
+          "elk.spacing.edgeEdge": "24",
+          "elk.spacing.edgeNode": "100",
+          "elk.padding": "24",
+          "elk.direction": "RIGHT",
+          "elk.layered.nodePlacement.bk.fixedAlignment": "BALANCED"
+        },
+        "children": [
+          {
+            "width": 64,
+            "height": 64,
+            "id": "start_state"
+          },
+          {
+            "width": 64,
+            "height": 64,
+            "id": "fib"
+          },
+          {
+            "width": 64,
+            "height": 64,
+            "id": "take2"
+          },
+          {
+            "width": 64,
+            "height": 64,
+            "id": "accept"
+          },
+          {
+            "width": 64,
+            "height": 64,
+            "id": "reject"
+          }
+        ],
+        "edges": [
+          {
+            "id": "start_state→fib",
+            "sources": ["start_state"],
+            "targets": ["fib"]
+          },
+          {
+            "id": "start_state→reject",
+            "sources": ["start_state"],
+            "targets": ["reject"]
+          },
+          {
+            "id": "fib→take2",
+            "sources": ["fib"],
+            "targets": ["take2"]
+          },
+          {
+            "id": "fib→accept",
+            "sources": ["fib"],
+            "targets": ["accept"]
+          },
+          {
+            "id": "take2→fib",
+            "sources": ["take2"],
+            "targets": ["fib"]
+          },
+          {
+            "id": "take2→reject",
+            "sources": ["take2"],
+            "targets": ["reject"]
+          }
+        ]
+      },
+      "positions": [
+        {
+          "id": "start_state",
+          "x": 12,
+          "y": 196
+        },
+        {
+          "id": "fib",
+          "x": 176,
+          "y": 12
+        },
+        {
+          "id": "take2",
+          "x": 12,
+          "y": 12
+        },
+        {
+          "id": "accept",
+          "x": 340,
+          "y": 12
+        },
+        {
+          "id": "reject",
+          "x": 176,
+          "y": 196
+        }
+      ]
+    },
+    {
+      "name": "tm-DAG-right",
+      "input": {
+        "id": "root",
+        "layoutOptions": {
+          "elk.algorithm": "layered",
+          "elk.spacing.nodeNode": "120",
+          "elk.layered.spacing.nodeNodeBetweenLayers": "100",
+          "elk.spacing.edgeEdge": "24",
+          "elk.spacing.edgeNode": "100",
+          "elk.padding": "24",
+          "elk.direction": "RIGHT",
+          "elk.layered.nodePlacement.bk.fixedAlignment": "BALANCED"
+        },
+        "children": [
+          {
+            "width": 64,
+            "height": 64,
+            "id": "go"
+          },
+          {
+            "width": 64,
+            "height": 64,
+            "id": "goright"
+          },
+          {
+            "width": 64,
+            "height": 64,
+            "id": "done"
+          }
+        ],
+        "edges": [
+          {
+            "id": "go→goright",
+            "sources": ["go"],
+            "targets": ["goright"]
+          },
+          {
+            "id": "go→done",
+            "sources": ["go"],
+            "targets": ["done"]
+          },
+          {
+            "id": "goright→go",
+            "sources": ["goright"],
+            "targets": ["go"]
+          }
+        ]
+      },
+      "positions": [
+        {
+          "id": "go",
+          "x": 176,
+          "y": 12
+        },
+        {
+          "id": "goright",
+          "x": 12,
+          "y": 12
+        },
+        {
+          "id": "done",
+          "x": 340,
+          "y": 12
+        }
+      ]
+    },
+    {
+      "name": "tm-Circle-right",
+      "input": {
+        "id": "root",
+        "layoutOptions": {
+          "elk.algorithm": "layered",
+          "elk.spacing.nodeNode": "120",
+          "elk.layered.spacing.nodeNodeBetweenLayers": "100",
+          "elk.spacing.edgeEdge": "24",
+          "elk.spacing.edgeNode": "100",
+          "elk.padding": "24",
+          "elk.direction": "RIGHT",
+          "elk.layered.nodePlacement.bk.fixedAlignment": "BALANCED"
+        },
+        "children": [
+          {
+            "width": 64,
+            "height": 64,
+            "id": "goright"
+          },
+          {
+            "width": 64,
+            "height": 64,
+            "id": "goleft"
+          }
+        ],
+        "edges": [
+          {
+            "id": "goright→goleft",
+            "sources": ["goright"],
+            "targets": ["goleft"]
+          },
+          {
+            "id": "goleft→goright",
+            "sources": ["goleft"],
+            "targets": ["goright"]
+          }
+        ]
+      },
+      "positions": [
+        {
+          "id": "goright",
+          "x": 176,
+          "y": 12
+        },
+        {
+          "id": "goleft",
+          "x": 12,
+          "y": 12
+        }
+      ]
+    },
+    {
+      "name": "tm-NonDetSAT-right",
+      "input": {
+        "id": "root",
+        "layoutOptions": {
+          "elk.algorithm": "layered",
+          "elk.spacing.nodeNode": "120",
+          "elk.layered.spacing.nodeNodeBetweenLayers": "100",
+          "elk.spacing.edgeEdge": "24",
+          "elk.spacing.edgeNode": "100",
+          "elk.padding": "24",
+          "elk.direction": "RIGHT",
+          "elk.layered.nodePlacement.bk.fixedAlignment": "BALANCED"
+        },
+        "children": [
+          {
+            "width": 64,
+            "height": 64,
+            "id": "variables"
+          },
+          {
+            "width": 64,
+            "height": 64,
+            "id": "findvar"
+          },
+          {
+            "width": 64,
+            "height": 64,
+            "id": "goleftonevarfirst_gorightonevarsecond"
+          },
+          {
+            "width": 64,
+            "height": 64,
+            "id": "writedownvariable"
+          },
+          {
+            "width": 64,
+            "height": 64,
+            "id": "gorightonefirst_goleftsecond"
+          },
+          {
+            "width": 64,
+            "height": 64,
+            "id": "goleftfirsttape"
+          },
+          {
+            "width": 64,
+            "height": 64,
+            "id": "guessassignment"
+          },
+          {
+            "width": 64,
+            "height": 64,
+            "id": "nextvar"
+          },
+          {
+            "width": 64,
+            "height": 64,
+            "id": "goeval"
+          },
+          {
+            "width": 64,
+            "height": 64,
+            "id": "eval"
+          },
+          {
+            "width": 64,
+            "height": 64,
+            "id": "evalpositive"
+          },
+          {
+            "width": 64,
+            "height": 64,
+            "id": "evalpositive_nextvarsearch"
+          },
+          {
+            "width": 64,
+            "height": 64,
+            "id": "nextclause"
+          },
+          {
+            "width": 64,
+            "height": 64,
+            "id": "movefirsttonextclause"
+          },
+          {
+            "width": 64,
+            "height": 64,
+            "id": "movesecondtonextclause"
+          },
+          {
+            "width": 64,
+            "height": 64,
+            "id": "movethirdtonextclause"
+          },
+          {
+            "width": 64,
+            "height": 64,
+            "id": "reset_second_third_tape"
+          },
+          {
+            "width": 64,
+            "height": 64,
+            "id": "evalnegative"
+          },
+          {
+            "width": 64,
+            "height": 64,
+            "id": "evalnegative_nextvarsearch"
+          },
+          {
+            "width": 64,
+            "height": 64,
+            "id": "accept"
+          },
+          {
+            "width": 64,
+            "height": 64,
+            "id": "reject"
+          }
+        ],
+        "edges": [
+          {
+            "id": "variables→findvar",
+            "sources": ["variables"],
+            "targets": ["findvar"]
+          },
+          {
+            "id": "variables→goleftfirsttape",
+            "sources": ["variables"],
+            "targets": ["goleftfirsttape"]
+          },
+          {
+            "id": "findvar→goleftonevarfirst_gorightonevarsecond",
+            "sources": ["findvar"],
+            "targets": ["goleftonevarfirst_gorightonevarsecond"]
+          },
+          {
+            "id": "findvar→gorightonefirst_goleftsecond",
+            "sources": ["findvar"],
+            "targets": ["gorightonefirst_goleftsecond"]
+          },
+          {
+            "id": "findvar→writedownvariable",
+            "sources": ["findvar"],
+            "targets": ["writedownvariable"]
+          },
+          {
+            "id": "goleftonevarfirst_gorightonevarsecond→variables",
+            "sources": ["goleftonevarfirst_gorightonevarsecond"],
+            "targets": ["variables"]
+          },
+          {
+            "id": "writedownvariable→gorightonefirst_goleftsecond",
+            "sources": ["writedownvariable"],
+            "targets": ["gorightonefirst_goleftsecond"]
+          },
+          {
+            "id": "gorightonefirst_goleftsecond→variables",
+            "sources": ["gorightonefirst_goleftsecond"],
+            "targets": ["variables"]
+          },
+          {
+            "id": "goleftfirsttape→guessassignment",
+            "sources": ["goleftfirsttape"],
+            "targets": ["guessassignment"]
+          },
+          {
+            "id": "guessassignment→nextvar",
+            "sources": ["guessassignment"],
+            "targets": ["nextvar"]
+          },
+          {
+            "id": "guessassignment→goeval",
+            "sources": ["guessassignment"],
+            "targets": ["goeval"]
+          },
+          {
+            "id": "nextvar→guessassignment",
+            "sources": ["nextvar"],
+            "targets": ["guessassignment"]
+          },
+          {
+            "id": "goeval→eval",
+            "sources": ["goeval"],
+            "targets": ["eval"]
+          },
+          {
+            "id": "eval→reject",
+            "sources": ["eval"],
+            "targets": ["reject"]
+          },
+          {
+            "id": "eval→accept",
+            "sources": ["eval"],
+            "targets": ["accept"]
+          },
+          {
+            "id": "eval→evalpositive",
+            "sources": ["eval"],
+            "targets": ["evalpositive"]
+          },
+          {
+            "id": "eval→evalnegative",
+            "sources": ["eval"],
+            "targets": ["evalnegative"]
+          },
+          {
+            "id": "evalpositive→evalpositive_nextvarsearch",
+            "sources": ["evalpositive"],
+            "targets": ["evalpositive_nextvarsearch"]
+          },
+          {
+            "id": "evalpositive→nextclause",
+            "sources": ["evalpositive"],
+            "targets": ["nextclause"]
+          },
+          {
+            "id": "evalpositive→reset_second_third_tape",
+            "sources": ["evalpositive"],
+            "targets": ["reset_second_third_tape"]
+          },
+          {
+            "id": "evalpositive_nextvarsearch→evalpositive",
+            "sources": ["evalpositive_nextvarsearch"],
+            "targets": ["evalpositive"]
+          },
+          {
+            "id": "nextclause→movefirsttonextclause",
+            "sources": ["nextclause"],
+            "targets": ["movefirsttonextclause"]
+          },
+          {
+            "id": "movefirsttonextclause→movesecondtonextclause",
+            "sources": ["movefirsttonextclause"],
+            "targets": ["movesecondtonextclause"]
+          },
+          {
+            "id": "movesecondtonextclause→movethirdtonextclause",
+            "sources": ["movesecondtonextclause"],
+            "targets": ["movethirdtonextclause"]
+          },
+          {
+            "id": "movethirdtonextclause→eval",
+            "sources": ["movethirdtonextclause"],
+            "targets": ["eval"]
+          },
+          {
+            "id": "reset_second_third_tape→eval",
+            "sources": ["reset_second_third_tape"],
+            "targets": ["eval"]
+          },
+          {
+            "id": "evalnegative→evalnegative_nextvarsearch",
+            "sources": ["evalnegative"],
+            "targets": ["evalnegative_nextvarsearch"]
+          },
+          {
+            "id": "evalnegative→nextclause",
+            "sources": ["evalnegative"],
+            "targets": ["nextclause"]
+          },
+          {
+            "id": "evalnegative→reset_second_third_tape",
+            "sources": ["evalnegative"],
+            "targets": ["reset_second_third_tape"]
+          },
+          {
+            "id": "evalnegative_nextvarsearch→evalnegative",
+            "sources": ["evalnegative_nextvarsearch"],
+            "targets": ["evalnegative"]
+          }
+        ]
+      },
+      "positions": [
+        {
+          "id": "variables",
+          "x": 504,
+          "y": 1034.9333333333334
+        },
+        {
+          "id": "findvar",
+          "x": 12,
+          "y": 1030.1333333333334
+        },
+        {
+          "id": "goleftonevarfirst_gorightonevarsecond",
+          "x": 176,
+          "y": 976.9333333333334
+        },
+        {
+          "id": "writedownvariable",
+          "x": 176,
+          "y": 711.9333333333334
+        },
+        {
+          "id": "gorightonefirst_goleftsecond",
+          "x": 340,
+          "y": 833.2666666666667
+        },
+        {
+          "id": "goleftfirsttape",
+          "x": 668,
+          "y": 1034.9333333333334
+        },
+        {
+          "id": "guessassignment",
+          "x": 832,
+          "y": 1034.9333333333334
+        },
+        {
+          "id": "nextvar",
+          "x": 996,
+          "y": 1094
+        },
+        {
+          "id": "goeval",
+          "x": 996,
+          "y": 910
+        },
+        {
+          "id": "eval",
+          "x": 1160,
+          "y": 409.9333333333333
+        },
+        {
+          "id": "evalpositive",
+          "x": 340,
+          "y": 645
+        },
+        {
+          "id": "evalpositive_nextvarsearch",
+          "x": 504,
+          "y": 645
+        },
+        {
+          "id": "nextclause",
+          "x": 504,
+          "y": 461
+        },
+        {
+          "id": "movefirsttonextclause",
+          "x": 668,
+          "y": 461
+        },
+        {
+          "id": "movesecondtonextclause",
+          "x": 832,
+          "y": 461
+        },
+        {
+          "id": "movethirdtonextclause",
+          "x": 996,
+          "y": 461
+        },
+        {
+          "id": "reset_second_third_tape",
+          "x": 504,
+          "y": 277
+        },
+        {
+          "id": "evalnegative",
+          "x": 340,
+          "y": 144
+        },
+        {
+          "id": "evalnegative_nextvarsearch",
+          "x": 504,
+          "y": 12
+        },
+        {
+          "id": "accept",
+          "x": 1324,
+          "y": 501.9333333333332
+        },
+        {
+          "id": "reject",
+          "x": 1324,
+          "y": 317.9333333333333
+        }
+      ]
+    },
+    {
+      "name": "tm-NonDetSAT-down",
+      "input": {
+        "id": "root",
+        "layoutOptions": {
+          "elk.algorithm": "layered",
+          "elk.spacing.nodeNode": "120",
+          "elk.layered.spacing.nodeNodeBetweenLayers": "100",
+          "elk.spacing.edgeEdge": "24",
+          "elk.spacing.edgeNode": "100",
+          "elk.padding": "24",
+          "elk.direction": "DOWN",
+          "elk.layered.nodePlacement.bk.fixedAlignment": "BALANCED"
+        },
+        "children": [
+          {
+            "width": 64,
+            "height": 64,
+            "id": "variables"
+          },
+          {
+            "width": 64,
+            "height": 64,
+            "id": "findvar"
+          },
+          {
+            "width": 64,
+            "height": 64,
+            "id": "goleftonevarfirst_gorightonevarsecond"
+          },
+          {
+            "width": 64,
+            "height": 64,
+            "id": "writedownvariable"
+          },
+          {
+            "width": 64,
+            "height": 64,
+            "id": "gorightonefirst_goleftsecond"
+          },
+          {
+            "width": 64,
+            "height": 64,
+            "id": "goleftfirsttape"
+          },
+          {
+            "width": 64,
+            "height": 64,
+            "id": "guessassignment"
+          },
+          {
+            "width": 64,
+            "height": 64,
+            "id": "nextvar"
+          },
+          {
+            "width": 64,
+            "height": 64,
+            "id": "goeval"
+          },
+          {
+            "width": 64,
+            "height": 64,
+            "id": "eval"
+          },
+          {
+            "width": 64,
+            "height": 64,
+            "id": "evalpositive"
+          },
+          {
+            "width": 64,
+            "height": 64,
+            "id": "evalpositive_nextvarsearch"
+          },
+          {
+            "width": 64,
+            "height": 64,
+            "id": "nextclause"
+          },
+          {
+            "width": 64,
+            "height": 64,
+            "id": "movefirsttonextclause"
+          },
+          {
+            "width": 64,
+            "height": 64,
+            "id": "movesecondtonextclause"
+          },
+          {
+            "width": 64,
+            "height": 64,
+            "id": "movethirdtonextclause"
+          },
+          {
+            "width": 64,
+            "height": 64,
+            "id": "reset_second_third_tape"
+          },
+          {
+            "width": 64,
+            "height": 64,
+            "id": "evalnegative"
+          },
+          {
+            "width": 64,
+            "height": 64,
+            "id": "evalnegative_nextvarsearch"
+          },
+          {
+            "width": 64,
+            "height": 64,
+            "id": "accept"
+          },
+          {
+            "width": 64,
+            "height": 64,
+            "id": "reject"
+          }
+        ],
+        "edges": [
+          {
+            "id": "variables→findvar",
+            "sources": ["variables"],
+            "targets": ["findvar"]
+          },
+          {
+            "id": "variables→goleftfirsttape",
+            "sources": ["variables"],
+            "targets": ["goleftfirsttape"]
+          },
+          {
+            "id": "findvar→goleftonevarfirst_gorightonevarsecond",
+            "sources": ["findvar"],
+            "targets": ["goleftonevarfirst_gorightonevarsecond"]
+          },
+          {
+            "id": "findvar→gorightonefirst_goleftsecond",
+            "sources": ["findvar"],
+            "targets": ["gorightonefirst_goleftsecond"]
+          },
+          {
+            "id": "findvar→writedownvariable",
+            "sources": ["findvar"],
+            "targets": ["writedownvariable"]
+          },
+          {
+            "id": "goleftonevarfirst_gorightonevarsecond→variables",
+            "sources": ["goleftonevarfirst_gorightonevarsecond"],
+            "targets": ["variables"]
+          },
+          {
+            "id": "writedownvariable→gorightonefirst_goleftsecond",
+            "sources": ["writedownvariable"],
+            "targets": ["gorightonefirst_goleftsecond"]
+          },
+          {
+            "id": "gorightonefirst_goleftsecond→variables",
+            "sources": ["gorightonefirst_goleftsecond"],
+            "targets": ["variables"]
+          },
+          {
+            "id": "goleftfirsttape→guessassignment",
+            "sources": ["goleftfirsttape"],
+            "targets": ["guessassignment"]
+          },
+          {
+            "id": "guessassignment→nextvar",
+            "sources": ["guessassignment"],
+            "targets": ["nextvar"]
+          },
+          {
+            "id": "guessassignment→goeval",
+            "sources": ["guessassignment"],
+            "targets": ["goeval"]
+          },
+          {
+            "id": "nextvar→guessassignment",
+            "sources": ["nextvar"],
+            "targets": ["guessassignment"]
+          },
+          {
+            "id": "goeval→eval",
+            "sources": ["goeval"],
+            "targets": ["eval"]
+          },
+          {
+            "id": "eval→reject",
+            "sources": ["eval"],
+            "targets": ["reject"]
+          },
+          {
+            "id": "eval→accept",
+            "sources": ["eval"],
+            "targets": ["accept"]
+          },
+          {
+            "id": "eval→evalpositive",
+            "sources": ["eval"],
+            "targets": ["evalpositive"]
+          },
+          {
+            "id": "eval→evalnegative",
+            "sources": ["eval"],
+            "targets": ["evalnegative"]
+          },
+          {
+            "id": "evalpositive→evalpositive_nextvarsearch",
+            "sources": ["evalpositive"],
+            "targets": ["evalpositive_nextvarsearch"]
+          },
+          {
+            "id": "evalpositive→nextclause",
+            "sources": ["evalpositive"],
+            "targets": ["nextclause"]
+          },
+          {
+            "id": "evalpositive→reset_second_third_tape",
+            "sources": ["evalpositive"],
+            "targets": ["reset_second_third_tape"]
+          },
+          {
+            "id": "evalpositive_nextvarsearch→evalpositive",
+            "sources": ["evalpositive_nextvarsearch"],
+            "targets": ["evalpositive"]
+          },
+          {
+            "id": "nextclause→movefirsttonextclause",
+            "sources": ["nextclause"],
+            "targets": ["movefirsttonextclause"]
+          },
+          {
+            "id": "movefirsttonextclause→movesecondtonextclause",
+            "sources": ["movefirsttonextclause"],
+            "targets": ["movesecondtonextclause"]
+          },
+          {
+            "id": "movesecondtonextclause→movethirdtonextclause",
+            "sources": ["movesecondtonextclause"],
+            "targets": ["movethirdtonextclause"]
+          },
+          {
+            "id": "movethirdtonextclause→eval",
+            "sources": ["movethirdtonextclause"],
+            "targets": ["eval"]
+          },
+          {
+            "id": "reset_second_third_tape→eval",
+            "sources": ["reset_second_third_tape"],
+            "targets": ["eval"]
+          },
+          {
+            "id": "evalnegative→evalnegative_nextvarsearch",
+            "sources": ["evalnegative"],
+            "targets": ["evalnegative_nextvarsearch"]
+          },
+          {
+            "id": "evalnegative→nextclause",
+            "sources": ["evalnegative"],
+            "targets": ["nextclause"]
+          },
+          {
+            "id": "evalnegative→reset_second_third_tape",
+            "sources": ["evalnegative"],
+            "targets": ["reset_second_third_tape"]
+          },
+          {
+            "id": "evalnegative_nextvarsearch→evalnegative",
+            "sources": ["evalnegative_nextvarsearch"],
+            "targets": ["evalnegative"]
+          }
+        ]
+      },
+      "positions": [
+        {
+          "id": "variables",
+          "x": 1034.9333333333334,
+          "y": 504
+        },
+        {
+          "id": "findvar",
+          "x": 1030.1333333333334,
+          "y": 12
+        },
+        {
+          "id": "goleftonevarfirst_gorightonevarsecond",
+          "x": 976.9333333333334,
+          "y": 176
+        },
+        {
+          "id": "writedownvariable",
+          "x": 711.9333333333334,
+          "y": 176
+        },
+        {
+          "id": "gorightonefirst_goleftsecond",
+          "x": 833.2666666666667,
+          "y": 340
+        },
+        {
+          "id": "goleftfirsttape",
+          "x": 1034.9333333333334,
+          "y": 668
+        },
+        {
+          "id": "guessassignment",
+          "x": 1034.9333333333334,
+          "y": 832
+        },
+        {
+          "id": "nextvar",
+          "x": 1094,
+          "y": 996
+        },
+        {
+          "id": "goeval",
+          "x": 910,
+          "y": 996
+        },
+        {
+          "id": "eval",
+          "x": 409.9333333333333,
+          "y": 1160
+        },
+        {
+          "id": "evalpositive",
+          "x": 645,
+          "y": 340
+        },
+        {
+          "id": "evalpositive_nextvarsearch",
+          "x": 645,
+          "y": 504
+        },
+        {
+          "id": "nextclause",
+          "x": 461,
+          "y": 504
+        },
+        {
+          "id": "movefirsttonextclause",
+          "x": 461,
+          "y": 668
+        },
+        {
+          "id": "movesecondtonextclause",
+          "x": 461,
+          "y": 832
+        },
+        {
+          "id": "movethirdtonextclause",
+          "x": 461,
+          "y": 996
+        },
+        {
+          "id": "reset_second_third_tape",
+          "x": 277,
+          "y": 504
+        },
+        {
+          "id": "evalnegative",
+          "x": 144,
+          "y": 340
+        },
+        {
+          "id": "evalnegative_nextvarsearch",
+          "x": 12,
+          "y": 504
+        },
+        {
+          "id": "accept",
+          "x": 501.9333333333332,
+          "y": 1324
+        },
+        {
+          "id": "reject",
+          "x": 317.9333333333333,
+          "y": 1324
+        }
+      ]
+    },
+    {
+      "name": "force-disconnected-circles",
+      "input": {
+        "id": "root",
+        "layoutOptions": {
+          "elk.algorithm": "force",
+          "elk.spacing.nodeNode": "44",
+          "elk.layered.spacing.nodeNodeBetweenLayers": "36",
+          "elk.spacing.edgeEdge": "8",
+          "elk.spacing.edgeNode": "28",
+          "elk.padding": "8",
+          "elk.direction": "RIGHT",
+          "elk.layered.nodePlacement.bk.fixedAlignment": "BALANCED"
+        },
+        "children": [
+          {
+            "id": "root-a",
+            "width": 64,
+            "height": 64
+          },
+          {
+            "id": "a1",
+            "width": 64,
+            "height": 64
+          },
+          {
+            "id": "a2",
+            "width": 64,
+            "height": 64
+          },
+          {
+            "id": "root-b",
+            "width": 64,
+            "height": 64
+          },
+          {
+            "id": "b1",
+            "width": 64,
+            "height": 64
+          },
+          {
+            "id": "b2",
+            "width": 64,
+            "height": 64
+          },
+          {
+            "id": "isolated-a",
+            "width": 64,
+            "height": 64
+          },
+          {
+            "id": "isolated-b",
+            "width": 64,
+            "height": 64
+          }
+        ],
+        "edges": [
+          {
+            "id": "e0",
+            "sources": ["root-a"],
+            "targets": ["a1"]
+          },
+          {
+            "id": "e1",
+            "sources": ["root-a"],
+            "targets": ["a2"]
+          },
+          {
+            "id": "e2",
+            "sources": ["root-b"],
+            "targets": ["b1"]
+          },
+          {
+            "id": "e3",
+            "sources": ["b1"],
+            "targets": ["b2"]
+          },
+          {
+            "id": "e4",
+            "sources": ["b2"],
+            "targets": ["root-b"]
+          }
+        ]
+      },
+      "positions": [
+        {
+          "id": "root-a",
+          "x": 227.96347700417073,
+          "y": 417.5791238646852
+        },
+        {
+          "id": "a1",
+          "x": 50,
+          "y": 413.1507197140897
+        },
+        {
+          "id": "a2",
+          "x": 341.0119565301942,
+          "y": 280.67808634865384
+        },
+        {
+          "id": "root-b",
+          "x": 164.22417419595376,
+          "y": 133.6772760568312
+        },
+        {
+          "id": "b1",
+          "x": 55.25234524749945,
+          "y": 172.67808634865384
+        },
+        {
+          "id": "b2",
+          "x": 50,
+          "y": 50
+        },
+        {
+          "id": "isolated-a",
+          "x": 449.0119565301942,
+          "y": 280.67808634865384
+        },
+        {
+          "id": "isolated-b",
+          "x": 50,
+          "y": 525.5791238646852
+        }
+      ]
+    },
+    {
+      "name": "force-varied-cards-right",
+      "input": {
+        "id": "root",
+        "layoutOptions": {
+          "elk.algorithm": "force",
+          "elk.spacing.nodeNode": "120",
+          "elk.layered.spacing.nodeNodeBetweenLayers": "100",
+          "elk.spacing.edgeEdge": "24",
+          "elk.spacing.edgeNode": "300",
+          "elk.padding": "24",
+          "elk.direction": "RIGHT",
+          "elk.layered.nodePlacement.bk.fixedAlignment": "BALANCED"
+        },
+        "children": [
+          {
+            "id": "start",
+            "width": 330,
+            "height": 240
+          },
+          {
+            "id": "short-tape",
+            "width": 330,
+            "height": 182
+          },
+          {
+            "id": "long-tape",
+            "width": 416,
+            "height": 272
+          },
+          {
+            "id": "multi-tape",
+            "width": 330,
+            "height": 348
+          },
+          {
+            "id": "halt",
+            "width": 330,
+            "height": 200
+          }
+        ],
+        "edges": [
+          {
+            "id": "e0",
+            "sources": ["start"],
+            "targets": ["short-tape"]
+          },
+          {
+            "id": "e1",
+            "sources": ["start"],
+            "targets": ["long-tape"]
+          },
+          {
+            "id": "e2",
+            "sources": ["short-tape"],
+            "targets": ["multi-tape"]
+          },
+          {
+            "id": "e3",
+            "sources": ["long-tape"],
+            "targets": ["multi-tape"]
+          },
+          {
+            "id": "e4",
+            "sources": ["multi-tape"],
+            "targets": ["halt"]
+          },
+          {
+            "id": "e5",
+            "sources": ["multi-tape"],
+            "targets": ["start"]
+          }
+        ]
+      },
+      "positions": [
+        {
+          "id": "start",
+          "x": 697.987320194975,
+          "y": 730.6415922121674
+        },
+        {
+          "id": "short-tape",
+          "x": 50,
+          "y": 50
+        },
+        {
+          "id": "long-tape",
+          "x": 1297.8879908710182,
+          "y": 1339.361504943969
+        },
+        {
+          "id": "multi-tape",
+          "x": 1183.0096449822902,
+          "y": 199.2901584918135
+        },
+        {
+          "id": "halt",
+          "x": 229.46500520901816,
+          "y": 1313.79043342418
+        }
+      ]
+    }
+  ]
+}

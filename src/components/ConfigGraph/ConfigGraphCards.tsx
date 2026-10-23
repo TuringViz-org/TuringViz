@@ -43,7 +43,10 @@ import { useGraphUI } from '@components/shared/GraphUIContext';
 import { LoadingOverlay } from '@components/shared/LoadingOverlay';
 import { normalizeColor, resolveStateColor } from '@components/shared/stateColors';
 import { useGraphCurrentConfiguration } from '@hooks/useGraphCurrentConfiguration';
-import { useCurrentConfigHighlight } from '@hooks/useCurrentConfigHighlight';
+import {
+  configurationHashFromNodeId,
+  useCurrentConfigHighlight,
+} from '@hooks/useCurrentConfigHighlight';
 import {
   useCardGraphViewport,
   useCardViewportState,
@@ -102,7 +105,11 @@ export function ConfigGraphCards({ active }: { active: boolean }) {
     if (!configGraph) return { nodes: [], edges: [], topoKey: '' };
     return buildConfigGraph(configGraph, transitions, null, configGraphNodeMode);
   }, [configGraph, transitions, configGraphNodeMode, configGraphVersion]);
-  const base = useCurrentConfigHighlight(structure, currentConfig);
+  const base = useCurrentConfigHighlight(
+    structure,
+    currentConfig,
+    configurationHashFromNodeId
+  );
 
   const [nodes, setNodes, onNodesChangeRF] = useNodesState(base.nodes);
   const [edges, setEdges, onEdgesChangeRF] = useEdgesState(base.edges);
@@ -221,12 +228,7 @@ export function ConfigGraphCards({ active }: { active: boolean }) {
   const loadingMaskVisible = !useGraphReveal(showLoadingOverlay);
 
   useGraphLayoutRequest(
-    JSON.stringify([
-      machineLoadVersion,
-      configGraphNodeMode,
-      structureKey,
-      nodes.length,
-    ]),
+    [machineLoadVersion, configGraphNodeMode, structureKey, nodes.length],
     nodesReady && nodes.length > 0 && !structureSyncPending,
     viewport.prepareLayout,
     scheduleLayoutRestart

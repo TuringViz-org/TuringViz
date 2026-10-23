@@ -12,6 +12,7 @@ import type {
   GraphComputeResponse,
 } from '../src/workers/graphComputeProtocol';
 import type { Configuration } from '@mytypes/TMTypes';
+import { packConfigGraph } from '../src/workers/configGraphCodec';
 
 const { computeTree, computeConfig } = vi.hoisted(() => ({
   computeTree: vi.fn(),
@@ -286,5 +287,102 @@ describe('graph computation worker channels', () => {
     cancelComputationTreeCompute();
     await rejected;
     expect(computeTree).not.toHaveBeenCalled();
+  });
+
+  it('decodes compact config results while continuing to accept full results', async () => {
+    const config: Configuration = {
+      state: 'q0',
+      tapes: [[[], [{ value: '🚀' }]]],
+      heads: [-1],
+    };
+    const result = {
+      startconfig: config,
+      startconfighash: 'root',
+      Graph: new Map([['root', { config, computed: false, next: [] }]]),
+    };
+    const packed = computeConfigGraphInWorker(payload);
+    latestWorker().reply(packConfigGraph(result));
+    await expect(packed).resolves.toEqual(result);
+    const full = computeConfigGraphInWorker(payload);
+    latestWorker().reply(result);
+    await expect(full).resolves.toBe(result);
+    expect(computeConfig).not.toHaveBeenCalled();
+  });
+
+  it('retries a malformed compact response using the current request after worker reuse', async () => {
+    vi.useFakeTimers();
+    const first = computeConfigGraphInWorker(payload);
+    const worker = latestWorker();
+    worker.reply('first');
+    await first;
+    computeConfig.mockReturnValue('recovered');
+    const secondPayload = { ...payload, targetNodes: 42 };
+    const second = computeConfigGraphInWorker(secondPayload);
+    worker.reply({ format: 'config-graph-v1' });
+    await expect(second).resolves.toBe('recovered');
+    expect(worker.terminate).toHaveBeenCalledOnce();
+    expect(computeConfig).toHaveBeenCalledWith(
+      startConfig,
+      42,
+      payload.transitions,
+      1,
+      '_'
+    );
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it.each([null, undefined, {}, { name: 'Error', message: 42 }])(
+    'recovers a malformed error response without leaving its request pending (%j)',
+    async (error) => {
+      vi.useFakeTimers();
+      const first = computeConfigGraphInWorker(payload);
+      const worker = latestWorker();
+      worker.reply('first');
+      await first;
+      computeConfig.mockReturnValue('recovered');
+      const pending = computeConfigGraphInWorker({ ...payload, targetNodes: 42 });
+
+      expect(() =>
+        worker.listener?.({
+          data: {
+            id: worker.request.id,
+            type: 'configGraph',
+            error,
+          },
+        } as unknown as MessageEvent<GraphComputeResponse>)
+      ).not.toThrow();
+
+      await expect(pending).resolves.toBe('recovered');
+      expect(worker.terminate).toHaveBeenCalledOnce();
+      expect(computeConfig).toHaveBeenCalledWith(
+        startConfig,
+        42,
+        payload.transitions,
+        1,
+        '_'
+      );
+      worker.reply('late result');
+      expect(computeConfig).toHaveBeenCalledOnce();
+      expect(vi.getTimerCount()).toBe(0);
+    }
+  );
+
+  it('ignores stale malformed responses before decoding or invoking fallback', async () => {
+    const first = computeConfigGraphInWorker(payload);
+    const abandoned = latestWorker();
+    const rejected = expect(first).rejects.toBeInstanceOf(
+      GraphComputeCancelledError
+    );
+    const second = computeConfigGraphInWorker(payload);
+    await rejected;
+    abandoned.reply({ format: 'config-graph-v1' });
+    expect(() =>
+      abandoned.listener?.({
+        data: null,
+      } as unknown as MessageEvent<GraphComputeResponse>)
+    ).not.toThrow();
+    latestWorker().reply('replacement');
+    await expect(second).resolves.toBe('replacement');
+    expect(computeConfig).not.toHaveBeenCalled();
   });
 });

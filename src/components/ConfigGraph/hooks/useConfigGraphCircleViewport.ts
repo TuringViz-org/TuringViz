@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useRef, useState, type RefObject } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type RefObject,
+} from 'react';
 import type { Core as CyCore } from 'cytoscape';
 import { useGlobalZustand } from '@zustands/GlobalZustand';
 import {
@@ -60,6 +67,31 @@ export function useConfigGraphCircleViewport({
   const viewportRef = useRef<CytoscapeViewport | null>(null);
   const [viewportReady, setViewportReady] = useState(false);
   const [readyTopologyKey, setReadyTopologyKey] = useState('');
+  const layoutRequestRevisionRef = useRef(0);
+  const startedLayoutRevisionRef = useRef(0);
+  const [positionedStructure, setPositionedStructure] = useState({
+    key: structureKey,
+    positioned: false,
+    layoutRevision: layoutRequestRevisionRef.current,
+  });
+  // Reset on each structural revision, including A → B → A. A previously
+  // positioned key alone cannot prove that the current nodes have positions.
+  if (positionedStructure.key !== structureKey) {
+    setPositionedStructure({
+      key: structureKey,
+      positioned: false,
+      layoutRevision: layoutRequestRevisionRef.current,
+    });
+  }
+  const maySyncElements =
+    !structureSyncPending &&
+    positionedStructure.key === structureKey &&
+    positionedStructure.positioned &&
+    positionedStructure.layoutRevision === layoutRequestRevisionRef.current;
+  const maySyncElementsRef = useRef(maySyncElements);
+  useLayoutEffect(() => {
+    maySyncElementsRef.current = maySyncElements;
+  }, [maySyncElements]);
   const [autoResizeLayoutEnabled, setAutoResizeLayoutEnabled] = useState(true);
   const fitAfterLayoutRef = useRef(false);
   const pendingMachineLoadFitRef = useRef(false);
@@ -72,6 +104,9 @@ export function useConfigGraphCircleViewport({
       skipNextAutoResizeFitRef.current = false;
       return false;
     }
+    layoutRequestRevisionRef.current += 1;
+    // useElkLayout starts this resize request immediately after this callback.
+    startedLayoutRevisionRef.current = layoutRequestRevisionRef.current;
     fitAfterLayoutRef.current = true;
     return true;
   }, []);
@@ -117,6 +152,9 @@ export function useConfigGraphCircleViewport({
     autoResizeLayoutEnabled: active && autoResizeLayoutEnabled,
     onAutoResizeLayout: handleAutoResizeLayout,
     onLayout: (positions) => {
+      // A newer debounced request may still be waiting for its first frame.
+      if (startedLayoutRevisionRef.current !== layoutRequestRevisionRef.current)
+        return;
       setNodes((prev) =>
         prev.map((n) => {
           const p = positions.get(n.id);
@@ -125,9 +163,25 @@ export function useConfigGraphCircleViewport({
           return same ? n : { ...n, position: p };
         })
       );
+      setPositionedStructure({
+        key: structureKey,
+        positioned: true,
+        layoutRevision: startedLayoutRevisionRef.current,
+      });
     },
   });
-  const scheduleLayoutRestart = useDebouncedLayoutRestart(layout);
+  const startLayout = useCallback(() => {
+    // An immediate resize can already have started the latest queued request.
+    if (startedLayoutRevisionRef.current === layoutRequestRevisionRef.current)
+      return;
+    startedLayoutRevisionRef.current = layoutRequestRevisionRef.current;
+    layout.restart();
+  }, [layout.restart]);
+  const scheduleRestart = useDebouncedLayoutRestart({ restart: startLayout });
+  const scheduleLayoutRestart = useCallback(() => {
+    layoutRequestRevisionRef.current += 1;
+    scheduleRestart();
+  }, [scheduleRestart]);
   const viewportTask = useGraphFrameTask([
     machineLoadVersion,
     baseTopologyKey,
@@ -165,6 +219,8 @@ export function useConfigGraphCircleViewport({
       if (
         awaitingInitialRevealRef.current &&
         !layout.running &&
+        maySyncElements &&
+        !fitAfterLayoutRef.current &&
         baseTopologyKey === structureKey &&
         readyTopologyKey === baseTopologyKey
       ) {
@@ -177,6 +233,7 @@ export function useConfigGraphCircleViewport({
   }, [
     configGraphComputing,
     layout.running,
+    maySyncElements,
     baseTopologyKey,
     structureKey,
     readyTopologyKey,
@@ -194,13 +251,14 @@ export function useConfigGraphCircleViewport({
   const topoKey = structureKey;
   const showLoadingOverlay =
     !viewportReady ||
+    !maySyncElements ||
     readyTopologyKey !== baseTopologyKey ||
     layout.running ||
     configGraphComputing ||
     structureSyncPending;
 
   useGraphLayoutRequest(
-    JSON.stringify([machineLoadVersion, configGraphNodeMode, topoKey, nodes.length]),
+    [machineLoadVersion, configGraphNodeMode, topoKey, nodes.length],
     nodes.length > 0 && !structureSyncPending,
     () => {
       awaitingInitialRevealRef.current = true;
@@ -210,39 +268,48 @@ export function useConfigGraphCircleViewport({
     scheduleLayoutRestart
   );
 
-  // Fit view
-  const runFitView = useCallback(
+  const fitViewNow = useCallback(
     (focusId?: string, onDone?: () => void) => {
       const cy = cyRef.current;
-      if (!cy) return;
-      viewportTask.schedule(() => {
-        if (cy.destroyed()) return;
-        const element = containerRef.current;
-        if (!element || element.clientWidth <= 0 || element.clientHeight <= 0) {
-          pendingRevealFitRef.current = true;
+      if (!cy || cy.destroyed()) return;
+      const element = containerRef.current;
+      if (
+        !maySyncElementsRef.current ||
+        !element ||
+        element.clientWidth <= 0 ||
+        element.clientHeight <= 0
+      ) {
+        pendingRevealFitRef.current = true;
+        return;
+      }
+      cy.resize();
+      if (focusId) {
+        const ele = cy.getElementById(focusId);
+        if (ele && ele.length > 0) {
+          cy.fit(ele, 60);
+          onDone?.();
           return;
         }
-        cy.resize();
-        if (focusId) {
-          const ele = cy.getElementById(focusId);
-          if (ele && ele.length > 0) {
-            cy.fit(ele, 60);
-            onDone?.();
-            return;
-          }
-        }
-        cy.fit(cy.elements(), 30);
-        if (cy.zoom() < NODES_MIN_FIT_ZOOM) {
-          cy.zoom({
-            level: NODES_MIN_FIT_ZOOM,
-            renderedPosition: { x: cy.width() / 2, y: cy.height() / 2 },
-          });
-        }
-        ensureStartNodeVisible(cy);
-        onDone?.();
-      }, 1);
+      }
+      cy.fit(cy.elements(), 30);
+      if (cy.zoom() < NODES_MIN_FIT_ZOOM) {
+        cy.zoom({
+          level: NODES_MIN_FIT_ZOOM,
+          renderedPosition: { x: cy.width() / 2, y: cy.height() / 2 },
+        });
+      }
+      ensureStartNodeVisible(cy);
+      onDone?.();
     },
-    [viewportTask]
+    [cyRef, containerRef]
+  );
+
+  // Manual fits and visibility changes retain their frame scheduling.
+  const runFitView = useCallback(
+    (focusId?: string, onDone?: () => void) => {
+      viewportTask.schedule(() => fitViewNow(focusId, onDone), 1);
+    },
+    [viewportTask, fitViewNow]
   );
 
   const isContainerVisible = useCallback(() => {
@@ -273,15 +340,27 @@ export function useConfigGraphCircleViewport({
     cy.viewport(viewport);
   }, []);
 
-  useEffect(() => {
+  // Called after the component has synchronized elements and interaction
+  // classes. Cytoscape computes current bounds synchronously during fit, so its
+  // next renderer frame can draw the completed graph at the final viewport.
+  const onElementsSynced = useCallback(() => {
     const justFinished =
       !layout.running && completedLayoutsRef.current !== layout.completedLayouts;
-    if (justFinished) {
+    // A resize or queued restart can be requested earlier in this effect flush
+    // while this callback still sees the previous running state. Only committed
+    // positions from the current request may consume its fit intent.
+    if (
+      maySyncElements &&
+      cyRef.current &&
+      justFinished &&
+      positionedStructure.layoutRevision === layoutRequestRevisionRef.current
+    ) {
       completedLayoutsRef.current = layout.completedLayouts;
       if (fitAfterLayoutRef.current && nodes.length > 0) {
         const visibleNow = isContainerVisible();
         if (visibleNow) {
-          runFitView(undefined, completeLayoutFit);
+          viewportTask.cancel();
+          fitViewNow(undefined, completeLayoutFit);
         } else {
           // Layout finished while tab is hidden — defer reveal until visible
           pendingRevealFitRef.current = true;
@@ -291,8 +370,12 @@ export function useConfigGraphCircleViewport({
   }, [
     layout.running,
     layout.completedLayouts,
+    maySyncElements,
+    positionedStructure.layoutRevision,
+    cyRef,
     nodes.length,
-    runFitView,
+    viewportTask,
+    fitViewNow,
     isContainerVisible,
     completeLayoutFit,
   ]);
@@ -402,6 +485,8 @@ export function useConfigGraphCircleViewport({
   }, [cyRef]);
   return {
     observeContainer,
+    onElementsSynced,
+    maySyncElements,
     showLoadingOverlay,
     configGraphComputing,
     running: layout.running,

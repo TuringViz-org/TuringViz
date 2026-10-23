@@ -3,7 +3,10 @@ import type { Node, Edge } from '@xyflow/react';
 import { useTheme } from '@mui/material/styles';
 import { useGlobalZustand } from '@zustands/GlobalZustand';
 import { useGraphCurrentConfiguration } from '@hooks/useGraphCurrentConfiguration';
-import { useCurrentConfigHighlight } from '@hooks/useCurrentConfigHighlight';
+import {
+  configurationHashFromNodeId,
+  useCurrentConfigHighlight,
+} from '@hooks/useCurrentConfigHighlight';
 import { normalizeColor, resolveStateColor } from '@components/shared/stateColors';
 import { reconcileEdges, reconcileNodes } from '@utils/reactflow';
 import { ConfigNodeMode } from '@utils/constants';
@@ -34,7 +37,11 @@ export function useConfigGraphCircleData(active: boolean) {
     if (!configGraph) return { nodes: [], edges: [], topoKey: '' };
     return buildConfigGraph(configGraph, transitions, null, ConfigNodeMode.NODES);
   }, [configGraph, configGraphVersion, transitions]);
-  const base = useCurrentConfigHighlight(structure, currentConfig);
+  const base = useCurrentConfigHighlight(
+    structure,
+    currentConfig,
+    configurationHashFromNodeId
+  );
   const [nodes, setNodes] = useState<Node<ConfigNodeData>[]>(base.nodes);
   const [edges, setEdges] = useState<Edge<ConfigEdgeData>[]>(base.edges);
   const [structureKey, setStructureKey] = useState('');
@@ -67,7 +74,6 @@ export function useConfigGraphCircleData(active: boolean) {
     base.nodes,
     base.edges,
     base.topoKey,
-    structureKey,
     hideLabels,
     stateColorMatching,
   ]);
