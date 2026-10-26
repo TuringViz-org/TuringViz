@@ -31,6 +31,50 @@ state accept:
 state reject:`,
 };
 
+export const ZeroNOneN: ExampleTM = {
+  name: '0^n1^n',
+  code: `/*
+ * Decides L = {0^n1^n | n >= 0}.
+ * Input: A binary string on tape 1.
+ * Matched 0s and 1s are replaced by #.
+ */
+tapes: 1
+blank: " "
+input: "00001111"
+start: searchfirst1
+
+-- Find the first 1 and mark it.
+state searchfirst1:
+  on 0 -> move R;
+  on # -> move R;
+  on 1 -> write #; move L; goto searchlast0;
+  on " " -> move L; goto checkif0sleft;
+
+-- Match the marked 1 with the rightmost remaining 0.
+state searchlast0:
+  on # -> move L;
+  on 0 -> write #; move R; goto searchnext1;
+  -- No matching 0 exists.
+  on " " -> move R; goto reject;
+
+-- Find the next 1. No 0 may occur after the first 1.
+state searchnext1:
+  on # -> move R;
+  on 1 -> write #; move L; goto searchlast0;
+  on 0 -> move R; goto reject;
+  on " " -> move L; goto checkif0sleft;
+
+-- Accept only if all symbols have been matched.
+state checkif0sleft:
+  on # -> move L;
+  on [0, 1] -> move L; goto reject;
+  on " " -> move R; goto accept;
+
+state accept:
+
+state reject:`,
+};
+
 export const GCD: ExampleTM = {
   name: 'GCD',
   code: `/*
@@ -495,6 +539,7 @@ ExampleTMs.push(NonDetSubstring);
 ExampleTMs.push(vvWord);
 ExampleTMs.push(NonDetSubSetSum);
 ExampleTMs.push(CheckEven);
+ExampleTMs.push(ZeroNOneN);
 ExampleTMs.push(GCD);
 ExampleTMs.push(AllStrings);
 ExampleTMs.push(Fib);
