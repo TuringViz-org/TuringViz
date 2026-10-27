@@ -1,0 +1,265 @@
+/*
+FOUR-TAPE UNIVERSAL TURING MACHINE
+=================================
+
+Simulates deterministic single-tape Turing machines with the tape alphabet
+{0, 1, " "} and head movements L, R and S. The simulated tape is unbounded
+in both directions. The simulated input contains only 0 and 1;
+the empty word is also allowed.
+
+INPUT FORMAT ON TAPE 1
+---------------------
+  TransitionRules#InputWord
+
+Each rule has exactly this form:
+  State,Read,NextState,Write,Move;
+
+  State      Binary state number: 0, 1, 10, 11, 100, ...
+             No leading zeros, except for the number 0 itself.
+             There is no fixed limit on the length of state numbers.
+  Read       0, 1 or B
+  NextState  Binary state number or H, A, X
+  Write      0, 1 or B
+  Move       L = left, R = right, S = stay
+
+B represents an actual blank cell " " ONLY IN THE RULES.
+Only 0 and 1 may appear after #. A B in the input word is invalid.
+There are no additional spaces, line breaks or start/end markers inside
+the encoded input string. The first actual blank to the right of the
+string marks its end. The quotation marks in the input header are not
+part of the tape contents.
+
+Rules are concatenated directly; each ends with a semicolon.
+Their order is arbitrary. There must be at most one rule for each
+(State, Read) pair. No separate list of states is required.
+The rule list may also be empty: input: "#101" or input: "#".
+A missing rule for the current configuration causes the machine to halt.
+
+The simulated machine always starts in state 0. If necessary, rename
+its states accordingly before encoding it. Its head initially points
+to cell 0, the first symbol of the input word. For the empty word,
+cell 0 is blank. All cells outside the input word are also blank.
+
+Special next states (allowed only as rule targets, not as rule sources):
+  H  Halt without accepting or rejecting: enter state halt.
+  A  Accept and halt: enter state accept.
+  X  Reject and halt: enter state reject.
+The write action and head movement are performed even for H/A/X targets.
+If no rule matches, the universal TM also enters halt, without changing
+the simulated tape or its head position.
+An infinite computation is simulated indefinitely; there is no step limit
+built into this machine.
+
+There is NO input validation. Behavior for invalid encodings is unspecified.
+In particular, multiple rules for the same (State, Read) pair do not
+represent supported nondeterminism.
+
+TAPE ASSIGNMENTS
+----------------
+  Tape 1: Complete encoding. Read only; never modified.
+  Tape 2: Actual tape of the simulated machine, containing 0, 1 and blanks.
+          Its head IS the simulated head, including at negative positions.
+  Tape 3: Current simulated state number starting at cell 0; blank elsewhere.
+          At an explicit halt, it contains H, A or X instead.
+  Tape 4: Temporary storage for the next state, also starting at cell 0.
+          Completely cleared after each transfer.
+
+Only tape 1 receives an input segment. Tapes 2, 3 and 4 start blank;
+all initialization is performed by the TM rules below.
+
+SIMULATION AND INVARIANT
+-----------------------
+After initialization, each simulated step begins at cycle_start.
+At that point, the following invariant holds:
+  - Head 1 is at cell 0, on the first rule's first symbol or on #.
+  - Tape 2 and head 2 represent the simulated configuration.
+  - Tape 3 contains exactly the current binary state number; head 3 = 0.
+  - Tape 4 is blank; head 4 = 0.
+
+The TM searches the rules for a matching state AND read symbol.
+The entire state number must match: 1 is neither 10 nor 11.
+A nonmatching rule is skipped up to its semicolon.
+When a rule matches, its target is copied to tape 4, the old number on
+tape 3 is completely erased, and the target is transferred from tape 4
+to tape 3. Then the write action and movement are applied to tape 2,
+followed by the halt decision. For a numeric next state, the search
+restarts at the beginning of the program.
+
+After initialization, only apply_move moves head 2, exactly as specified
+by the encoded movement. A single simulated step generally consists of
+many steps of this universal TM. Tape 2 is the output tape; its head
+position is preserved when the machine halts.
+
+EXAMPLES: REPLACE THE ENTIRE INPUT HEADER WITH ONE OF THESE
+---------------------------------------------------------
+1. Invert all bits up to the first blank:
+   input: "0,0,0,1,R;0,1,0,0,R;0,B,H,B,S;#1010"
+   Result: 0101 in cells 0..3, head at cell 4, state halt.
+
+2. Empty input: write a 1 and accept:
+   input: "0,B,A,1,S;#"
+   Result: 1 in cell 0, head at cell 0, state accept.
+
+3. Check whether the number of ones is even:
+   input: "0,0,0,0,R;0,1,1,1,R;0,B,A,B,S;1,0,1,0,R;1,1,0,1,R;1,B,X,B,S;#1011"
+   Result: unchanged tape 1011, head at cell 4, state reject.
+   The input word 1010 reaches accept, as does the empty word.
+
+4. Decide the language {0^n1^n | n >= 0} (the default below):
+   input: "0,0,1,B,R;0,1,X,1,S;0,B,A,B,S;1,0,1,0,R;1,1,10,1,R;1,B,X,B,S;10,0,X,0,S;10,1,10,1,R;10,B,11,B,L;11,1,100,B,L;100,0,100,0,L;100,1,100,1,L;100,B,0,B,R;#000111"
+   Each round erases the leftmost 0, checks that the remaining symbols
+   consist of zeros followed by at least one 1, and erases the rightmost 1.
+   Then the head returns to the left end of the remaining word.
+   Only 0, 1 and blanks are used on the simulated tape; no extra markers.
+   State roles: 0 = select a pair, 1 = scan zeros, 10 = scan ones,
+   11 = erase the final 1, 100 = return to the remaining word's start.
+   Result for 000111: completely blank tape, head at cell 3, state accept.
+   Also accepts the empty word, 01, 0011, 00001111, etc.
+   Rejects 0, 1, 001, 011, 0101, 1100, etc.
+   The input is erased during matching; rejected inputs may be partly erased.
+
+5. Infinite computation:
+   input: "0,0,0,0,R;0,1,0,1,R;0,B,0,B,R;#101"
+   The simulated head keeps moving to the right forever.
+*/
+
+tapes: 4
+blank: " "
+alphabet: {0, 1, B, H, A, X, "L", "R", "S", ",", ";", #, " "}
+input: "0,0,1,B,R;0,1,X,1,S;0,B,A,B,S;1,0,1,0,R;1,1,10,1,R;1,B,X,B,S;10,0,X,0,S;10,1,10,1,R;10,B,11,B,L;11,1,100,B,L;100,0,100,0,L;100,1,100,1,L;100,B,0,B,R;#000111"
+start: initialize
+
+-- All heads start at 0. Set the simulated initial state to 0.
+state initialize:
+  on */*/*/* -> write same/same/0/same; move S/S/S/S; goto seek_input;
+
+-- Scan tape 1 up to the # separator; keep the other tape heads stationary.
+state seek_input:
+  if t1 not in {#, " "} then move R/S/S/S;
+  if t1 = # then move R/S/S/S; goto copy_input;
+
+-- Copy the binary word to tape 2. B is not an input symbol!
+-- Copying ends with both heads on the first blank to the right of the word.
+state copy_input:
+  if t1 = 0 then write same/0/same/same; move R/R/S/S;
+  if t1 = 1 then write same/1/same/same; move R/R/S/S;
+  if t1 = " " then move S/L/S/S; goto rewind_input;
+
+-- Since the input contains only 0/1, the first blank to its left is at -1.
+-- For the empty word, this phase starts directly at cell -1.
+state rewind_input:
+  if t2 in {0,1} then move S/L/S/S;
+  if t2 = " " then move L/R/S/S; goto rewind_program;
+
+-- Head 1 starts INSIDE the encoding, not on the blank to its right.
+-- The first blank to the left is at -1. Tape 1 always remains unchanged.
+state rewind_program:
+  if t1 != " " then move L/S/S/S;
+  if t1 = " " then move R/S/S/S; goto cycle_start;
+
+-- Boundary between simulated steps; see the invariant in the main comment.
+state cycle_start:
+  on */*/*/* -> move S/S/S/S; goto candidate_start;
+
+-- Head 1: first symbol of a candidate rule's source state, or #; head 3: cell 0.
+-- # means that the entire rule list has been searched without a match.
+state candidate_start:
+  if t1 in {0,1} then move S/S/S/S; goto compare_state;
+  if t1 = # then move S/S/S/S; goto halt;
+
+-- Compare both numbers symbol by symbol. They match only if the comma AND
+-- the blank are reached simultaneously. A proper prefix is not a match.
+state compare_state:
+  if (t1 = 0 and t3 = 0) or (t1 = 1 and t3 = 1) then move R/S/R/S;
+  if t1 = "," and t3 = " " then move R/S/S/S; goto compare_read;
+  if (t1 = 0 and t3 in {1," "}) or (t1 = 1 and t3 in {0," "}) or (t1 = "," and t3 in {0,1}) then move S/S/S/S; goto skip_rule;
+
+-- Head 1: encoded read symbol; head 3: blank immediately after the number.
+-- B on tape 1 is compared with an actual blank on tape 2.
+state compare_read:
+  if (t1 = 0 and t2 = 0) or (t1 = 1 and t2 = 1) or (t1 = B and t2 = " ") then move R/S/S/S; goto before_target;
+  if (t1 = 0 and t2 in {1," "}) or (t1 = 1 and t2 in {0," "}) or (t1 = B and t2 in {0,1}) then move S/S/S/S; goto skip_rule;
+
+-- Skip the current rule; leave the simulated tape unchanged.
+-- Head 3 may be within its number or immediately after it.
+state skip_rule:
+  if t1 != ";" then move R/S/S/S;
+  if t1 = ";" then move R/S/L/S; goto rewind_state_for_candidate;
+
+-- Head 3 has already moved one cell left before entering this state.
+-- This also handles a mismatch at the very first symbol of the number.
+state rewind_state_for_candidate:
+  if t3 in {0,1} then move S/S/L/S;
+  if t3 = " " then move S/S/R/S; goto candidate_start;
+
+-- The source state and read symbol match. Skip the second comma.
+state before_target:
+  if t1 = "," then move R/S/S/S; goto copy_target;
+
+-- Copy the target to tape 4 starting at cell 0; preserve tape 3 for now.
+-- On completion: head 1 -> write symbol, head 3 -> final symbol of the old ID.
+state copy_target:
+  if t1 = 0 then write same/same/same/0; move R/S/S/R;
+  if t1 = 1 then write same/same/same/1; move R/S/S/R;
+  if t1 = H then write same/same/same/H; move R/S/S/R;
+  if t1 = A then write same/same/same/A; move R/S/S/R;
+  if t1 = X then write same/same/same/X; move R/S/S/R;
+  if t1 = "," then move R/S/L/S; goto erase_old_state;
+
+-- Erase the entire old number, leaving no suffix if the next state is shorter.
+-- Head 1 waits on the write symbol throughout the state transfer.
+state erase_old_state:
+  if t3 in {0,1} then write same/same/" "/same; move S/S/L/S;
+  if t3 = " " then move S/S/R/L; goto rewind_target;
+
+-- Head 3 is now at 0 and tape 3 is blank. Head 4 starts on the final target symbol.
+state rewind_target:
+  if t4 in {0,1,H,A,X} then move S/S/S/L;
+  if t4 = " " then move S/S/S/R; goto install_target;
+
+-- Transfer the target to tape 3 while clearing tape 4.
+-- Both heads move together and finish immediately after the new ID.
+state install_target:
+  if t4 = 0 then write same/same/0/" "; move S/S/R/R;
+  if t4 = 1 then write same/same/1/" "; move S/S/R/R;
+  if t4 = H then write same/same/H/" "; move S/S/R/R;
+  if t4 = A then write same/same/A/" "; move S/S/R/R;
+  if t4 = X then write same/same/X/" "; move S/S/R/R;
+  if t4 = " " then move S/S/L/L; goto rewind_installed_state;
+
+-- Tape 4 is blank. Use the new ID on tape 3 to determine how far BOTH heads
+-- must move left together to return to cell 0.
+state rewind_installed_state:
+  if t3 in {0,1,H,A,X} then move S/S/L/L;
+  if t3 = " " then move S/S/R/R; goto apply_write;
+
+-- Now overwrite the simulated tape cell; B means erase it by writing a blank.
+state apply_write:
+  if t1 = 0 then write same/0/same/same; move R/S/S/S; goto before_move;
+  if t1 = 1 then write same/1/same/same; move R/S/S/S; goto before_move;
+  if t1 = B then write same/" "/same/same; move R/S/S/S; goto before_move;
+
+-- Skip the fourth comma and read the movement symbol.
+state before_move:
+  if t1 = "," then move R/S/S/S; goto apply_move;
+
+-- Move the simulated head here. Negative positions are allowed.
+state apply_move:
+  if t1 = "L" then move S/L/S/S; goto dispatch_target;
+  if t1 = "R" then move S/R/S/S; goto dispatch_target;
+  if t1 = "S" then move S/S/S/S; goto dispatch_target;
+
+-- BOTH writing and movement are complete. Only now may the machine halt.
+-- For a numeric target, head 1 is still inside the rule that was just applied.
+state dispatch_target:
+  if t3 = H then move S/S/S/S; goto halt;
+  if t3 = A then move S/S/S/S; goto accept;
+  if t3 = X then move S/S/S/S; goto reject;
+  if t3 in {0,1} then move L/S/S/S; goto rewind_program;
+
+-- Terminal states have no outgoing rules.
+state halt:
+
+state accept:
+
+state reject:

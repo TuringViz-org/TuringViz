@@ -1,0 +1,17 @@
+/*
+ * Generating all possible strings of given length,
+ * consisting of 0's and 1's. The input length is 3.
+ */
+tapes: 1
+blank: " "
+input: "000"
+start: generate
+
+state generate:
+  on 0 -> choose {
+    write 0; move R;
+    write 1; move R;
+  }
+  on " " -> move S; goto done;
+
+state done:

@@ -1,0 +1,57 @@
+/*
+ * Computes the GCD of two numbers in unary.
+ * Example input: 6 and 4 in unary.
+ */
+tapes: 4
+blank: " "
+input: "000000#0000"
+start: copy_first
+
+state copy_first:
+  on 0/" "/" "/" " -> write same/0/same/same; move R/R/S/S;
+  on #/" "/" "/" " -> move R/S/S/S; goto copy_second;
+
+state copy_second:
+  on 0/" "/" "/" " -> write same/same/0/same; move R/S/R/S;
+  on " "/" "/" "/" " -> move L/L/L/S; goto move_to_begin;
+
+state move_to_begin:
+  on [0/0/0/" ", #/0/0/" "] -> move L/L/L/S;
+  on [0/0/" "/" ", #/0/" "/" "] -> move L/L/S/S;
+  on [0/" "/" "/" ", #/" "/" "/" "] -> move L/S/S/S;
+  on [0/" "/0/" ", #/" "/0/" "] -> move L/S/L/S;
+  on " "/0/" "/" " -> move S/L/S/S;
+  on " "/" "/0/" " -> move S/S/L/S;
+  on " "/" "/" "/" " -> move R/R/R/S; goto euclid;
+
+state euclid:
+  on */0/0/" " -> move S/R/R/S;
+  on */" "/0/" " -> move S/L/R/S; goto firstsmaller_goright;
+  on */0/" "/" " -> move S/R/L/S; goto secondsmaller_goright;
+  on */" "/" "/" " -> move S/L/L/S; goto copy_result;
+
+state firstsmaller_goright:
+  on */0/0/" " -> move S/S/R/S;
+  on */0/" "/" " -> move S/S/L/S; goto firstsmaller_substract;
+
+state secondsmaller_goright:
+  on */0/0/" " -> move S/R/S/S;
+  on */" "/0/" " -> move S/L/S/S; goto secondsmaller_substract;
+
+state firstsmaller_substract:
+  on */0/0/" " -> write same/0/" "/" "; move S/L/L/S;
+  on */" "/0/" " -> move S/S/S/S; goto move_to_begin;
+
+state secondsmaller_substract:
+  on */0/0/" " -> write same/" "/0/" "; move S/L/L/S;
+  on */0/" "/" " -> move S/S/S/S; goto move_to_begin;
+
+state copy_result:
+  on */0/0/" " -> write same/same/same/0; move S/L/L/R;
+  on */" "/" "/" " -> move S/R/R/L; goto finish_up;
+
+state finish_up:
+  on */*/*/0 -> move S/S/S/L;
+  on */*/*/" " -> move S/S/S/R; goto accept;
+
+state accept:

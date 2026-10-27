@@ -1,0 +1,39 @@
+/*
+ * Check if string is two times the same string.
+ * Input: A string w. Program checks (non-det) if w = vv for some string v.
+ */
+tapes: 2
+blank: " "
+input: "010010"
+start: gobyone
+
+state gobyone:
+  on */* -> move R/S; goto goright;
+
+state goright:
+  -- Go right or choose this location as the middle
+  on [0/*, 1/*] -> choose {
+    move R/S;
+    move S/S; goto copydown;
+  }
+  on " "/* -> move S/S; goto reject;
+
+-- Copy the remaining string
+state copydown:
+  on 0/* -> write " "/0; move R/R;
+  on 1/* -> write " "/1; move R/R;
+  on " "/* -> move S/L; goto gotoendfirst;
+
+state gotoendfirst:
+  on " "/* -> move L/S;
+  on [1/*, 0/*] -> move S/S; goto compare;
+
+-- Compare if the split creates two strings that are the same
+state compare:
+  on [1/1, 0/0] -> move L/L;
+  on " "/" " -> move S/S; goto accept;
+  on [1/0, 0/1, " "/1, " "/0, 1/" ", 0/" "] -> move S/S; goto reject;
+
+state accept:
+
+state reject:

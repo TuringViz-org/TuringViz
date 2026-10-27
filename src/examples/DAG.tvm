@@ -1,0 +1,20 @@
+/*
+ * Computing a config graph that is a DAG.
+ * The input length is 6.
+ */
+tapes: 1
+blank: " "
+input: "000000"
+start: go
+
+state go:
+  on 0 -> choose {
+    move R;
+    move S; goto goright;
+  }
+  on " " -> move S; goto done;
+
+state goright:
+  on 0 -> move R; goto go;
+
+state done:

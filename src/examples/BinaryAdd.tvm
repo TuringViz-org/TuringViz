@@ -1,0 +1,24 @@
+-- Binary addition on 2 tapes with output on tape 3
+tapes: 3
+blank: " "
+input: "111010" | "1111"
+start: goright
+
+state goright:
+  on [1/1/*, 1/0/*, 0/1/*, 0/0/*] -> move R/R/S;
+  on [1/" "/*, 0/" "/*] -> move R/S/S;
+  on [" "/1/*, " "/0/*] -> move S/R/S;
+  on " "/" "/* -> move L/L/S; goto add;
+
+state add:
+  on 1/1/* -> write same/same/0; move L/L/L; goto carry;
+  on [1/0/*, 0/1/*, 1/" "/*, " "/1/*] -> write same/same/1; move L/L/L; goto add;
+  on [0/0/*, 0/" "/*, " "/0/*] -> write same/same/0; move L/L/L; goto add;
+
+state carry:
+  on 1/1/* -> write same/same/1; move L/L/L; goto carry;
+  on [1/0/*, 0/1/*, 1/" "/*, " "/1/*] -> write same/same/0; move L/L/L; goto carry;
+  on [0/0/*, 0/" "/*, " "/0/*] -> write same/same/1; move L/L/L; goto add;
+  on " "/" "/* -> write same/same/1; move S/S/S; goto done;
+
+state done:

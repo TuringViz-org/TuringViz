@@ -1,0 +1,70 @@
+/*
+ * Nondeterministic SubSetSum for binary numbers.
+ * Input: #n1#n2#...# on tape 1, target sum on tape 2.
+ */
+tapes: 3
+blank: " "
+alphabet: {0, 1, #, " "}
+input: "#100#11#10#101#" | "1000"
+start: choose_state
+
+-- Decide nondeterministically whether the current number belongs to the subset.
+state choose_state:
+  on #/*/* -> move R/S/S;
+  if t1 not in {#, " "} then choose {
+    move S/S/S; goto skip;
+    move S/S/S; goto take;
+  }
+  on " "/*/* -> move S/S/S; goto goforcompare;
+
+-- Ignore the current number and continue with the next block.
+state skip:
+  if t1 not in {#, " "} then move R/S/S;
+  on #/*/* -> move R/S/S; goto choose_state;
+
+-- Move to the right end of the chosen number before adding it to tape 3.
+state take:
+  if t1 not in {#, " "} then move R/S/S;
+  on #/*/* -> move L/S/S; goto add;
+  on " "/*/* -> move S/S/S; goto goforcompare;
+
+-- Add the chosen binary number to the accumulated sum on tape 3.
+state add:
+  on 0/*/{0,1} -> move L/S/L;
+  on 1/*/!1 -> write same/same/1; move L/S/L;
+  on 0/*/" " -> write same/same/0; move L/S/L;
+  on 1/*/1 -> write same/same/0; move L/S/L; goto carry;
+  on #/*/* -> move R/S/R; goto continue;
+
+state carry:
+  -- Propagate the carry to the left until the addition can continue.
+  on 0/*/0 -> write same/same/1; move L/S/L; goto add;
+  on [1/*/{0," "}, 0/*/1] -> write same/same/0; move L/S/L; goto carry;
+  on [#/*/{0," "}, 0/*/" "] -> write same/same/1; move R/S/R; goto continue;
+  on #/*/1 -> write same/same/0; move S/S/L; goto carry;
+  on 1/*/0 -> move L/S/L;
+  on 1/*/1 -> write same/same/1; move L/S/L; goto carry;
+
+-- Return to the next input number, keeping tape 3 aligned with the sum.
+state continue:
+  on {0,1}/*/{0,1} -> move R/S/R;
+  on #/*/{0,1} -> move S/S/R;
+  on {0,1}/*/" " -> move R/S/S;
+  on #/*/" " -> move R/S/L; goto choose_state;
+
+-- Move both sums to their left ends before comparing target and result.
+state goforcompare:
+  on */{0,1}/{0,1} -> move S/L/L;
+  on */" "/{0,1} -> move S/S/L;
+  on */{0,1}/" " -> move S/L/S;
+  on */" "/" " -> move S/R/R; goto compare;
+
+-- Accept exactly if target sum on tape 2 equals accumulated sum on tape 3.
+state compare:
+  on [*/1/1, */0/0] -> move S/R/R;
+  on */" "/" " -> move S/S/S; goto accept;
+  on [*/1/!1, */0/!0, */" "/{0,1}] -> move S/S/S; goto reject;
+
+state accept:
+
+state reject:

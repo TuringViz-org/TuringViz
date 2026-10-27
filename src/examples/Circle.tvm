@@ -1,0 +1,13 @@
+-- Creates a config graph that is a circle
+tapes: 1
+blank: " "
+input: "0"
+start: goright
+
+state goright:
+  on 0 -> move R;
+  on " " -> move L; goto goleft;
+
+state goleft:
+  on 0 -> move L;
+  on " " -> move R; goto goright;

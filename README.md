@@ -107,7 +107,7 @@ The **Load Examples** menu includes machines ranging from simple recognizers to
 nondeterministic search problems.
 
 <details>
-<summary>Browse all 11 examples</summary>
+<summary>Browse all 13 examples</summary>
 
 | Example           | What it demonstrates                                                         |
 | ----------------- | ---------------------------------------------------------------------------- |
@@ -116,14 +116,28 @@ nondeterministic search problems.
 | `vvWord`          | Checks whether the input is the same substring repeated twice.               |
 | `NonDetSubSetSum` | Solves subset sum nondeterministically using binary-encoded numbers.         |
 | `CheckEven`       | Accepts binary inputs containing an even number of `1` symbols.              |
+| `0^n1^n`         | Checks for equally many zeros followed by ones.                              |
 | `GCD`             | Computes the greatest common divisor of two unary numbers.                   |
 | `AllStrings`      | Generates all binary strings of a fixed input length.                        |
 | `Fib`             | Has exactly `fib(n)` accepting paths on input `1^n`.                         |
 | `DAG`             | Produces an acyclic configuration graph.                                     |
 | `Circle`          | Produces a cyclic configuration graph.                                       |
 | `NonDetSAT`       | Solves SAT nondeterministically for formulas in conjunctive normal form.     |
+| `UniversalTM`    | Simulates an encoded single-tape machine on four tapes; defaults to `0^n1^n`. |
 
 </details>
+
+To add an example, save its source as a `.tvm` file in `src/examples/` and add
+one registration in `src/utils/ExampleTMs.ts`:
+
+```ts
+export const MyMachine = registerExample('My machine', 'MyMachine.tvm');
+```
+
+The first argument is the menu label; the second is the filename relative to
+`src/examples/` (subfolders are supported). Registration order determines menu
+order. The source files are bundled automatically; no separate import or menu
+change is needed. Edit an existing `.tvm` file to update that example.
 
 ## Local development
 

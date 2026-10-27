@@ -1,0 +1,22 @@
+/*
+ * Checks if the number of 1's in the input
+ * (consisting of 0's and 1's) is even.
+ */
+tapes: 1
+blank: " "
+input: "101100001100000111000000000011111"
+start: even
+
+state even:
+  on 0 -> move R;
+  on 1 -> move R; goto odd;
+  on " " -> move S; goto accept;
+
+state odd:
+  on 0 -> move R;
+  on 1 -> move R; goto even;
+  on " " -> move S; goto reject;
+
+state accept:
+
+state reject:

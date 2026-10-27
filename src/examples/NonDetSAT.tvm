@@ -1,0 +1,129 @@
+/*
+ * Nondeterministic SAT for CNF formulas.
+ * Encoding: n = not, o = or, a = and; each clause uses parentheses.
+ */
+tapes: 3
+blank: " "
+alphabet: {0, 1, #, n, o, a, "(", ")", " "}
+input: "(n101o10on100)a(n10o100o101)a(n11on10o111)a(n100o110on111)"
+start: variables
+
+-- Scan the formula and collect each distinct variable on tape 2.
+state variables:
+  if t1 not in {0,1," "} then move R/S/S;
+  on {0,1}/*/* -> move S/S/S; goto findvar;
+  on " "/{0,1}/* -> move L/L/S; goto goleftfirsttape;
+
+-- Compare the variable under tape 1 with variables already listed on tape 2.
+state findvar:
+  on [1/1/*, 0/0/*] -> move R/R/S;
+  if (t1 = 1 and t2 in {0,#}) or (t1 = 0 and t2 in {1,#}) or (t1 in {a,o,"(",")"} and t2 in {0,1}) then move L/S/S; goto goleftonevarfirst_gorightonevarsecond;
+  on {o,a,"(",")",n}/#/* -> move S/S/S; goto gorightonefirst_goleftsecond;
+  on {0,1}/" "/* -> move S/S/S; goto writedownvariable;
+
+-- Rewind tape 1 to the variable start and advance tape 2 to the next variable.
+state goleftonevarfirst_gorightonevarsecond:
+  on {"(",")",a,o,n}/#/* -> move S/R/S; goto variables;
+  on {0,1}/{0,1}/* -> move L/R/S;
+  on {0,1}/#/* -> move L/S/S;
+  on {a,o,"(",")",n}/{0,1}/* -> move S/R/S;
+
+-- Copy a variable that has not appeared before, terminated by # on tape 2.
+state writedownvariable:
+  on 1/*/* -> write same/1/same; move R/R/S;
+  on 0/*/* -> write same/0/same; move R/R/S;
+  on {"(",n,o,")"}/*/* -> write same/#/same; move S/L/S; goto gorightonefirst_goleftsecond;
+
+-- Move tape 1 past the current variable while rewinding tape 2.
+state gorightonefirst_goleftsecond:
+  on {"(",")",a,o,n}/" "/* -> move S/R/S; goto variables;
+  on {"(",")",a,o,n}/{0,1,#}/* -> move S/L/S;
+  on {0,1}/{0,1,#}/* -> move R/L/S;
+
+state goleftfirsttape:
+  if t1 != " " then move L/S/S;
+  on " "/" "/* -> move R/R/S; goto guessassignment;
+
+-- Guess one truth value on tape 3 for every variable stored on tape 2.
+state guessassignment:
+  on */{0,1}/* -> choose {
+    write same/same/1; move S/R/R; goto nextvar;
+    write same/same/0; move S/R/R; goto nextvar;
+  }
+  on */" "/" " -> move S/L/L; goto goeval;
+
+state nextvar:
+  on */!#/* -> move S/R/S;
+  on */#/* -> move S/R/S; goto guessassignment;
+
+-- Rewind assignment tapes before evaluating the formula from the left.
+state goeval:
+  on */{0,1,#}/{0,1} -> move S/L/L;
+  on */{0,1,#}/" " -> move S/L/S;
+  on */" "/{0,1} -> move S/S/L;
+  on */" "/" " -> move S/R/R; goto eval;
+
+-- Evaluate the current clause; a closing parenthesis means no literal was true.
+state eval:
+  on ")"/*/* -> move S/S/S; goto reject;
+  on {"(",a,o}/*/* -> move R/S/S;
+  on " "/*/* -> move S/S/S; goto accept;
+  on {0,1}/*/* -> move S/S/S; goto evalpositive;
+  on n/*/* -> move R/S/S; goto evalnegative;
+
+-- Search the variable table; a positive literal is true when its assignment is 1.
+state evalpositive:
+  on [0/0/*, 1/1/*] -> move R/R/S;
+  on [1/0/*, 0/1/*, {o,")"}/{0,1}/*] -> move L/R/S; goto evalpositive_nextvarsearch;
+  on {0,1}/#/* -> move S/S/S; goto evalpositive_nextvarsearch;
+  on {o,")"}/#/1 -> move S/S/S; goto nextclause;
+  on {o,")"}/#/0 -> move S/S/S; goto reset_second_third_tape;
+
+-- Move to the next stored variable after a failed positive-literal match.
+state evalpositive_nextvarsearch:
+  on {0,1}/{0,1}/* -> move L/R/S;
+  on {0,1}/#/* -> move L/S/S;
+  on {n,o,"("}/{0,1}/* -> move S/R/S;
+  on {o,n,"("}/#/* -> move R/R/R; goto evalpositive;
+
+state nextclause:
+  -- A satisfied literal skips the rest of the clause.
+  on */*/* -> move S/S/S; goto movefirsttonextclause;
+
+state movefirsttonextclause:
+  on {0,1,o,n}/*/* -> move R/S/S;
+  on ")"/*/* -> move R/S/S; goto movesecondtonextclause;
+
+state movesecondtonextclause:
+  on */{0,1,#}/* -> move S/L/S;
+  on */" "/* -> move S/R/S; goto movethirdtonextclause;
+
+state movethirdtonextclause:
+  on */*/{0,1} -> move S/S/L;
+  on */*/" " -> move S/S/R; goto eval;
+
+-- Reset variable and assignment heads after a literal evaluated to false.
+state reset_second_third_tape:
+  on */{0,1,#}/{0,1} -> move S/L/L;
+  on */{0,1,#}/" " -> move S/L/S;
+  on */" "/{0,1} -> move S/S/L;
+  on */" "/" " -> move S/R/R; goto eval;
+
+-- Search the variable table; a negative literal is true when its assignment is 0.
+state evalnegative:
+  on [0/0/*, 1/1/*] -> move R/R/S;
+  on [1/0/*, 0/1/*, {o,")"}/{0,1}/*] -> move L/R/S; goto evalnegative_nextvarsearch;
+  on {0,1}/#/* -> move S/S/S; goto evalnegative_nextvarsearch;
+  on {o,")"}/#/0 -> move S/S/S; goto nextclause;
+  on {o,")"}/#/1 -> move S/S/S; goto reset_second_third_tape;
+
+-- Move to the next stored variable after a failed negative-literal match.
+state evalnegative_nextvarsearch:
+  on {0,1}/{0,1}/* -> move L/R/S;
+  on {0,1}/#/* -> move L/S/S;
+  on {n,o,"("}/{0,1}/* -> move S/R/S;
+  on {o,n,"("}/#/* -> move R/R/R; goto evalnegative;
+
+state accept:
+
+state reject:

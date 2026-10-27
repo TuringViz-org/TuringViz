@@ -1,0 +1,24 @@
+-- On input 1^n, this machine has exactly fib(n) accepting paths
+tapes: 1
+blank: _
+input: "1111111"
+start: start_state
+
+state start_state:
+  on 1 -> move R; goto fib;
+  on _ -> move S; goto reject;
+
+state fib:
+  on 1 -> choose {
+    move R; goto fib;
+    move R; goto take2;
+  }
+  on _ -> move S; goto accept;
+
+state take2:
+  on 1 -> move R; goto fib;
+  on _ -> move S; goto reject;
+
+state accept:
+
+state reject:
